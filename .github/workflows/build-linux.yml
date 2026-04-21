@@ -1,0 +1,105 @@
+name: Build Linux Tarball
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version string (defaults to contents of VERSION file)'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VER="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VER="${GITHUB_REF#refs/tags/v}"
+          else
+            VER="$(cat VERSION 2>/dev/null || echo '1.0.6')"
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VER"
+
+      - name: Syntax-check shell scripts
+        run: |
+          for f in linux/install.sh linux/uninstall.sh linux/kivun-launch.sh linux/nautilus-script payload/languages.sh; do
+            echo "Checking $f"
+            bash -n "$f"
+          done
+
+      - name: Generate statusline.mjs SHA256
+        run: |
+          # Integrity check for the shipped statusline. The installer
+          # compares this against the file at install time.
+          sha256sum payload/statusline.mjs > payload/statusline.mjs.sha256
+          cat payload/statusline.mjs.sha256
+
+      - name: Dry-run install (non-interactive)
+        run: |
+          # Pre-install the system packages the installer would fetch — we'd
+          # rather fail here in CI than silently skip them.
+          sudo apt-get update -y
+          sudo apt-get install -y konsole nodejs npm git fonts-noto-color-emoji zenity
+          # Skip the sudo-keepalive and package-install paths by setting
+          # $CI=1 — installer should still deploy user files correctly.
+          chmod +x linux/install.sh linux/uninstall.sh linux/kivun-launch.sh
+          # Run but don't fail the build on non-fatal warnings.
+          ./linux/install.sh || true
+          # Verify key artifacts landed
+          test -x "$HOME/.local/bin/kivun-terminal" || (echo "launcher missing"; exit 1)
+          test -f "$HOME/.local/share/kivun-terminal/statusline.mjs" || (echo "statusline missing"; exit 1)
+          test -f "$HOME/.local/share/kivun-terminal/languages.sh" || (echo "languages.sh missing"; exit 1)
+          test -f "$HOME/.local/share/kivun-terminal/settings.json" || (echo "settings.json missing"; exit 1)
+          test -f "$HOME/.local/share/konsole/KivunTerminal.profile" || (echo "konsole profile missing"; exit 1)
+          test -f "$HOME/.local/share/konsole/ColorSchemeNoam.colorscheme" || (echo "konsole color scheme missing"; exit 1)
+          test -f "$HOME/.local/share/applications/kivun-terminal.desktop" || (echo "app-menu entry missing"; exit 1)
+          test -x "$HOME/.local/share/nautilus/scripts/Open with Kivun Terminal" || (echo "nautilus script missing"; exit 1)
+          test -f "$HOME/.local/share/kio/servicemenus/open-with-kivun-terminal.desktop" || (echo "dolphin servicemenu missing"; exit 1)
+          test -f "$HOME/.config/kivun-terminal/config.txt" || (echo "config missing"; exit 1)
+          # Spot-check the desktop file for the sh -c quoting fix
+          grep -q 'exec "$HOME/.local/bin/kivun-terminal"' "$HOME/.local/share/applications/kivun-terminal.desktop" \
+            || (echo "desktop entry Exec= does not use HOME-safe quoting"; exit 1)
+          # Spot-check settings.json has a Linux path (no C:\)
+          grep -q '"node ' "$HOME/.local/share/kivun-terminal/settings.json" \
+            || (echo "settings.json statusLine command broken"; exit 1)
+          ! grep -q 'C:' "$HOME/.local/share/kivun-terminal/settings.json" \
+            || (echo "settings.json contains Windows path"; exit 1)
+          echo "Install verification passed"
+
+      - name: Build tarball
+        run: |
+          VER="${{ steps.version.outputs.version }}"
+          mkdir -p build
+          TAR="build/kivun-terminal-linux-${VER}.tar.gz"
+          # Prefix entries with versioned dir so extraction is tidy
+          tar --transform "s,^,kivun-terminal-${VER}/," \
+              -czf "$TAR" \
+              linux/ payload/ LICENSE VERSION
+          ls -lh "$TAR"
+          tar -tzf "$TAR" | head -20
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kivun-terminal-linux-${{ steps.version.outputs.version }}
+          path: build/kivun-terminal-linux-${{ steps.version.outputs.version }}.tar.gz
+          if-no-files-found: error
+
+      - name: Attach to release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/kivun-terminal-linux-${{ steps.version.outputs.version }}.tar.gz
+          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') }}
+          fail_on_unmatched_files: true

@@ -1,0 +1,97 @@
+# Kivun Terminal Configuration
+# Primary RTL language and response language settings
+
+# =================================================================
+# PRIMARY RTL LANGUAGE
+# =================================================================
+# Your primary RTL language (selected during installation)
+# This determines which RTL language you primarily work with
+PRIMARY_LANGUAGE=hebrew
+
+# =================================================================
+# CLAUDE RESPONSE LANGUAGE
+# =================================================================
+# Controls what language Claude Code responds in.
+#
+# Supported Languages (23):
+#   english       - English (default - best for technical content)
+#   hebrew        - Hebrew (עברית)
+#   arabic        - Arabic (العربية)
+#   persian       - Persian / Farsi (فارسی)
+#   urdu          - Urdu (اردو)
+#   kurdish       - Kurdish (کوردی)
+#   pashto        - Pashto (پښتو)
+#   sindhi        - Sindhi (سنڌي)
+#   yiddish       - Yiddish (ייִדיש)
+#   syriac        - Syriac (ܣܘܪܝܝܐ)
+#   dhivehi       - Dhivehi / Maldivian (ދިވެހި)
+#   nko           - N'Ko (ߒߞߏ)
+#   adlam         - Adlam (𞤢𞤣𞤤𞤢𞤥)
+#   mandaic       - Mandaic (ࡌࡀࡍࡃࡀࡉࡉࡀ)
+#   samaritan     - Samaritan Hebrew (ࠀࠁࠂ)
+#   dari          - Dari (دری)
+#   uyghur        - Uyghur (ئۇيغۇرچە)
+#   balochi       - Balochi (بلۏچی)
+#   kashmiri      - Kashmiri (کٲشُر)
+#   shahmukhi     - Punjabi Shahmukhi (پنجابی)
+#   azeri-south   - Southern Azeri (تۆرکجه)
+#   jawi          - Malay Jawi (جاوي)
+#   turoyo        - Turoyo / Neo-Aramaic (ܛܘܪܝܐ)
+#
+# Default: english (recommended for development / technical work)
+# You can change this anytime and restart the Kivun Terminal launcher.
+RESPONSE_LANGUAGE=english
+
+# =================================================================
+# UBUNTU CREDENTIALS
+# =================================================================
+# The WSL Ubuntu account is created interactively during installation —
+# the installer prompts for a username and password in a terminal the
+# first time Ubuntu boots. There are no credential keys in this file
+# (earlier builds shipped USERNAME=username / PASSWORD=password defaults;
+# those were removed because secret-scanners flagged them and they were
+# also terrible defaults).
+
+# =================================================================
+# VCXSRV X SERVER (KEYBOARD SWITCHING)
+# =================================================================
+# Set to true to use VcXsrv instead of WSLg for Konsole display.
+# This enables Alt+Shift keyboard language switching inside Konsole.
+#
+# Requires VcXsrv to be installed:
+#   - Select "VcXsrv X Server" during installation, OR
+#   - Install manually from https://sourceforge.net/projects/vcxsrv/
+#
+# Default: true (uses VcXsrv for reliable Alt+Shift keyboard switching)
+# Set to false to force WSLg mode (no Alt+Shift, but no VcXsrv dependency)
+USE_VCXSRV=true
+
+# =================================================================
+# FOLDER PICKER ON LAUNCH
+# =================================================================
+# When true, the desktop shortcut pops a native Windows folder-browse
+# dialog before Konsole opens — pick the working directory each time.
+# When false, the shortcut always opens in %USERPROFILE%.
+#
+# Right-click "Open with Kivun Terminal" on a folder always uses that
+# folder directly — this setting is ignored in that path.
+#
+# Default: false
+FOLDER_PICKER=false
+
+# =================================================================
+# TEXT DIRECTION (RTL INPUT)
+# =================================================================
+# Controls input text alignment in the terminal
+#   rtl  - Right-aligned input (Hebrew/Arabic text hugs right edge)
+#   ltr  - Left-aligned input (default terminal behavior)
+#
+# Default: rtl
+TEXT_DIRECTION=rtl
+
+# =================================================================
+# For more information:
+# - SECURITY.txt - Password security explained
+# - CREDENTIALS.txt - Login information
+# - README_INSTALLATION.md - Full setup guide
+# =================================================================

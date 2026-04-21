@@ -1,0 +1,814 @@
+#!/bin/bash
+# Kivun Terminal — macOS dependency installer (postinstall)
+# Runs as root after .pkg installation
+
+# Do NOT use set -e — we handle errors per-step so one failure doesn't kill
+# the whole install. But DO use pipefail so `cmd | tee -a LOG` doesn't mask
+# upstream failures (curl-fails-but-tee-succeeds → we'd chmod+exec an empty
+# file and log "installed" without actually installing).
+set -o pipefail
+LOG_FILE="/tmp/kivun_install.log"
+REAL_USER="${SUDO_USER:-$(stat -f '%Su' /dev/console)}"
+REAL_HOME=$(dscl . -read "/Users/$REAL_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+REAL_HOME="${REAL_HOME:-/Users/$REAL_USER}"
+
+log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
+
+# Run command as the real user with proper PATH including Homebrew
+run_as_user() {
+    sudo -u "$REAL_USER" bash -l -c "$1"
+}
+
+log "=== Kivun Terminal macOS Installer ==="
+log "User: $REAL_USER | Home: $REAL_HOME"
+log "Arch: $(uname -m) | macOS: $(sw_vers -productVersion)"
+
+# --- Xcode Command Line Tools (required for Homebrew & Git) ---
+log "Checking Xcode CLT..."
+CLT_PATH=$(xcode-select -p 2>&1) || true
+log "xcode-select -p: '$CLT_PATH' (exit: $?)"
+
+if ! xcode-select -p &>/dev/null; then
+    log "CLT not installed — attempting non-interactive install via softwareupdate"
+    touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+
+    log "Running: softwareupdate -l (listing available updates)..."
+    SWUPDATE_OUTPUT=$(softwareupdate -l 2>&1) || true
+    log "softwareupdate -l output:"
+    echo "$SWUPDATE_OUTPUT" >> "$LOG_FILE"
+
+    CLT_LABEL=$(echo "$SWUPDATE_OUTPUT" | grep 'Label:.*Command Line Tools' | sed 's/.*Label: //' | sed 's/[[:space:]]*$//' | head -1)
+    log "Parsed CLT label: '$CLT_LABEL'"
+
+    if [ -n "$CLT_LABEL" ]; then
+        log "Installing: $CLT_LABEL (this may take 5-10 minutes)..."
+        softwareupdate -i "$CLT_LABEL" 2>&1 | tee -a "$LOG_FILE"
+        SW_EXIT=$?
+        log "softwareupdate -i exit code: $SW_EXIT"
+    else
+        log "WARNING: No CLT package found in Software Update catalog"
+        log "Attempting xcode-select --install as fallback..."
+        xcode-select --install 2>&1 | tee -a "$LOG_FILE" || true
+    fi
+
+    rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+
+    if xcode-select -p &>/dev/null; then
+        log "Xcode CLT installed at: $(xcode-select -p)"
+    else
+        log "WARNING: Xcode CLT still not detected after install attempt"
+    fi
+else
+    log "Xcode CLT already installed at: $CLT_PATH"
+fi
+
+# --- Homebrew ---
+log "Checking Homebrew..."
+BREW_PATH=$(run_as_user "command -v brew" 2>&1) || true
+log "brew path: '$BREW_PATH'"
+
+if ! run_as_user "command -v brew" &>/dev/null; then
+    log "Homebrew not found — installing..."
+
+    # Pre-checks
+    log "Pre-checks before Homebrew install:"
+    log "  curl: $(which curl 2>&1)"
+    log "  git: $(run_as_user 'command -v git' 2>&1 || echo 'not found')"
+    log "  xcode-select -p: $(xcode-select -p 2>&1 || echo 'not installed')"
+    log "  Running as user: $REAL_USER"
+    log "  User HOME: $REAL_HOME"
+    log "  User shell: $(dscl . -read /Users/$REAL_USER UserShell 2>/dev/null | awk '{print $2}' || echo 'unknown')"
+
+    # The Homebrew installer checks `sudo -n` BEFORE doing anything else.
+    # In a .pkg postinstall context there is no TTY, so sudo -n always fails
+    # ("Need sudo access on macOS"). Fix: temporarily grant passwordless sudo.
+    log "Granting narrow temporary sudo for Homebrew's pre-flight check..."
+    SUDOERS_TMP="/etc/sudoers.d/kivun-brew-temp"
+
+    # Proactive sweep: a previous install killed with SIGKILL may have left
+    # this file in place, persisting the narrow entry indefinitely.
+    if [ -f "$SUDOERS_TMP" ]; then
+        log "  WARNING: stale $SUDOERS_TMP found from a prior install — removing"
+        rm -f "$SUDOERS_TMP"
+    fi
+
+    # Primary cleanup: trap on all signals we can catch. SIGKILL can't be
+    # trapped, so this is best-effort.
+    trap 'rm -f "$SUDOERS_TMP"; log "Cleaned up temporary sudo file"' EXIT ERR INT TERM HUP
+
+    # Belt-and-braces: schedule a removal via `at` 15 min from now so the
+    # file cannot persist across a reboot even if the trap never fires.
+    if command -v at >/dev/null 2>&1; then
+        echo "rm -f $SUDOERS_TMP" | at now + 15 minutes 2>/dev/null \
+            && log "  Scheduled fallback cleanup via 'at' in 15 min" \
+            || log "  (at daemon unavailable — relying on trap + next-install sweep)"
+    fi
+
+    # NARROW scope: grant passwordless sudo for ONLY /usr/bin/true. This
+    # is just enough for Homebrew's `sudo -v` / `sudo -n true` pre-flight
+    # check to succeed — which is the only thing that blocked us in the
+    # non-TTY .pkg context. It is NOT full NOPASSWD:ALL. The real
+    # filesystem operations (chown on BREW_PREFIX) are done ABOVE as root
+    # in the postinstall script itself, pre-emptively, so Homebrew never
+    # needs to re-invoke sudo for them. If Homebrew ever DOES need real
+    # sudo during install (e.g. pre-chown didn't work), it will fail
+    # loudly here rather than silently receiving root privileges. That
+    # failure is the tell that this scope needs to expand.
+    echo "$REAL_USER ALL=(ALL) NOPASSWD: /usr/bin/true" > "$SUDOERS_TMP"
+    chmod 0440 "$SUDOERS_TMP"
+    log "  Created $SUDOERS_TMP (scope: /usr/bin/true only)"
+
+    # Also pre-create Homebrew prefix directory
+    if [[ $(uname -m) == "arm64" ]]; then
+        BREW_PREFIX="/opt/homebrew"
+    else
+        BREW_PREFIX="/usr/local/Homebrew"
+    fi
+    mkdir -p "$BREW_PREFIX" 2>/dev/null || true
+    chown -R "$REAL_USER:admin" "$BREW_PREFIX" 2>/dev/null || true
+    log "  $BREW_PREFIX owner: $(ls -ld "$BREW_PREFIX" 2>&1)"
+
+    log "Running Homebrew installer (NONINTERACTIVE=1)..."
+    BREW_OUTPUT=$(run_as_user 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' 2>&1)
+    BREW_EXIT=$?
+
+    # Remove temporary sudo access immediately
+    rm -f "$SUDOERS_TMP"
+    trap - EXIT ERR INT TERM
+    log "  Removed $SUDOERS_TMP"
+
+    log "Homebrew installer exit code: $BREW_EXIT"
+    log "Homebrew installer output:"
+    echo "$BREW_OUTPUT" >> "$LOG_FILE"
+
+    # Log last 20 lines to console too
+    echo "$BREW_OUTPUT" | tail -20 | while IFS= read -r line; do log "  brew: $line"; done
+
+    if [ $BREW_EXIT -eq 0 ]; then
+        # Add brew to shell profile. Intel usually gets /usr/local/bin on
+        # PATH by default, but `/bin/sh -l` and certain minimal contexts
+        # don't — so add shellenv for both archs.
+        if [[ $(uname -m) == "arm64" ]]; then
+            BREW_BIN="/opt/homebrew/bin/brew"
+        else
+            BREW_BIN="/usr/local/bin/brew"
+        fi
+        if ! grep -q "brew shellenv" "$REAL_HOME/.zprofile" 2>/dev/null; then
+            run_as_user "echo 'eval \"\$($BREW_BIN shellenv)\"' >> ~/.zprofile"
+            log "Added brew shellenv to .zprofile ($BREW_BIN)"
+        fi
+        log "Homebrew installed successfully"
+    else
+        log "ERROR: Homebrew installation failed (exit code: $BREW_EXIT)"
+        log "Check full output in $LOG_FILE for details"
+    fi
+else
+    BREW_VER=$(run_as_user 'brew --version' 2>/dev/null | head -1)
+    log "Homebrew already installed: $BREW_VER"
+fi
+
+# --- Node.js ---
+if ! run_as_user "command -v node" &>/dev/null; then
+    log "Installing Node.js..."
+    if run_as_user "brew install node"; then
+        log "Node.js $(run_as_user 'node --version' 2>/dev/null) installed"
+    else
+        log "ERROR: Node.js installation failed"
+    fi
+else
+    log "Node.js $(run_as_user 'node --version' 2>/dev/null) already installed — skipping"
+fi
+
+# --- Git ---
+if ! run_as_user "command -v git" &>/dev/null; then
+    log "Installing Git..."
+    if run_as_user "brew install git"; then
+        log "Git installed"
+    else
+        log "ERROR: Git installation failed"
+    fi
+else
+    log "Git already installed — skipping"
+fi
+
+# --- Claude Code ---
+if ! run_as_user "command -v claude" &>/dev/null; then
+    log "Installing Claude Code via Anthropic native installer..."
+    CLAUDE_INSTALL_SCRIPT="/tmp/claude-install.sh"
+    if curl -fsSL -o "$CLAUDE_INSTALL_SCRIPT" "https://claude.ai/install.sh" 2>&1 | tee -a "$LOG_FILE"; then
+        chmod +x "$CLAUDE_INSTALL_SCRIPT"
+        if run_as_user "bash '$CLAUDE_INSTALL_SCRIPT'"; then
+            log "Claude Code installed"
+        else
+            log "ERROR: Claude Code installation failed"
+        fi
+        rm -f "$CLAUDE_INSTALL_SCRIPT"
+    else
+        log "ERROR: Failed to download Claude Code installer"
+    fi
+else
+    log "Claude Code already installed — skipping"
+fi
+
+# --- Statusline (with SHA256 integrity check) ---
+STATUSLINE_DIR="/usr/local/share/kivun-terminal"
+STATUSLINE_SRC="$(dirname "$0")/statusline.mjs"
+STATUSLINE_SHA="$(dirname "$0")/statusline.mjs.sha256"
+log "Installing statusline..."
+mkdir -p "$STATUSLINE_DIR" 2>/dev/null || true
+if [ -f "$STATUSLINE_SRC" ]; then
+    if [ -f "$STATUSLINE_SHA" ]; then
+        EXPECTED=$(awk '{print $1}' "$STATUSLINE_SHA")
+        ACTUAL=$(shasum -a 256 "$STATUSLINE_SRC" 2>/dev/null | awk '{print $1}')
+        if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$ACTUAL" ]; then
+            log "ERROR: statusline.mjs SHA256 mismatch — expected $EXPECTED, got $ACTUAL. Skipping install."
+        else
+            cp "$STATUSLINE_SRC" "$STATUSLINE_DIR/statusline.mjs"
+            chmod 644 "$STATUSLINE_DIR/statusline.mjs"
+            log "Statusline copied to $STATUSLINE_DIR/statusline.mjs (SHA256 verified)"
+        fi
+    else
+        cp "$STATUSLINE_SRC" "$STATUSLINE_DIR/statusline.mjs"
+        chmod 644 "$STATUSLINE_DIR/statusline.mjs"
+        log "Statusline copied to $STATUSLINE_DIR/statusline.mjs (no SHA file shipped)"
+    fi
+else
+    log "WARNING: statusline.mjs not found in package — skipping"
+fi
+
+# --- Language map (shared with Linux launcher) ---
+LANG_MAP_SRC="$(dirname "$0")/languages.sh"
+if [ -f "$LANG_MAP_SRC" ]; then
+    cp "$LANG_MAP_SRC" "$STATUSLINE_DIR/languages.sh"
+    chmod 644 "$STATUSLINE_DIR/languages.sh"
+    log "Language map copied to $STATUSLINE_DIR/languages.sh"
+else
+    log "WARNING: languages.sh not found in package — skipping"
+fi
+
+# --- Uninstaller ---
+UNINSTALL_SRC="$(dirname "$0")/uninstall.sh"
+if [ -f "$UNINSTALL_SRC" ]; then
+    cp "$UNINSTALL_SRC" "$STATUSLINE_DIR/uninstall.sh"
+    chmod 755 "$STATUSLINE_DIR/uninstall.sh"
+    log "Uninstaller copied to $STATUSLINE_DIR/uninstall.sh — run it to remove Kivun Terminal"
+fi
+
+# Set CLAUDE_CODE_STATUSLINE in user's shell profile
+SHELL_RC="$REAL_HOME/.zshrc"
+if [ -f "$REAL_HOME/.bashrc" ] && [ ! -f "$REAL_HOME/.zshrc" ]; then
+    SHELL_RC="$REAL_HOME/.bashrc"
+fi
+# Create shell rc if it doesn't exist
+run_as_user "touch '$SHELL_RC'" 2>/dev/null || true
+EXPORT_LINE="export CLAUDE_CODE_STATUSLINE=\"$STATUSLINE_DIR/statusline.mjs\""
+if ! grep -q "CLAUDE_CODE_STATUSLINE" "$SHELL_RC" 2>/dev/null; then
+    run_as_user "echo '' >> '$SHELL_RC' && echo '# Kivun Terminal statusline' >> '$SHELL_RC' && echo '$EXPORT_LINE' >> '$SHELL_RC'"
+    log "CLAUDE_CODE_STATUSLINE added to $SHELL_RC"
+else
+    log "CLAUDE_CODE_STATUSLINE already in $SHELL_RC — skipping"
+fi
+
+# Configure statusline in Claude Code settings.json
+CONFIGURE_SCRIPT="$(dirname "$0")/configure-statusline.js"
+if [ -f "$CONFIGURE_SCRIPT" ]; then
+    log "Configuring statusline in Claude Code settings..."
+    run_as_user "node '$CONFIGURE_SCRIPT' '$STATUSLINE_DIR/statusline.mjs'" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        log "Statusline configured in Claude Code settings"
+    else
+        log "WARNING: Could not configure statusline in settings"
+    fi
+else
+    log "WARNING: configure-statusline.js not found in package"
+fi
+
+# --- Configuration File ---
+log "Creating configuration file..."
+CONFIG_DIR="$REAL_HOME/Library/Application Support/Kivun-Terminal"
+CONFIG_FILE="$CONFIG_DIR/config.txt"
+run_as_user "mkdir -p '$CONFIG_DIR'" 2>/dev/null || true
+if [ ! -f "$CONFIG_FILE" ]; then
+    cat > "$CONFIG_FILE" << 'CONFIG'
+# Kivun Terminal Configuration (macOS)
+# Schema is shared with the Windows (WSL) build where applicable.
+
+# =================================================================
+# CLAUDE RESPONSE LANGUAGE
+# =================================================================
+# Options: english, hebrew, arabic, persian, urdu, kurdish, pashto,
+# sindhi, yiddish, syriac, dhivehi, nko, adlam, mandaic, samaritan,
+# dari, uyghur, balochi, kashmiri, shahmukhi, azeri-south, jawi,
+# turoyo
+# Default: english
+RESPONSE_LANGUAGE=english
+
+# =================================================================
+# TERMINAL EMULATOR (macOS-only)
+# =================================================================
+# Options: terminal (Terminal.app, default; macOS built-in)
+#          iterm2   (iTerm2 — better BiDi/RTL rendering, if installed)
+#          wezterm  (WezTerm — strongest Unicode/BiDi support)
+#
+# Terminal.app has weaker BiDi than Konsole. If you work in Hebrew,
+# Arabic, Persian, or any RTL language, install iTerm2 or WezTerm
+# and set this to match. See docs/TROUBLESHOOTING.md.
+# Default: terminal
+MAC_TERMINAL=terminal
+
+# =================================================================
+# TERMINAL COLOR THEME
+# =================================================================
+# Options: kivun   (light-blue Kivun theme via osascript)
+#          default (keep your terminal's existing theme)
+# Default: kivun
+TERMINAL_COLOR=kivun
+
+# =================================================================
+# TEXT DIRECTION
+# =================================================================
+# rtl - Hebrew/Arabic input aligns to the right edge
+# ltr - default terminal behavior
+# Default: rtl
+TEXT_DIRECTION=rtl
+
+# =================================================================
+# FOLDER PICKER ON LAUNCH
+# =================================================================
+# When true, the desktop shortcut pops a Finder folder-browse
+# dialog before launching Claude Code.
+# Default: true on macOS
+FOLDER_PICKER=true
+
+# =================================================================
+# CLAUDE STARTUP FLAGS
+# =================================================================
+# Optional flags applied on every launch.
+# Example: CLAUDE_FLAGS=--continue
+CLAUDE_FLAGS=
+
+# =================================================================
+# Not used on macOS: USE_VCXSRV (Windows/WSL only)
+# =================================================================
+CONFIG
+    chown "$REAL_USER" "$CONFIG_FILE"
+    log "Configuration file created at $CONFIG_FILE"
+else
+    log "Configuration file already exists — skipping"
+fi
+
+# --- Desktop Shortcut with Folder Picker ---
+log "Creating desktop shortcut..."
+# Remove old-name shortcut from previous installs
+rm -f "$REAL_HOME/Desktop/Kivun Terminal.command"
+SHORTCUT_PATH="$REAL_HOME/Desktop/Kivun Terminal.command"
+cat > "$SHORTCUT_PATH" << 'SCRIPT'
+#!/bin/bash
+# Kivun Terminal — launches Claude Code with folder picker
+
+CONFIG_DIR="$HOME/Library/Application Support/Kivun-Terminal"
+CONFIG_FILE="$CONFIG_DIR/config.txt"
+STATUSLINE_DIR="/usr/local/share/kivun-terminal"
+
+# Statusline
+export CLAUDE_CODE_STATUSLINE="$STATUSLINE_DIR/statusline.mjs"
+
+# Read configuration
+RESPONSE_LANGUAGE="english"
+TERMINAL_COLOR="kivun"
+MAC_TERMINAL="terminal"
+FOLDER_PICKER="true"
+CLAUDE_FLAGS=""
+# Pure-bash trim avoids xargs's glob expansion and quote stripping —
+# a value like `*` or `?` must pass through unchanged.
+trim() {
+    local s="$1"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    printf '%s' "$s"
+}
+if [ -f "$CONFIG_FILE" ]; then
+    # `|| [[ -n "$key" ]]` handles a missing trailing newline: without
+    # it, a config file that doesn't end in \n drops its last key=value.
+    while IFS='=' read -r key value || [[ -n "$key" ]]; do
+        [[ "$key" =~ ^#.*$ ]] && continue
+        [[ -z "$key" ]] && continue
+        key=$(trim "$key")
+        value=$(trim "$value")
+        case "$key" in
+            RESPONSE_LANGUAGE) RESPONSE_LANGUAGE="$value" ;;
+            TERMINAL_COLOR) TERMINAL_COLOR="$value" ;;
+            MAC_TERMINAL) MAC_TERMINAL="$value" ;;
+            FOLDER_PICKER) FOLDER_PICKER="$value" ;;
+            CLAUDE_FLAGS) CLAUDE_FLAGS="$value" ;;
+        esac
+    done < "$CONFIG_FILE"
+fi
+
+# Apply Terminal.app color scheme only if this window is Terminal.app AND
+# TERMINAL_COLOR=kivun. iTerm2 and WezTerm don't use osascript colors.
+if [ "$TERMINAL_COLOR" = "kivun" ] && [ "$MAC_TERMINAL" = "terminal" ]; then
+    osascript -e '
+    tell application "Terminal"
+        tell front window
+            set background color of selected tab to {51400, 59110, 65535}
+            set normal text color of selected tab to {0, 0, 0}
+            set bold text color of selected tab to {0, 0, 0}
+            set cursor color of selected tab to {6425, 6425, 6425}
+        end tell
+    end tell
+    ' 2>/dev/null
+fi
+
+clear
+echo "Kivun Terminal"
+echo ""
+
+# Folder selection order:
+#   1. Explicit $1 from caller (Automator right-click, CLI invocation)
+#   2. FOLDER_PICKER=true config → Finder folder-picker dialog
+#   3. $HOME fallback
+if [ $# -ge 1 ] && [ -d "$1" ]; then
+    FOLDER="$1"
+elif [ "$FOLDER_PICKER" = "true" ]; then
+    FOLDER=$(osascript -e 'tell application "Finder"
+        try
+            set selectedFolder to choose folder with prompt "Select a folder to open with Claude Code:"
+            return POSIX path of selectedFolder
+        on error
+            return ""
+        end try
+    end tell' 2>/dev/null)
+
+    if [ -z "$FOLDER" ]; then
+        echo "No folder selected. Exiting..."
+        read -p "Press Enter to close..."
+        exit 0
+    fi
+else
+    FOLDER="$HOME"
+fi
+
+cd "$FOLDER" || exit 1
+
+# Build language prompt argument. Shared map at
+# /usr/local/share/kivun-terminal/languages.sh — one source of truth
+# across Linux + macOS. Silent fallback to no-prompt if missing.
+LANG_PROMPT=""
+LANG_MAP="/usr/local/share/kivun-terminal/languages.sh"
+if [ -f "$LANG_MAP" ]; then
+    # shellcheck disable=SC1090
+    . "$LANG_MAP"
+    LANG_PROMPT=$(kivun_lang_prompt "$RESPONSE_LANGUAGE")
+fi
+
+echo "Starting Claude Code in: $FOLDER"
+echo ""
+
+# Respawn in iTerm2 / WezTerm if the user picked one of those in config.
+# The .command file is always opened by Terminal.app on double-click; so
+# if MAC_TERMINAL != terminal, we hand off to the chosen emulator with
+# the same folder pre-selected, then exit this Terminal.app instance.
+#
+# SECURITY: folder names can contain single quotes (e.g. "O'Brien's docs"),
+# dollar signs, backticks. Don't interpolate them into an AppleScript
+# `write text` shell command blindly — escape single quotes by closing,
+# inserting an escaped quote, re-opening: foo'bar → 'foo'\''bar'
+shell_quote() {
+    # $1 → single-quoted safe form for POSIX sh
+    printf "'%s'" "${1//\'/\'\\\'\'}"
+}
+case "$MAC_TERMINAL" in
+    iterm2)
+        ITERM_CMD="cd $(shell_quote "$FOLDER") && claude"
+        [ -n "$LANG_PROMPT" ] && ITERM_CMD="$ITERM_CMD --append-system-prompt $(shell_quote "$LANG_PROMPT")"
+        [ -n "$CLAUDE_FLAGS" ] && ITERM_CMD="$ITERM_CMD $CLAUDE_FLAGS"
+        # Second escape layer: the AppleScript `write text "..."` string
+        # itself must be a valid AppleScript literal. Replace " and \ inside.
+        ITERM_CMD_AS="${ITERM_CMD//\\/\\\\}"
+        ITERM_CMD_AS="${ITERM_CMD_AS//\"/\\\"}"
+        osascript <<OSASCRIPT 2>/dev/null && exit 0
+tell application "iTerm"
+    activate
+    create window with default profile
+    tell current session of current window to write text "$ITERM_CMD_AS"
+end tell
+OSASCRIPT
+        ;;
+    wezterm)
+        open -a WezTerm "$FOLDER" 2>/dev/null
+        exit 0
+        ;;
+esac
+
+# Default: run claude directly in this Terminal.app window.
+# SECURITY: no eval; pass flags as separate arguments.
+if [ -n "$LANG_PROMPT" ]; then
+    if [ -n "$CLAUDE_FLAGS" ]; then
+        claude --append-system-prompt "$LANG_PROMPT" $CLAUDE_FLAGS
+    else
+        claude --append-system-prompt "$LANG_PROMPT"
+    fi
+else
+    if [ -n "$CLAUDE_FLAGS" ]; then
+        claude $CLAUDE_FLAGS
+    else
+        claude
+    fi
+fi
+SCRIPT
+chmod +x "$SHORTCUT_PATH"
+chown "$REAL_USER" "$SHORTCUT_PATH"
+log "Desktop shortcut created at $SHORTCUT_PATH"
+
+# --- Finder Quick Action (Right-Click Context Menu) ---
+log "Creating Finder Quick Action..."
+WORKFLOW_DIR="$REAL_HOME/Library/Services"
+WORKFLOW_PATH="$WORKFLOW_DIR/Open with Kivun Terminal.workflow"
+run_as_user "mkdir -p '$WORKFLOW_DIR'" 2>/dev/null || true
+
+# Remove old workflow if it exists
+rm -rf "$WORKFLOW_PATH" 2>/dev/null || true
+
+# Create Automator workflow directory structure
+mkdir -p "$WORKFLOW_PATH/Contents"
+cat > "$WORKFLOW_PATH/Contents/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSServices</key>
+    <array>
+        <dict>
+            <key>NSMenuItem</key>
+            <dict>
+                <key>default</key>
+                <string>Open with Kivun Terminal</string>
+            </dict>
+            <key>NSMessage</key>
+            <string>runWorkflowAsService</string>
+            <key>NSRequiredContext</key>
+            <dict>
+                <key>NSApplicationIdentifier</key>
+                <string>com.apple.finder</string>
+            </dict>
+            <key>NSSendFileTypes</key>
+            <array>
+                <string>public.folder</string>
+            </array>
+        </dict>
+    </array>
+    <key>CFBundleIdentifier</key>
+    <string>com.noambrand.kivun-terminal.quickaction</string>
+    <key>CFBundleName</key>
+    <string>Open with Kivun Terminal</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+</dict>
+</plist>
+PLIST
+
+mkdir -p "$WORKFLOW_PATH/Contents/QuickLook"
+cat > "$WORKFLOW_PATH/Contents/document.wflow" << 'WFLOW'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>AMApplicationBuild</key>
+    <string>521</string>
+    <key>AMApplicationVersion</key>
+    <string>2.10</string>
+    <key>AMDocumentVersion</key>
+    <string>2</string>
+    <key>actions</key>
+    <array>
+        <dict>
+            <key>action</key>
+            <dict>
+                <key>AMAccepts</key>
+                <dict>
+                    <key>Container</key>
+                    <string>List</string>
+                    <key>Optional</key>
+                    <true/>
+                    <key>Types</key>
+                    <array>
+                        <string>com.apple.cocoa.path</string>
+                    </array>
+                </dict>
+                <key>AMActionVersion</key>
+                <string>1.0</string>
+                <key>AMApplication</key>
+                <array>
+                    <string>Automator</string>
+                </array>
+                <key>AMParameterProperties</key>
+                <dict>
+                    <key>source</key>
+                    <dict/>
+                </dict>
+                <key>AMProvides</key>
+                <dict>
+                    <key>Container</key>
+                    <string>List</string>
+                    <key>Types</key>
+                    <array>
+                        <string>com.apple.cocoa.path</string>
+                    </array>
+                </dict>
+                <key>ActionBundlePath</key>
+                <string>/System/Library/Automator/Run Shell Script.action</string>
+                <key>ActionName</key>
+                <string>Run Shell Script</string>
+                <key>ActionParameters</key>
+                <dict>
+                    <key>COMMAND_STRING</key>
+                    <string>#!/bin/bash
+# Automator Quick Action: right-click a folder in Finder → "Open with
+# Kivun Terminal". All logic (config parsing, language prompts, terminal
+# respawn, color scheme) lives in the desktop .command file — this
+# action is a 20-line dispatcher that forwards the selected folder as
+# arg 1. Single source of truth eliminates the case where the Quick
+# Action's language list drifted from the documented one.
+FOLDER="$1"
+SHORTCUT="$HOME/Desktop/Kivun Terminal.command"
+if [ ! -x "$SHORTCUT" ]; then
+    osascript -e 'display alert "Kivun Terminal not found" message "The Kivun Terminal launcher is missing. Reinstall the .pkg from the latest release."'
+    exit 1
+fi
+# printf %q produces shell-safe quoting (bash/zsh both understand). Used
+# inside AppleScript `do script`, which types the command into a new
+# Terminal tab as if the user typed it — so the user's login shell (zsh
+# on modern macOS) parses it. This defuses folder names like
+# "O'Brien" or "$(rm -rf ~)".
+Q_SHORTCUT=$(printf '%q' "$SHORTCUT")
+Q_FOLDER=$(printf '%q' "$FOLDER")
+CMD="$Q_SHORTCUT $Q_FOLDER"
+# Second escape: AppleScript string literal level. Backslashes and
+# double-quotes must be escaped to survive the AppleScript parser.
+CMD_AS="${CMD//\\/\\\\}"
+CMD_AS="${CMD_AS//\"/\\\"}"
+osascript &lt;&lt;OSASCRIPT
+tell application "Terminal"
+    activate
+    do script "$CMD_AS"
+end tell
+OSASCRIPT
+</string>
+                    <key>CheckedForUserDefaultShell</key>
+                    <true/>
+                    <key>inputMethod</key>
+                    <integer>1</integer>
+                    <key>shell</key>
+                    <string>/bin/bash</string>
+                    <key>source</key>
+                    <string></string>
+                </dict>
+                <key>BundleIdentifier</key>
+                <string>com.apple.RunShellScript</string>
+                <key>CFBundleVersion</key>
+                <string>1.0</string>
+                <key>CanShowSelectedItemsWhenRun</key>
+                <false/>
+                <key>CanShowWhenRun</key>
+                <true/>
+                <key>Category</key>
+                <array>
+                    <string>AMCategoryUtilities</string>
+                </array>
+                <key>Class Name</key>
+                <string>RunShellScriptAction</string>
+                <key>InputUUID</key>
+                <string>00000000-0000-0000-0000-000000000000</string>
+                <key>Keywords</key>
+                <array>
+                    <string>Shell</string>
+                    <string>Script</string>
+                    <string>Command</string>
+                    <string>Run</string>
+                    <string>Unix</string>
+                </array>
+                <key>OutputUUID</key>
+                <string>00000000-0000-0000-0000-000000000001</string>
+                <key>UUID</key>
+                <string>00000000-0000-0000-0000-000000000002</string>
+                <key>UnlocalizedApplications</key>
+                <array>
+                    <string>Automator</string>
+                </array>
+                <key>arguments</key>
+                <dict>
+                    <key>0</key>
+                    <dict>
+                        <key>default value</key>
+                        <integer>0</integer>
+                        <key>name</key>
+                        <string>inputMethod</string>
+                        <key>required</key>
+                        <string>0</string>
+                        <key>type</key>
+                        <string>0</string>
+                        <key>uuid</key>
+                        <string>0</string>
+                    </dict>
+                    <key>1</key>
+                    <dict>
+                        <key>default value</key>
+                        <false/>
+                        <key>name</key>
+                        <string>CheckedForUserDefaultShell</string>
+                        <key>required</key>
+                        <string>0</string>
+                        <key>type</key>
+                        <string>0</string>
+                        <key>uuid</key>
+                        <string>1</string>
+                    </dict>
+                    <key>2</key>
+                    <dict>
+                        <key>default value</key>
+                        <string></string>
+                        <key>name</key>
+                        <string>source</string>
+                        <key>required</key>
+                        <string>0</string>
+                        <key>type</key>
+                        <string>0</string>
+                        <key>uuid</key>
+                        <string>2</string>
+                    </dict>
+                    <key>3</key>
+                    <dict>
+                        <key>default value</key>
+                        <string>/bin/sh</string>
+                        <key>name</key>
+                        <string>shell</string>
+                        <key>required</key>
+                        <string>0</string>
+                        <key>type</key>
+                        <string>0</string>
+                        <key>uuid</key>
+                        <string>3</string>
+                    </dict>
+                    <key>4</key>
+                    <dict>
+                        <key>default value</key>
+                        <string></string>
+                        <key>name</key>
+                        <string>COMMAND_STRING</string>
+                        <key>required</key>
+                        <string>0</string>
+                        <key>type</key>
+                        <string>0</string>
+                        <key>uuid</key>
+                        <string>4</string>
+                    </dict>
+                </dict>
+                <key>conversionLabel</key>
+                <integer>0</integer>
+                <key>isViewVisible</key>
+                <integer>1</integer>
+                <key>location</key>
+                <string>0.000000:0.000000</string>
+                <key>nibPath</key>
+                <string>/System/Library/Automator/Run Shell Script.action/Contents/Resources/Base.lproj/main.nib</string>
+            </dict>
+            <key>isViewVisible</key>
+            <true/>
+        </dict>
+    </array>
+    <key>connectors</key>
+    <dict/>
+    <key>workflowMetaData</key>
+    <dict>
+        <key>serviceInputTypeIdentifier</key>
+        <string>com.apple.Automator.fileSystemObject.folder</string>
+        <key>serviceOutputTypeIdentifier</key>
+        <string>com.apple.Automator.nothing</string>
+        <key>serviceProcessesInput</key>
+        <integer>0</integer>
+        <key>workflowTypeIdentifier</key>
+        <string>com.apple.Automator.servicesMenu</string>
+    </dict>
+</dict>
+</plist>
+WFLOW
+
+chown -R "$REAL_USER" "$WORKFLOW_PATH"
+log "Finder Quick Action created at $WORKFLOW_PATH"
+log "Note: Right-click context menu will appear after restarting Finder or logging out/in"
+
+# --- Summary ---
+log ""
+log "=== Installation Complete ==="
+log "Node.js: $(run_as_user 'node --version' 2>/dev/null || echo 'not installed')"
+log "npm:     $(run_as_user 'npm --version' 2>/dev/null || echo 'not installed')"
+log "Git:     $(run_as_user 'git --version' 2>/dev/null || echo 'not installed')"
+log "Claude:  $(run_as_user 'claude --version' 2>/dev/null || echo 'not installed')"
+log ""
+log "Next: Open Terminal and run 'claude' to start."
+log "Log saved to $LOG_FILE"
+
+# Always exit 0 so the .pkg installer reports success
+# Individual errors are logged above
+exit 0

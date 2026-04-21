@@ -1,0 +1,63 @@
+name: Build Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v1.*'
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify VERSION matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(tr -d '[:space:]' < VERSION)
+          if [ "$tag" != "$version" ]; then
+            echo "ERROR: VERSION file ($version) does not match tag ($tag). Update VERSION before tagging." >&2
+            exit 1
+          fi
+          echo "OK: VERSION $version matches tag $tag"
+
+      - name: Install NSIS
+        run: |
+          choco install nsis -y --no-progress
+          echo "NSIS installed"
+
+      - name: Build installer
+        working-directory: installer
+        run: |
+          MSYS_NO_PATHCONV=1 "/c/Program Files (x86)/NSIS/makensis.exe" -V3 Kivun_Terminal_Setup.nsi
+          if [ ! -f Kivun_Terminal_Setup.exe ]; then
+            echo "ERROR: makensis did not produce Kivun_Terminal_Setup.exe" >&2
+            exit 1
+          fi
+          size_kb=$(( $(stat -c%s Kivun_Terminal_Setup.exe) / 1024 ))
+          echo "Built Kivun_Terminal_Setup.exe (${size_kb} KB)"
+
+      - name: Upload installer as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kivun_Terminal_Setup
+          path: installer/Kivun_Terminal_Setup.exe
+          if-no-files-found: error
+
+      - name: Attach installer to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Kivun_Terminal_Setup.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}

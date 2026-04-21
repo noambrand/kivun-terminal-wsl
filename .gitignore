@@ -1,0 +1,34 @@
+# Build outputs
+build/
+installer/Kivun_Terminal_Setup.exe
+installer/*.exe
+*.pkg
+*.tar.gz
+payload/statusline.mjs.sha256
+
+# OS clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+*.tmp
+
+# Private planning docs (Word files, scratch)
+docs/plans.docx
+docs/*.docx
+*.docx

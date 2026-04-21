@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=KonqPopupMenu/Plugin
+MimeType=inode/directory;
+Actions=openKivunTerminal;
+X-KDE-Priority=TopLevel
+X-KDE-Submenu=
+
+[Desktop Action openKivunTerminal]
+Name=Open with Kivun Terminal
+Icon=utilities-terminal
+Exec=sh -c 'exec "$HOME/.local/bin/kivun-terminal" "$@"' _ %F

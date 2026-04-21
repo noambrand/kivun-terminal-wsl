@@ -1,0 +1,78 @@
+Kivun Terminal v1.0.6 - Security Notes
+======================================
+
+UBUNTU CREDENTIALS
+------------------
+Kivun Terminal no longer ships default USERNAME / PASSWORD values
+in config.txt. Earlier versions shipped `USERNAME=username` and
+`PASSWORD=password` as defaults; this was flagged by credential
+scanners (gitleaks, GitHub push-protection) and was also a bad
+pattern, so the keys were removed in the security hardening pass.
+
+Ubuntu account setup now happens interactively:
+
+  - First launch of WSL Ubuntu prompts you to choose a username
+    and password in a terminal window. Pick whatever you want.
+  - These credentials protect `sudo` INSIDE the WSL Ubuntu VM
+    only. They are not used for Claude authentication, API keys,
+    or any cloud service.
+  - Because WSL Ubuntu has no network-exposed SSH and is not
+    reachable from other machines, the password only matters if
+    someone else has access to your Windows account — in which
+    case they can already read your files regardless.
+
+TO CHANGE AFTER INSTALL
+-----------------------
+Change the Ubuntu password from inside Konsole:
+  passwd
+
+API KEYS AND CLAUDE AUTHENTICATION
+----------------------------------
+Your Claude API key (or Pro/Max OAuth token) is stored by the
+Claude Code CLI inside the Ubuntu distribution, under
+~/.config/anthropic/ or similar — NOT in config.txt, and NOT
+anywhere managed by Kivun Terminal. Kivun Terminal never reads,
+transmits, or stores your API key.
+
+LAUNCH LOGS
+-----------
+Kivun Terminal writes diagnostic logs to:
+  %LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt   (Windows side)
+  %LOCALAPPDATA%\Kivun-WSL\BASH_LAUNCH_LOG.txt   (WSL side)
+
+These logs contain: WSL version, distribution list, working
+directory path, and timing information. They do NOT contain
+API keys, passwords, or the content of your Claude sessions.
+
+If you report a bug and attach these logs, they are safe to
+share — but review them first if your working directory path
+itself contains sensitive information.
+
+CODE SIGNING
+------------
+Kivun_Terminal_Setup.exe is currently UNSIGNED. Windows SmartScreen
+will warn on first run ("Windows protected your PC"). Verify the
+SHA256 of the downloaded .exe against the value published in the
+GitHub release notes before trusting it.
+
+Installer posture improvements in v1.0.6:
+  - No longer runs as administrator. Installs to per-user
+    %LOCALAPPDATA%\Kivun-WSL; HKCU registry only.
+  - No longer downloads a third-party installer to %TEMP% for
+    silent execution. (VcXsrv is now opened in your browser for
+    manual install if you want it.)
+  - Claude Code installer is downloaded to a file and size-checked
+    before execution — not piped from curl to bash (which could
+    execute a truncated script on network drop).
+  - Statusline.mjs integrity is verified via SHA256 before install
+    on both macOS and Linux.
+
+A signed build is planned once an Authenticode certificate is in
+place. At that point SmartScreen should stop warning after a short
+reputation-building period.
+
+REPORTING VULNERABILITIES
+-------------------------
+Open an issue at:
+  https://github.com/noambrand/kivun-terminal-wsl/issues
+For sensitive reports, contact the maintainer through GitHub.

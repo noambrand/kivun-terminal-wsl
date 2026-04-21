@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- VcXsrv XLaunch config for Kivun Terminal v1.0.6 -->
+<!-- Multi-window mode, display :0, clipboard + WSL enabled -->
+<XLaunch WindowMode="MultiWindow"
+         ClientMode="NoClient"
+         LocalClient="False"
+         Display="0"
+         LocalProgram="xcalc"
+         RemoteProgram="xterm"
+         RemotePassword=""
+         PrivateKey=""
+         RemoteHost=""
+         RemoteUser=""
+         XDMCPHost=""
+         XDMCPBroadcast="False"
+         XDMCPIndirect="False"
+         Clipboard="True"
+         ClipboardPrimary="True"
+         ExtraParams=""
+         Wgl="True"
+         DisableAC="False"
+         XDMCPTerminate="False"/>
+<!--
+  SECURITY: -ac and DisableAC="True" disable X11 host-access control,
+  which lets any local process (any Windows user on the box, any LAN
+  peer the Windows Firewall allows) connect to display :0 and keylog
+  or screengrab anything running through VcXsrv. We keep access control
+  ON and authorize the WSL session via `xhost +si:localuser:$USER` from
+  kivun-launch.sh on the WSL side. If a future config needs to relax
+  this, scope the exception — never disable globally.
+-->

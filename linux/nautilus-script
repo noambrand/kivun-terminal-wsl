@@ -1,0 +1,34 @@
+#!/bin/bash
+# Nautilus (GNOME Files) "Scripts" entry — installed to
+# ~/.local/share/nautilus/scripts/Open with Kivun Terminal
+#
+# When the user right-clicks a folder and chooses
+# Scripts → Open with Kivun Terminal, Nautilus runs this script and
+# passes the selected paths via NAUTILUS_SCRIPT_SELECTED_FILE_PATHS
+# (newline-separated).
+
+# Grab the first selected path; if none (e.g. triggered from the folder
+# background) fall back to the current URI / $PWD.
+TARGET=""
+if [ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]; then
+    TARGET=$(echo "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS" | head -n 1)
+fi
+
+if [ -z "$TARGET" ] && [ -n "${NAUTILUS_SCRIPT_CURRENT_URI:-}" ]; then
+    # file:///home/user/My%20Folder → /home/user/My Folder
+    # Strip the file:// scheme, then URL-decode %XX → \xXX via parameter
+    # substitution, then let printf %b interpret the \xXX escapes.
+    # The replacement must be "\\x" (quoted) so bash keeps a literal
+    # backslash in the string rather than collapsing \\x to just x.
+    TARGET="${NAUTILUS_SCRIPT_CURRENT_URI#file://}"
+    TARGET=$(printf '%b' "${TARGET//%/"\\x"}")
+fi
+
+[ -z "$TARGET" ] && TARGET="$PWD"
+
+# If the user selected a file (not a folder), use its parent directory.
+if [ -f "$TARGET" ]; then
+    TARGET=$(dirname "$TARGET")
+fi
+
+exec "$HOME/.local/bin/kivun-terminal" "$TARGET"

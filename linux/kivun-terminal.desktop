@@ -1,0 +1,22 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Kivun Terminal
+GenericName=Claude Code for RTL Languages
+Comment=Launch Claude Code in a Konsole session pre-configured for Hebrew/Arabic/Persian and other RTL scripts
+Exec=sh -c 'exec "$HOME/.local/bin/kivun-terminal" "$@"' _ %F
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;TerminalEmulator;Utility;
+Keywords=claude;terminal;hebrew;arabic;rtl;bidi;konsole;
+StartupNotify=true
+MimeType=inode/directory;
+Actions=OpenHome;OpenPicker;
+
+[Desktop Action OpenHome]
+Name=Open in Home folder
+Exec=sh -c 'exec "$HOME/.local/bin/kivun-terminal"'
+
+[Desktop Action OpenPicker]
+Name=Pick folder and open
+Exec=sh -c 'FOLDER_PICKER=true exec "$HOME/.local/bin/kivun-terminal"'

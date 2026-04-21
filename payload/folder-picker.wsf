@@ -1,0 +1,53 @@
+<job>
+<script language="JScript">
+// Kivun Terminal - Folder Picker
+// Shows native Windows folder-browse dialog; writes the chosen path to
+// %LOCALAPPDATA%\Kivun-WSL\kivun-workdir.txt as UTF-8 without BOM.
+// Invoked when FOLDER_PICKER=true in config.txt and no folder was passed
+// via right-click. Read back by kivun-terminal.bat.
+// Run with: cscript //nologo folder-picker.wsf
+
+var wshShell = new ActiveXObject("WScript.Shell");
+var fso = new ActiveXObject("Scripting.FileSystemObject");
+var shell = new ActiveXObject("Shell.Application");
+
+var startPath = wshShell.ExpandEnvironmentStrings("%USERPROFILE%");
+
+var folder = shell.BrowseForFolder(0, "Select folder for Kivun Terminal", 0, startPath);
+
+if (folder == null) {
+    WScript.Echo("CANCELLED");
+    WScript.Quit();
+}
+
+var selectedPath = folder.Self.Path;
+
+var kivunDir = wshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%") + "\\Kivun-WSL";
+var filePath = kivunDir + "\\kivun-workdir.txt";
+
+if (!fso.FolderExists(kivunDir)) {
+    fso.CreateFolder(kivunDir);
+}
+
+var stream = new ActiveXObject("ADODB.Stream");
+stream.Type = 2;
+stream.Charset = "utf-8";
+stream.Open();
+stream.WriteText(selectedPath);
+
+// Strip the 3-byte UTF-8 BOM before saving
+stream.Position = 0;
+stream.Type = 1;
+stream.Position = 3;
+
+var outStream = new ActiveXObject("ADODB.Stream");
+outStream.Type = 1;
+outStream.Open();
+stream.CopyTo(outStream);
+outStream.SaveToFile(filePath, 2);
+outStream.Close();
+stream.Close();
+
+WScript.Echo("OK");
+</script>
+</job>

@@ -1,0 +1,39 @@
+# Normalize line endings. Force LF for anything that gets run on Linux
+# or macOS even if the clone happens on Windows (Git-for-Windows defaults
+# to core.autocrlf=true which would otherwise rewrite these to CRLF and
+# break bash on the WSL / Linux / macOS side).
+
+*.sh          text eol=lf
+*.mjs         text eol=lf
+*.js          text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+*.desktop     text eol=lf
+*.colorscheme text eol=lf
+*.profile     text eol=lf
+*.wflow       text eol=lf
+*.workflow    text eol=lf
+
+# Scripts without extensions (Nautilus, macOS postinstall, etc.)
+linux/nautilus-script        text eol=lf
+mac/scripts/postinstall      text eol=lf
+
+# CRLF for files that the Windows side consumes natively
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+*.ps1         text eol=crlf
+*.nsi         text eol=crlf
+*.wsf         text eol=crlf
+*.xlaunch     text eol=crlf
+
+# Binary assets — never normalize
+*.ico         binary
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.mp4         binary
+*.pdf         binary
+*.exe         binary
+*.pkg         binary
+*.tar.gz      binary

@@ -1,0 +1,75 @@
+name: Build macOS Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version string (defaults to contents of VERSION file)'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VER="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VER="${GITHUB_REF#refs/tags/v}"
+          else
+            VER="$(cat VERSION 2>/dev/null || echo '1.0.6')"
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VER"
+
+      - name: Syntax-check shell scripts
+        run: |
+          for f in mac/scripts/postinstall mac/build.sh payload/languages.sh; do
+            bash -n "$f" && echo "OK $f"
+          done
+
+      - name: Build .pkg
+        run: |
+          chmod +x mac/build.sh
+          ./mac/build.sh "${{ steps.version.outputs.version }}"
+
+      - name: Verify SHA256 file got staged
+        run: |
+          test -f build/scripts/statusline.mjs.sha256 || (echo "SHA256 not generated"; exit 1)
+          test -f build/scripts/languages.sh || (echo "languages.sh not staged"; exit 1)
+          cat build/scripts/statusline.mjs.sha256
+
+      - name: Verify .pkg structure
+        run: |
+          PKG=build/Kivun_Terminal_Setup_mac.pkg
+          ls -lh "$PKG"
+          pkgutil --payload-files "$PKG" || true
+          pkgutil --check-signature "$PKG" || true
+          echo "Extracting postinstall for inspection..."
+          mkdir -p build/extracted
+          pkgutil --expand-full "$PKG" build/extracted-pkg || true
+          find build/extracted-pkg -name 'postinstall' -print -exec head -20 {} \; || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kivun-terminal-mac-${{ steps.version.outputs.version }}
+          path: build/Kivun_Terminal_Setup_mac.pkg
+          if-no-files-found: error
+
+      - name: Attach to release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Kivun_Terminal_Setup_mac.pkg
+          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') }}
+          fail_on_unmatched_files: true
