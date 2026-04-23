@@ -42,8 +42,7 @@
 |  | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.0 |
 |---|---|---|
 | **Runtime (Windows)** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
-| **RTL/BiDi rendering** | Broken (Windows Terminal limitation) | ✅ Full support (Konsole BiDi + bundled wrapper) |
-| **Hebrew bullet-line first-character bug** | Present | ✅ Fixed in v1.1.0 (RLM line-start injection) |
+| **RTL/BiDi rendering** | LTR only (Windows Terminal has no BiDi engine) | ✅ Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
 | **Supported RTL languages** | 0 | 11 (hebrew, arabic, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, yiddish, syriac) |
 | **Linux support** | Windows + macOS only (Linux planned) | ✅ apt / dnf / pacman / zypper |
 | **macOS support** | ✅ .pkg | ✅ .pkg with BiDi wrapper |
