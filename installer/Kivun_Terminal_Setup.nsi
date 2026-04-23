@@ -1,11 +1,11 @@
-; Kivun Terminal v1.0.6 - Professional Installer
+; Kivun Terminal v1.1.0 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.0.6"
+!define PRODUCT_VERSION "1.1.0"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.0.6.0"
+VIProductVersion "1.1.0.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.0.6.0"
+VIAddVersionKey "FileVersion" "1.1.0.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING

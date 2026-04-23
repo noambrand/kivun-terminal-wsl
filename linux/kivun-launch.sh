@@ -282,19 +282,41 @@ fi
 : "${CLAUDE_FLAGS:=}"
 : "${CLAUDE_EXEC:=claude}"
 
-if ! command -v "$CLAUDE_EXEC" >/dev/null 2>&1; then
-    echo "ERROR: '$CLAUDE_EXEC' not found in PATH."
-    echo "PATH: $PATH"
-    echo ""
-    echo "Install it with:"
-    echo "  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh"
-    echo ""
-    echo "Press Enter to close."
-    read -r
-    exit 1
-fi
+# `command -v` resolves both PATH lookups (`claude`) and absolute paths
+# (the wrapper binary). For absolute paths, `command -v` succeeds only if
+# the file is executable — so handle that case explicitly to give a
+# wrapper-specific error rather than the generic "install claude" message.
+case "$CLAUDE_EXEC" in
+    /*)
+        if [ ! -x "$CLAUDE_EXEC" ]; then
+            echo "ERROR: BiDi wrapper not executable at: $CLAUDE_EXEC"
+            echo ""
+            echo "Try (one of):"
+            echo "  chmod +x \"$CLAUDE_EXEC\""
+            echo "  rm -rf \"$(dirname "$(dirname "$CLAUDE_EXEC")")\" && re-run linux/install.sh"
+            echo "  set KIVUN_BIDI_WRAPPER=off in ~/.config/kivun-terminal/config.txt"
+            echo ""
+            echo "Press Enter to close."
+            read -r
+            exit 1
+        fi
+        ;;
+    *)
+        if ! command -v "$CLAUDE_EXEC" >/dev/null 2>&1; then
+            echo "ERROR: '$CLAUDE_EXEC' not found in PATH."
+            echo "PATH: $PATH"
+            echo ""
+            echo "Install it with:"
+            echo "  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh"
+            echo ""
+            echo "Press Enter to close."
+            read -r
+            exit 1
+        fi
+        ;;
+esac
 
-echo "Claude:  $(command -v "$CLAUDE_EXEC")"
+echo "Claude:  $CLAUDE_EXEC"
 echo "Folder:  $(pwd)"
 echo ""
 

@@ -199,7 +199,7 @@ If you want to force a reinstall after updating Node/npm, delete `node_modules` 
 
 - **Windows:** `wsl -d Ubuntu -- rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules`
 - **Linux:** `rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules`
-- **macOS:** `sudo rm -rf /usr/local/share/kivun-terminal/kivun-claude-bidi/node_modules`
+- **macOS:** `rm -rf /usr/local/share/kivun-terminal/kivun-claude-bidi/node_modules` (the postinstall chowns the wrapper subtree to your user, so no sudo needed)
 
 Check the tail of the launch log for the specific npm error message — common culprits are offline networks, missing build toolchains, or a Node version too old for `node-pty`.
 

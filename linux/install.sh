@@ -219,6 +219,12 @@ WRAPPER_SRC="$(cd "$SCRIPT_DIR/../kivun-claude-bidi" 2>/dev/null && pwd || echo 
 WRAPPER_DST="$KT_SHARE/kivun-claude-bidi"
 if [ -n "$WRAPPER_SRC" ] && [ -d "$WRAPPER_SRC" ]; then
     log "Deploying BiDi wrapper from $WRAPPER_SRC -> $WRAPPER_DST"
+    # Nuke the wrapper subdir before extracting so files removed upstream
+    # don't linger and get picked up by node's require() resolution. Scope
+    # is the wrapper subdir only — never $KT_SHARE itself, which holds the
+    # statusline, settings.json, languages.sh that we want to preserve.
+    # node_modules goes too; npm install below rebuilds it from package.json.
+    rm -rf "$WRAPPER_DST"
     mkdir -p "$WRAPPER_DST"
     # Excludes match the Windows installer's `File /r /x node_modules /x .git`.
     # node_modules will be (re)built by `npm install --production` below so we

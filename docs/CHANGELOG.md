@@ -3,7 +3,7 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] — targeting v1.1.0
+## [1.1.0] — 2026-04-23
 
 ### Added
 
