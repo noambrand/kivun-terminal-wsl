@@ -13,7 +13,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "node-pty": "^1.0.0"
+    "node-pty": "^1.1.0"
   },
   "files": [
     "bin/",
