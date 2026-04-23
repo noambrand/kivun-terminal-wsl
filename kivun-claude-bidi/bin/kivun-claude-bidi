@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// Entry point — stub. Real logic lands once injector approval is given.
+// See docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md §6.
+console.error("kivun-claude-bidi: scaffold stub. Injector build not yet approved.");
+process.exit(2);
