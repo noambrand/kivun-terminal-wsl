@@ -45,9 +45,11 @@
 | **RTL/BiDi rendering** | Broken (Windows Terminal limitation) | ✅ Full support (Konsole BiDi + bundled wrapper) |
 | **Hebrew bullet-line first-character bug** | Present | ✅ Fixed in v1.1.0 (RLM line-start injection) |
 | **Supported RTL languages** | 0 | 11 (hebrew, arabic, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, yiddish, syriac) |
-| **Linux support** | None | ✅ apt / dnf / pacman / zypper |
+| **Linux support** | Windows + macOS only (Linux planned) | ✅ apt / dnf / pacman / zypper |
 | **macOS support** | ✅ .pkg | ✅ .pkg with BiDi wrapper |
-| **Keyboard Alt+Shift toggle** | N/A | ✅ via VcXsrv (Windows) / setxkbmap (Linux) |
+| **Keyboard Alt+Shift toggle** | — (uses Windows Terminal's native handling) | ✅ via VcXsrv (Windows) / setxkbmap (Linux) |
+| **Statusline** (model, context %, usage limits) | ✅ pre-installed | ✅ pre-installed (same `statusline.mjs`) |
+| **Light-blue "Kivun" terminal theme** | ✅ Windows Terminal color scheme | ✅ Konsole `KivunTerminal` profile + `ColorSchemeNoam` |
 | **Startup time** | ~2 s | ~6 s (Konsole launch) |
 | **Install footprint (Windows)** | ~150 MB | ~2 GB (WSL + Ubuntu) |
 
@@ -77,6 +79,33 @@ Supports apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch/Manjaro), zypper (
 3. Use the **Kivun Terminal** desktop shortcut or right-click a folder → **Services → Open with Kivun Terminal**.
 
 > First run requires a Claude Pro/Max subscription or an [Anthropic API key](https://console.anthropic.com).
+
+## Status Bar
+
+A two-line live status bar at the bottom of every Claude Code session — the same `statusline.mjs` ships in all three installers and registers into `~/.claude/settings.json` automatically:
+
+> **MyProject** | 🟢 Sonnet 4.6 | Context 🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜ 51% | tokens: 284K | 24:13
+>
+> Session 🟨🟨🟨🟨🟨🟨🟨🟨⬜⬜ 77% resets in 4h15m &nbsp;|&nbsp; Weekly 🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜ 16% resets in 6d18h
+
+| Field | What it shows |
+|-------|---------------|
+| **Model** | Active Claude model (color-coded: green = Opus, yellow = Sonnet/Haiku) |
+| **Context** | % of context window consumed (green/yellow/red) |
+| **Tokens** | Combined input + output tokens this session |
+| **Session / Weekly** | Usage limit % with countdown to reset |
+
+## Terminal Theme
+
+A custom **light-blue Kivun color scheme** (`#C8E6FF` background, dark text, blue cursor) ships with every installer and is enabled by default:
+
+| Platform | What gets configured | File |
+|---|---|---|
+| Windows (WSL+Konsole) | `KivunTerminal.profile` + `ColorSchemeNoam.colorscheme` | `~/.local/share/konsole/` (WSL) |
+| Linux (Konsole) | Same profile + color scheme | `~/.local/share/konsole/` |
+| macOS (Terminal.app) | Background / cursor / text colors set via osascript on launch | applied at runtime |
+
+Disable via `TERMINAL_COLOR=default` in your config to fall back to the terminal emulator's defaults.
 
 ## BiDi Wrapper
 
