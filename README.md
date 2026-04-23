@@ -3,7 +3,13 @@
 </p>
 
 <p align="center">
-  <img src="Kivun_Terminal_demo.gif" width="700" alt="Kivun Terminal in action — installer wizard, terminal launch, Hebrew-aware output">
+  <video src="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.1.0/kivun_terminal_Hebrew_demo.mp4" width="700" controls muted playsinline></video>
+</p>
+
+<p align="center">
+  <em>📹 Demo: Hebrew Claude Code session inside Kivun Terminal —
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.1.0/kivun_terminal_Hebrew_demo.mp4">download MP4 (12 MB)</a>
+  if your browser doesn't autoplay above.</em>
 </p>
 
 <p align="center">
