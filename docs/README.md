@@ -13,11 +13,10 @@
 | | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.0 |
 |---|---|---|
 | **Runtime** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
-| **RTL/BiDi rendering** | Broken (Windows Terminal limitation) | Full support (Konsole BiDi + bundled `kivun-claude-bidi` wrapper) |
-| **Hebrew bullet-line first-char bug** | Present | Fixed in v1.1.0 (line-start RLM injection) |
+| **RTL/BiDi rendering** | LTR only (Windows Terminal has no BiDi engine) | Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
 | **Supported RTL languages** | 0 | 11 (hebrew, arabic, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, azerbaijani, +) |
-| **Linux + macOS support** | macOS only | Linux (apt/dnf/pacman/zypper) + macOS (.pkg) |
-| **Keyboard Alt+Shift toggle** | N/A | Yes (via optional VcXsrv) |
+| **Linux + macOS support** | macOS only (Linux planned) | Linux (apt/dnf/pacman/zypper) + macOS (.pkg) |
+| **Keyboard Alt+Shift toggle** | — (uses Windows Terminal's native handling) | Yes (via optional VcXsrv) |
 | **Startup time** | ~2 s | ~6 s (Konsole launch) |
 | **Statusline** | Yes | Yes (model, context %, session/weekly limits) |
 | **Install footprint** | ~150 MB | ~2 GB (WSL + Ubuntu) |
