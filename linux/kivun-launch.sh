@@ -26,6 +26,7 @@ TERMINAL_COLOR="kivun"
 KEYBOARD_TOGGLE="true"
 FOLDER_PICKER="false"
 CLAUDE_FLAGS=""
+KIVUN_BIDI_WRAPPER="off"
 trim() {
     # Pure-bash whitespace trim. Avoids `xargs` which both strips quotes
     # and globs unquoted special characters against the CWD (so a config
@@ -44,16 +45,31 @@ if [ -f "$CONFIG_FILE" ]; then
         key=$(trim "$key")
         value=$(trim "$value")
         case "$key" in
-            RESPONSE_LANGUAGE) RESPONSE_LANGUAGE="$value" ;;
-            TEXT_DIRECTION)    TEXT_DIRECTION="$value" ;;
-            TERMINAL_COLOR)    TERMINAL_COLOR="$value" ;;
-            KEYBOARD_TOGGLE)   KEYBOARD_TOGGLE="$value" ;;
-            FOLDER_PICKER)     FOLDER_PICKER="$value" ;;
-            CLAUDE_FLAGS)      CLAUDE_FLAGS="$value" ;;
+            RESPONSE_LANGUAGE)   RESPONSE_LANGUAGE="$value" ;;
+            TEXT_DIRECTION)      TEXT_DIRECTION="$value" ;;
+            TERMINAL_COLOR)      TERMINAL_COLOR="$value" ;;
+            KEYBOARD_TOGGLE)     KEYBOARD_TOGGLE="$value" ;;
+            FOLDER_PICKER)       FOLDER_PICKER="$value" ;;
+            CLAUDE_FLAGS)        CLAUDE_FLAGS="$value" ;;
+            KIVUN_BIDI_WRAPPER)  KIVUN_BIDI_WRAPPER="$value" ;;
         esac
     done < "$CONFIG_FILE"
 fi
-log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER"
+log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER"
+
+# Decide which binary the tmp launch script will invoke. Wrapper is
+# opt-in for v1.1.0; fallback to unwrapped claude if the key is on but
+# the binary isn't installed (log a warning so the config drift is
+# visible in launch.log).
+CLAUDE_EXEC="claude"
+if [ "$KIVUN_BIDI_WRAPPER" = "on" ]; then
+    if command -v kivun-claude-bidi >/dev/null 2>&1; then
+        CLAUDE_EXEC="kivun-claude-bidi"
+        log "BiDi wrapper active: kivun-claude-bidi"
+    else
+        log "WARNING: KIVUN_BIDI_WRAPPER=on but 'kivun-claude-bidi' not on PATH; using unwrapped claude"
+    fi
+fi
 
 # --- Resolve target folder ---
 TARGET_DIR=""
@@ -204,6 +220,7 @@ ENV_FILE="$CACHE_DIR/launch-env.sh"
     printf 'KT_SETTINGS=%q\n'   "$KT_SETTINGS"
     printf 'LANG_PROMPT=%q\n'   "$LANG_PROMPT"
     printf 'CLAUDE_FLAGS=%q\n'  "$CLAUDE_FLAGS"
+    printf 'CLAUDE_EXEC=%q\n'   "$CLAUDE_EXEC"
 } > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
@@ -224,9 +241,10 @@ fi
 : "${KT_SETTINGS:=}"
 : "${LANG_PROMPT:=}"
 : "${CLAUDE_FLAGS:=}"
+: "${CLAUDE_EXEC:=claude}"
 
-if ! command -v claude >/dev/null 2>&1; then
-    echo "ERROR: 'claude' not found in PATH."
+if ! command -v "$CLAUDE_EXEC" >/dev/null 2>&1; then
+    echo "ERROR: '$CLAUDE_EXEC' not found in PATH."
     echo "PATH: $PATH"
     echo ""
     echo "Install it with:"
@@ -237,7 +255,7 @@ if ! command -v claude >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "Claude:  $(command -v claude)"
+echo "Claude:  $(command -v "$CLAUDE_EXEC")"
 echo "Folder:  $(pwd)"
 echo ""
 

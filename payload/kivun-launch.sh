@@ -352,6 +352,29 @@ log "INFO - Changing directory to: $WSL_PATH"
 cd "$WSL_PATH" 2>/dev/null || cd ~
 log "SUCCESS - Current directory: $(pwd)"
 
+log "INFO - Checking BiDi wrapper config (KIVUN_BIDI_WRAPPER)"
+# Parent .bat doesn't pass this key, so read it directly from the
+# config.txt deployed next to this script. Minimal parse: we only care
+# about one key, so grep+sed is simpler than a full while-read loop
+# and can't clash with the values already passed as $1..$7.
+KIVUN_BIDI_WRAPPER="off"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_WRAPPER[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_WRAPPER[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_WRAPPER="$val"
+fi
+CLAUDE_EXEC="claude"
+if [ "$KIVUN_BIDI_WRAPPER" = "on" ]; then
+    if command -v kivun-claude-bidi >/dev/null 2>&1; then
+        CLAUDE_EXEC="kivun-claude-bidi"
+        log "SUCCESS - BiDi wrapper active (kivun-claude-bidi on PATH)"
+    else
+        log "WARNING - KIVUN_BIDI_WRAPPER=on but 'kivun-claude-bidi' not on PATH; falling back to unwrapped claude"
+    fi
+else
+    log "INFO - BiDi wrapper off (KIVUN_BIDI_WRAPPER=$KIVUN_BIDI_WRAPPER)"
+fi
+
 log "INFO - Creating temporary launch script"
 # Per-user path so a stale file left by a different UID (e.g. from an
 # earlier run as 'username' or root) can't block us with EPERM.
@@ -387,9 +410,9 @@ echo ""
 KT_SETTINGS="\$HOME/.local/share/kivun-terminal/settings.json"
 
 if [ -n "$CLAUDE_PROMPT" ]; then
-    claude --settings "\$KT_SETTINGS" --append-system-prompt "$CLAUDE_PROMPT"
+    $CLAUDE_EXEC --settings "\$KT_SETTINGS" --append-system-prompt "$CLAUDE_PROMPT"
 else
-    claude --settings "\$KT_SETTINGS"
+    $CLAUDE_EXEC --settings "\$KT_SETTINGS"
 fi
 EXIT_CODE=\$?
 
