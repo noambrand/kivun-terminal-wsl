@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kivun Terminal - Linux installer
+# Kivun Terminal — Linux installer
 # Usage: ./linux/install.sh
 # Supports: Ubuntu/Debian (apt), Fedora/RHEL (dnf), Arch/Manjaro (pacman),
 #           openSUSE (zypper).
@@ -11,7 +11,7 @@
 set -u
 set -o pipefail
 # pipefail is required because every package-install call is piped through
-# `tee -a $LOG_FILE` - without pipefail, the pipeline returns tee's exit
+# `tee -a $LOG_FILE` — without pipefail, the pipeline returns tee's exit
 # code (always 0) and `|| err "..."` error branches would never fire.
 
 LOG_FILE="${KIVUN_LOG:-/tmp/kivun_install.log}"
@@ -26,7 +26,7 @@ log "User: $USER | Home: $HOME"
 log "Distro: $(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
 log "Arch: $(uname -m)"
 
-# Refuse to run as root - we need $HOME to be the user's real home so the
+# Refuse to run as root — we need $HOME to be the user's real home so the
 # Konsole profile and config files land in the right place. Use sudo only
 # for the package-manager step (handled internally below).
 if [ "$(id -u)" -eq 0 ]; then
@@ -55,7 +55,7 @@ fi
 # Keep sudo alive in the background while this script runs.
 # Check parent-alive BEFORE sleeping so a script that exits in the first
 # 60s doesn't leave a keepalive spinning for another ~60s. (SIGKILL of
-# the parent is still uncatchable - the keepalive ends on the next wake.)
+# the parent is still uncatchable — the keepalive ends on the next wake.)
 ( while kill -0 "$$" 2>/dev/null; do sudo -n true; sleep 60; done ) 2>/dev/null &
 SUDO_KEEPALIVE_PID=$!
 trap 'kill $SUDO_KEEPALIVE_PID 2>/dev/null || true' EXIT
@@ -72,13 +72,13 @@ install_pkgs() {
     esac
 }
 
-# --- Konsole (primary terminal - best BiDi on Linux) ---
+# --- Konsole (primary terminal — best BiDi on Linux) ---
 log "Checking Konsole..."
 if command -v konsole >/dev/null 2>&1; then
     log "Konsole already installed: $(konsole --version 2>/dev/null | head -1)"
 else
     log "Installing Konsole..."
-    install_pkgs konsole || err "Konsole install failed - continuing anyway"
+    install_pkgs konsole || err "Konsole install failed — continuing anyway"
 fi
 
 # --- Git ---
@@ -106,13 +106,13 @@ fi
 
 # --- Folder-picker helper (kdialog on KDE, zenity elsewhere) ---
 # The launcher tries kdialog first, then zenity. Install whichever is
-# native to the current DE - zenity pulls ~30MB of GTK on KDE systems
+# native to the current DE — zenity pulls ~30MB of GTK on KDE systems
 # for something kdialog already does natively. Our target audience
 # (RTL users on Konsole) is mostly on KDE Plasma.
 log "Installing folder-picker helper..."
 PICKER_PKG=""
 if command -v kdialog >/dev/null 2>&1 || command -v zenity >/dev/null 2>&1; then
-    log "  folder-picker already installed - skipping"
+    log "  folder-picker already installed — skipping"
 elif [[ "${XDG_CURRENT_DESKTOP:-}" =~ (KDE|Plasma) ]]; then
     PICKER_PKG="kdialog"
 else
@@ -149,7 +149,7 @@ else
         if bash "$CLAUDE_INSTALL_SCRIPT" 2>&1 | tee -a "$LOG_FILE"; then
             log "Claude Code installed"
         else
-            err "Claude Code installer ran but exited non-zero - install may be incomplete"
+            err "Claude Code installer ran but exited non-zero — install may be incomplete"
         fi
     else
         err "Failed to download Claude Code installer. Retry later with:  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh"
@@ -179,7 +179,7 @@ if [ -f "$PAYLOAD_DIR/statusline.mjs" ]; then
         EXPECTED=$(awk '{print $1}' "$PAYLOAD_DIR/statusline.mjs.sha256")
         ACTUAL=$(sha256sum "$PAYLOAD_DIR/statusline.mjs" 2>/dev/null | awk '{print $1}')
         if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$ACTUAL" ]; then
-            err "statusline.mjs SHA256 mismatch (expected $EXPECTED got $ACTUAL) - skipping install"
+            err "statusline.mjs SHA256 mismatch (expected $EXPECTED got $ACTUAL) — skipping install"
         else
             cp "$PAYLOAD_DIR/statusline.mjs" "$KT_SHARE/statusline.mjs"
             sed -i 's/\r$//' "$KT_SHARE/statusline.mjs" 2>/dev/null || true
@@ -194,7 +194,7 @@ if [ -f "$PAYLOAD_DIR/statusline.mjs" ]; then
     fi
 fi
 
-# languages.sh - shared prompt map sourced by the launcher
+# languages.sh — shared prompt map sourced by the launcher
 if [ -f "$PAYLOAD_DIR/languages.sh" ]; then
     cp "$PAYLOAD_DIR/languages.sh" "$KT_SHARE/languages.sh"
     sed -i 's/\r$//' "$KT_SHARE/languages.sh" 2>/dev/null || true
@@ -213,7 +213,7 @@ fi
 # Bundled the same way Windows does: ship the wrapper source under the
 # user's local share dir and run `npm install --production` once at install
 # time so first launch is instant. If npm or node is missing right now,
-# we skip the install - the launcher's first-launch fallback will retry
+# we skip the install — the launcher's first-launch fallback will retry
 # (see linux/kivun-launch.sh deploy_bidi_wrapper).
 WRAPPER_SRC="$(cd "$SCRIPT_DIR/../kivun-claude-bidi" 2>/dev/null && pwd || echo "")"
 WRAPPER_DST="$KT_SHARE/kivun-claude-bidi"
@@ -221,7 +221,7 @@ if [ -n "$WRAPPER_SRC" ] && [ -d "$WRAPPER_SRC" ]; then
     log "Deploying BiDi wrapper from $WRAPPER_SRC -> $WRAPPER_DST"
     # Nuke the wrapper subdir before extracting so files removed upstream
     # don't linger and get picked up by node's require() resolution. Scope
-    # is the wrapper subdir only - never $KT_SHARE itself, which holds the
+    # is the wrapper subdir only — never $KT_SHARE itself, which holds the
     # statusline, settings.json, languages.sh that we want to preserve.
     # node_modules goes too; npm install below rebuilds it from package.json.
     rm -rf "$WRAPPER_DST"
@@ -241,13 +241,13 @@ if [ -n "$WRAPPER_SRC" ] && [ -d "$WRAPPER_SRC" ]; then
             touch "$WRAPPER_DST/node_modules/.kivun-install-stamp"
             log "BiDi wrapper installed at $WRAPPER_DST/bin/kivun-claude-bidi"
         else
-            err "npm install failed for wrapper - first launch will retry"
+            err "npm install failed for wrapper — first launch will retry"
         fi
     else
-        log "npm not on PATH yet - skipping wrapper npm install (launcher will retry on first run)"
+        log "npm not on PATH yet — skipping wrapper npm install (launcher will retry on first run)"
     fi
 else
-    log "WARNING: kivun-claude-bidi source not found at $SCRIPT_DIR/../kivun-claude-bidi - wrapper will not be available"
+    log "WARNING: kivun-claude-bidi source not found at $SCRIPT_DIR/../kivun-claude-bidi — wrapper will not be available"
 fi
 
 # Linux-only settings file that the launcher passes via --settings
@@ -278,7 +278,7 @@ else
     exit 1
 fi
 
-# Ensure $HOME/.local/bin is on PATH - add to shell rc if missing
+# Ensure $HOME/.local/bin is on PATH — add to shell rc if missing
 SHELL_RC="$HOME/.bashrc"
 [ -f "$HOME/.zshrc" ] && SHELL_RC="$HOME/.zshrc"
 # Match the specific export line we write (or a close-enough variant),
@@ -300,7 +300,7 @@ fi
 # --- Config file ---
 CONFIG_FILE="$KT_CONFIG_DIR/config.txt"
 if [ -f "$CONFIG_FILE" ]; then
-    log "Config already exists at $CONFIG_FILE - keeping user edits"
+    log "Config already exists at $CONFIG_FILE — keeping user edits"
 else
     cat > "$CONFIG_FILE" <<'CONFIG'
 # Kivun Terminal Configuration (Linux)
@@ -363,7 +363,7 @@ CLAUDE_FLAGS=
 # When "on" (default), Claude Code output is piped through the
 # kivun-claude-bidi wrapper, which injects Unicode RLE/PDF bracket
 # pairs (U+202B / U+202C) around Hebrew runs and an RLM (U+200F) at
-# line start when the first strong char is RTL - fixing the Hebrew
+# line start when the first strong char is RTL — fixing the Hebrew
 # bullet-line direction bug regardless of Konsole BiDi settings.
 #
 # The installer deploys the wrapper to
@@ -575,7 +575,7 @@ log ""
 log "=== Installation Complete ==="
 log "Node.js:  $(node --version 2>/dev/null || echo 'not installed')"
 log "Git:      $(git --version 2>/dev/null || echo 'not installed')"
-log "Claude:   $(claude --version 2>/dev/null | head -1 || echo 'not installed - run: curl -fsSL https://claude.ai/install.sh | bash')"
+log "Claude:   $(claude --version 2>/dev/null | head -1 || echo 'not installed — run: curl -fsSL https://claude.ai/install.sh | bash')"
 log "Konsole:  $(konsole --version 2>/dev/null | head -1 || echo 'not installed')"
 log ""
 log "To launch:"

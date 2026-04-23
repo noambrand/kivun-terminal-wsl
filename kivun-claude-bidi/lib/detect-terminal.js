@@ -4,7 +4,7 @@
 // testing exposure. v2 widens to any terminal that passes the §1
 // integration gate (gnome-terminal+VTE, alacritty, etc.).
 //
-// To widen the allowlist later, append entries to KNOWN_TERMINALS - each
+// To widen the allowlist later, append entries to KNOWN_TERMINALS — each
 // entry needs a name, a predicate on the env, and an integration-gate
 // test result filed in docs/research/.
 

@@ -36,7 +36,7 @@ function main() {
   } catch (err) {
     process.stderr.write(
       `kivun-claude-bidi: wrapper unavailable (${err.code || err.message}).\n` +
-      `node-pty integration is pending - run with KIVUN_BIDI_WRAPPER=off to ` +
+      `node-pty integration is pending — run with KIVUN_BIDI_WRAPPER=off to ` +
       `disable this wrapper until v1.1.0 ships.\n`,
     );
     process.exit(2);

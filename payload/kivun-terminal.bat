@@ -64,7 +64,7 @@ set TEXT_DIRECTION=rtl
 set FOLDER_PICKER=false
 if exist "%~dp0config.txt" (
     REM SECURITY: quote the SET target. Unquoted `set X=%%b` lets CMD
-    REM parse the value - a config line `RESPONSE_LANGUAGE=english& calc.exe`
+    REM parse the value — a config line `RESPONSE_LANGUAGE=english& calc.exe`
     REM would execute `calc.exe` during config load. The quoted form
     REM `set "X=%%b"` treats the contents as literal (& | ^ < > are
     REM all safe inside the quotes).
@@ -356,7 +356,7 @@ REM formatted output often starts lines with bullets/numbers/dashes
 REM (neutral/LTR characters) which force the paragraph to LTR. Prefixing
 REM each line with an explicit RLM character forces RTL paragraph
 REM direction regardless of what comes after.
-REM KNOWN LIMITATION - upstream bug in Claude Code's TUI rendering:
+REM KNOWN LIMITATION — upstream bug in Claude Code's TUI rendering:
 REM Claude Code prepends every assistant message with a `●` bullet (see
 REM `cli.js`, `B9=YA.platform==="darwin"?"⏺":"●"`). That bullet is a
 REM Unicode neutral character that should be skipped per UAX #9 P2 when
@@ -399,7 +399,7 @@ if /i "%LANG:~0,9%"=="shahmukhi"   set "CLAUDE_PROMPT=Always respond in Punjabi 
 if /i "%LANG:~0,11%"=="azeri-south" set "CLAUDE_PROMPT=Always respond in Southern Azerbaijani.%RLM_SUFFIX%" & exit /b
 if /i "%LANG:~0,4%"=="jawi"        set "CLAUDE_PROMPT=Always respond in Malay using the Jawi script.%RLM_SUFFIX%" & exit /b
 if /i "%LANG:~0,6%"=="turoyo"      set "CLAUDE_PROMPT=Always respond in Turoyo (Neo-Aramaic).%RLM_SUFFIX%" & exit /b
-REM Unknown language - keep the existing CLAUDE_PROMPT (English default).
+REM Unknown language — keep the existing CLAUDE_PROMPT (English default).
 exit /b
 
 :WIN_TO_WSL_PATH

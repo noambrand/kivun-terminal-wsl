@@ -1,8 +1,8 @@
 #!/bin/bash
-# Kivun Terminal - macOS dependency installer (postinstall)
+# Kivun Terminal — macOS dependency installer (postinstall)
 # Runs as root after .pkg installation
 
-# Do NOT use set -e - we handle errors per-step so one failure doesn't kill
+# Do NOT use set -e — we handle errors per-step so one failure doesn't kill
 # the whole install. But DO use pipefail so `cmd | tee -a LOG` doesn't mask
 # upstream failures (curl-fails-but-tee-succeeds → we'd chmod+exec an empty
 # file and log "installed" without actually installing).
@@ -29,7 +29,7 @@ CLT_PATH=$(xcode-select -p 2>&1) || true
 log "xcode-select -p: '$CLT_PATH' (exit: $?)"
 
 if ! xcode-select -p &>/dev/null; then
-    log "CLT not installed - attempting non-interactive install via softwareupdate"
+    log "CLT not installed — attempting non-interactive install via softwareupdate"
     touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 
     log "Running: softwareupdate -l (listing available updates)..."
@@ -68,7 +68,7 @@ BREW_PATH=$(run_as_user "command -v brew" 2>&1) || true
 log "brew path: '$BREW_PATH'"
 
 if ! run_as_user "command -v brew" &>/dev/null; then
-    log "Homebrew not found - installing..."
+    log "Homebrew not found — installing..."
 
     # Pre-checks
     log "Pre-checks before Homebrew install:"
@@ -88,7 +88,7 @@ if ! run_as_user "command -v brew" &>/dev/null; then
     # Proactive sweep: a previous install killed with SIGKILL may have left
     # this file in place, persisting the narrow entry indefinitely.
     if [ -f "$SUDOERS_TMP" ]; then
-        log "  WARNING: stale $SUDOERS_TMP found from a prior install - removing"
+        log "  WARNING: stale $SUDOERS_TMP found from a prior install — removing"
         rm -f "$SUDOERS_TMP"
     fi
 
@@ -101,12 +101,12 @@ if ! run_as_user "command -v brew" &>/dev/null; then
     if command -v at >/dev/null 2>&1; then
         echo "rm -f $SUDOERS_TMP" | at now + 15 minutes 2>/dev/null \
             && log "  Scheduled fallback cleanup via 'at' in 15 min" \
-            || log "  (at daemon unavailable - relying on trap + next-install sweep)"
+            || log "  (at daemon unavailable — relying on trap + next-install sweep)"
     fi
 
     # NARROW scope: grant passwordless sudo for ONLY /usr/bin/true. This
     # is just enough for Homebrew's `sudo -v` / `sudo -n true` pre-flight
-    # check to succeed - which is the only thing that blocked us in the
+    # check to succeed — which is the only thing that blocked us in the
     # non-TTY .pkg context. It is NOT full NOPASSWD:ALL. The real
     # filesystem operations (chown on BREW_PREFIX) are done ABOVE as root
     # in the postinstall script itself, pre-emptively, so Homebrew never
@@ -147,7 +147,7 @@ if ! run_as_user "command -v brew" &>/dev/null; then
     if [ $BREW_EXIT -eq 0 ]; then
         # Add brew to shell profile. Intel usually gets /usr/local/bin on
         # PATH by default, but `/bin/sh -l` and certain minimal contexts
-        # don't - so add shellenv for both archs.
+        # don't — so add shellenv for both archs.
         if [[ $(uname -m) == "arm64" ]]; then
             BREW_BIN="/opt/homebrew/bin/brew"
         else
@@ -176,7 +176,7 @@ if ! run_as_user "command -v node" &>/dev/null; then
         log "ERROR: Node.js installation failed"
     fi
 else
-    log "Node.js $(run_as_user 'node --version' 2>/dev/null) already installed - skipping"
+    log "Node.js $(run_as_user 'node --version' 2>/dev/null) already installed — skipping"
 fi
 
 # --- Git ---
@@ -188,7 +188,7 @@ if ! run_as_user "command -v git" &>/dev/null; then
         log "ERROR: Git installation failed"
     fi
 else
-    log "Git already installed - skipping"
+    log "Git already installed — skipping"
 fi
 
 # --- Claude Code ---
@@ -207,7 +207,7 @@ if ! run_as_user "command -v claude" &>/dev/null; then
         log "ERROR: Failed to download Claude Code installer"
     fi
 else
-    log "Claude Code already installed - skipping"
+    log "Claude Code already installed — skipping"
 fi
 
 # --- Statusline (with SHA256 integrity check) ---
@@ -221,7 +221,7 @@ if [ -f "$STATUSLINE_SRC" ]; then
         EXPECTED=$(awk '{print $1}' "$STATUSLINE_SHA")
         ACTUAL=$(shasum -a 256 "$STATUSLINE_SRC" 2>/dev/null | awk '{print $1}')
         if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$ACTUAL" ]; then
-            log "ERROR: statusline.mjs SHA256 mismatch - expected $EXPECTED, got $ACTUAL. Skipping install."
+            log "ERROR: statusline.mjs SHA256 mismatch — expected $EXPECTED, got $ACTUAL. Skipping install."
         else
             cp "$STATUSLINE_SRC" "$STATUSLINE_DIR/statusline.mjs"
             chmod 644 "$STATUSLINE_DIR/statusline.mjs"
@@ -233,7 +233,7 @@ if [ -f "$STATUSLINE_SRC" ]; then
         log "Statusline copied to $STATUSLINE_DIR/statusline.mjs (no SHA file shipped)"
     fi
 else
-    log "WARNING: statusline.mjs not found in package - skipping"
+    log "WARNING: statusline.mjs not found in package — skipping"
 fi
 
 # --- Language map (shared with Linux launcher) ---
@@ -243,7 +243,7 @@ if [ -f "$LANG_MAP_SRC" ]; then
     chmod 644 "$STATUSLINE_DIR/languages.sh"
     log "Language map copied to $STATUSLINE_DIR/languages.sh"
 else
-    log "WARNING: languages.sh not found in package - skipping"
+    log "WARNING: languages.sh not found in package — skipping"
 fi
 
 # --- Uninstaller ---
@@ -251,7 +251,7 @@ UNINSTALL_SRC="$(dirname "$0")/uninstall.sh"
 if [ -f "$UNINSTALL_SRC" ]; then
     cp "$UNINSTALL_SRC" "$STATUSLINE_DIR/uninstall.sh"
     chmod 755 "$STATUSLINE_DIR/uninstall.sh"
-    log "Uninstaller copied to $STATUSLINE_DIR/uninstall.sh - run it to remove Kivun Terminal"
+    log "Uninstaller copied to $STATUSLINE_DIR/uninstall.sh — run it to remove Kivun Terminal"
 fi
 
 # --- BiDi wrapper (kivun-claude-bidi) ---
@@ -259,7 +259,7 @@ fi
 # `npm install --production` once so first launch is instant. Run as the
 # real user (not root) so node-pty's native build picks up that user's
 # Homebrew node and lands in a tree the user can write to. Failure is
-# non-fatal - the launcher silently falls back to unwrapped `claude`.
+# non-fatal — the launcher silently falls back to unwrapped `claude`.
 WRAPPER_SRC="$(dirname "$0")/kivun-claude-bidi"
 WRAPPER_DST="$STATUSLINE_DIR/kivun-claude-bidi"
 if [ -d "$WRAPPER_SRC" ]; then
@@ -273,7 +273,7 @@ if [ -d "$WRAPPER_SRC" ]; then
     # (and so non-root subsequent launches can read it).
     chown -R "$REAL_USER" "$WRAPPER_DST" 2>/dev/null || true
 
-    # npm install - best effort. If node was just installed via brew above,
+    # npm install — best effort. If node was just installed via brew above,
     # `command -v node` from a login shell will find it; if it failed, we
     # log and move on (the .command launcher will still try unwrapped claude).
     if run_as_user "command -v npm" &>/dev/null; then
@@ -282,13 +282,13 @@ if [ -d "$WRAPPER_SRC" ]; then
             run_as_user "mkdir -p '$WRAPPER_DST/node_modules' && touch '$WRAPPER_DST/node_modules/.kivun-install-stamp'"
             log "BiDi wrapper installed at $WRAPPER_DST/bin/kivun-claude-bidi"
         else
-            log "WARNING: npm install for wrapper failed - launcher will fall back to unwrapped claude"
+            log "WARNING: npm install for wrapper failed — launcher will fall back to unwrapped claude"
         fi
     else
-        log "WARNING: npm not on user's PATH - skipping wrapper install (launcher will fall back to unwrapped claude)"
+        log "WARNING: npm not on user's PATH — skipping wrapper install (launcher will fall back to unwrapped claude)"
     fi
 else
-    log "WARNING: kivun-claude-bidi source not found in package - skipping wrapper install"
+    log "WARNING: kivun-claude-bidi source not found in package — skipping wrapper install"
 fi
 
 # Set CLAUDE_CODE_STATUSLINE in user's shell profile
@@ -303,7 +303,7 @@ if ! grep -q "CLAUDE_CODE_STATUSLINE" "$SHELL_RC" 2>/dev/null; then
     run_as_user "echo '' >> '$SHELL_RC' && echo '# Kivun Terminal statusline' >> '$SHELL_RC' && echo '$EXPORT_LINE' >> '$SHELL_RC'"
     log "CLAUDE_CODE_STATUSLINE added to $SHELL_RC"
 else
-    log "CLAUDE_CODE_STATUSLINE already in $SHELL_RC - skipping"
+    log "CLAUDE_CODE_STATUSLINE already in $SHELL_RC — skipping"
 fi
 
 # Configure statusline in Claude Code settings.json
@@ -344,8 +344,8 @@ RESPONSE_LANGUAGE=english
 # TERMINAL EMULATOR (macOS-only)
 # =================================================================
 # Options: terminal (Terminal.app, default; macOS built-in)
-#          iterm2   (iTerm2 - better BiDi/RTL rendering, if installed)
-#          wezterm  (WezTerm - strongest Unicode/BiDi support)
+#          iterm2   (iTerm2 — better BiDi/RTL rendering, if installed)
+#          wezterm  (WezTerm — strongest Unicode/BiDi support)
 #
 # Terminal.app has weaker BiDi than Konsole. If you work in Hebrew,
 # Arabic, Persian, or any RTL language, install iTerm2 or WezTerm
@@ -390,7 +390,7 @@ CLAUDE_FLAGS=
 # When "on" (default), Claude Code output is piped through the
 # kivun-claude-bidi wrapper, which injects Unicode RLE/PDF bracket
 # pairs around Hebrew runs and an RLM at line start when the first
-# strong char is RTL - fixing the Hebrew bullet-line direction bug
+# strong char is RTL — fixing the Hebrew bullet-line direction bug
 # regardless of which terminal emulator you're using.
 #
 # The .pkg deploys the wrapper to /usr/local/share/kivun-terminal/
@@ -406,7 +406,7 @@ CONFIG
     chown "$REAL_USER" "$CONFIG_FILE"
     log "Configuration file created at $CONFIG_FILE"
 else
-    log "Configuration file already exists - skipping"
+    log "Configuration file already exists — skipping"
 fi
 
 # --- Desktop Shortcut with Folder Picker ---
@@ -416,7 +416,7 @@ rm -f "$REAL_HOME/Desktop/Kivun Terminal.command"
 SHORTCUT_PATH="$REAL_HOME/Desktop/Kivun Terminal.command"
 cat > "$SHORTCUT_PATH" << 'SCRIPT'
 #!/bin/bash
-# Kivun Terminal - launches Claude Code with folder picker
+# Kivun Terminal — launches Claude Code with folder picker
 
 CONFIG_DIR="$HOME/Library/Application Support/Kivun-Terminal"
 CONFIG_FILE="$CONFIG_DIR/config.txt"
@@ -432,7 +432,7 @@ MAC_TERMINAL="terminal"
 FOLDER_PICKER="true"
 CLAUDE_FLAGS=""
 KIVUN_BIDI_WRAPPER="on"
-# Pure-bash trim avoids xargs's glob expansion and quote stripping -
+# Pure-bash trim avoids xargs's glob expansion and quote stripping —
 # a value like `*` or `?` must pass through unchanged.
 trim() {
     local s="$1"
@@ -519,7 +519,7 @@ fi
 cd "$FOLDER" || exit 1
 
 # Build language prompt argument. Shared map at
-# /usr/local/share/kivun-terminal/languages.sh - one source of truth
+# /usr/local/share/kivun-terminal/languages.sh — one source of truth
 # across Linux + macOS. Silent fallback to no-prompt if missing.
 LANG_PROMPT=""
 LANG_MAP="/usr/local/share/kivun-terminal/languages.sh"
@@ -539,7 +539,7 @@ echo ""
 #
 # SECURITY: folder names can contain single quotes (e.g. "O'Brien's docs"),
 # dollar signs, backticks. Don't interpolate them into an AppleScript
-# `write text` shell command blindly - escape single quotes by closing,
+# `write text` shell command blindly — escape single quotes by closing,
 # inserting an escaped quote, re-opening: foo'bar → 'foo'\''bar'
 shell_quote() {
     # $1 → single-quoted safe form for POSIX sh
@@ -696,7 +696,7 @@ cat > "$WORKFLOW_PATH/Contents/document.wflow" << 'WFLOW'
                     <string>#!/bin/bash
 # Automator Quick Action: right-click a folder in Finder → "Open with
 # Kivun Terminal". All logic (config parsing, language prompts, terminal
-# respawn, color scheme) lives in the desktop .command file - this
+# respawn, color scheme) lives in the desktop .command file — this
 # action is a 20-line dispatcher that forwards the selected folder as
 # arg 1. Single source of truth eliminates the case where the Quick
 # Action's language list drifted from the documented one.
@@ -708,7 +708,7 @@ if [ ! -x "$SHORTCUT" ]; then
 fi
 # printf %q produces shell-safe quoting (bash/zsh both understand). Used
 # inside AppleScript `do script`, which types the command into a new
-# Terminal tab as if the user typed it - so the user's login shell (zsh
+# Terminal tab as if the user typed it — so the user's login shell (zsh
 # on modern macOS) parses it. This defuses folder names like
 # "O'Brien" or "$(rm -rf ~)".
 Q_SHORTCUT=$(printf '%q' "$SHORTCUT")

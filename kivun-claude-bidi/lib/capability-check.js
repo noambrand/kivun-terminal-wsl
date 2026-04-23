@@ -2,7 +2,7 @@
 
 // HEAVY §4: TERM-value sanity check at startup.
 // Warns and continues on dumb / empty TERM; silent otherwise.
-// Not a blocker - the user may be redirecting output through a pipe,
+// Not a blocker — the user may be redirecting output through a pipe,
 // in which case TERM being unusual is fine and the wrapper still runs.
 
 function checkCapability(env = process.env, warn = (m) => process.stderr.write(m + '\n')) {

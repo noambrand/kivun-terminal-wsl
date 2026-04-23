@@ -27,5 +27,5 @@
   or screengrab anything running through VcXsrv. We keep access control
   ON and authorize the WSL session via `xhost +si:localuser:$USER` from
   kivun-launch.sh on the WSL side. If a future config needs to relax
-  this, scope the exception - never disable globally.
+  this, scope the exception — never disable globally.
 -->

@@ -42,7 +42,7 @@ log "  USE_VCXSRV=$USE_VCXSRV"
 log "  LOG_FILE=$LOG_FILE"
 log "  TEXT_DIR=$TEXT_DIR"
 
-# Kill any zombie/stale konsole processes belonging to THIS user only -
+# Kill any zombie/stale konsole processes belonging to THIS user only —
 # prior failed launches can leave hidden windows that confuse xdotool
 # into reporting "found konsole" when our new window hasn't appeared yet.
 MY_UID="$(id -u)"
@@ -62,7 +62,7 @@ WSLG_DIR="/mnt/wslg/runtime-dir"
 if [ -d "$WSLG_DIR" ] && [ -w "$WSLG_DIR" ] && [ -S "$WSLG_DIR/wayland-0" ]; then
   export XDG_RUNTIME_DIR="$WSLG_DIR"
   # Qt's QStandardPaths rejects XDG_RUNTIME_DIR unless perms are 0700.
-  # WSLg ships it as 0777. If we're the owner, tighten it - otherwise
+  # WSLg ships it as 0777. If we're the owner, tighten it — otherwise
   # Konsole (a Qt app) fails to locate its display/D-Bus sockets and
   # the window never renders visibly.
   if [ -O "$WSLG_DIR" ]; then
@@ -85,7 +85,7 @@ log "INFO - Display env: DISPLAY=$DISPLAY, WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
 
 log "INFO - Setting up keyboard layout for $PRIMARY_LANG"
 # Map RESPONSE_LANGUAGE → xkb layout code. Languages without a real
-# xkb layout fall back to "il" (Hebrew) - they share RTL semantics and
+# xkb layout fall back to "il" (Hebrew) — they share RTL semantics and
 # most users of those scripts already know Hebrew keyboards.
 case "$PRIMARY_LANG" in
   english)     KBD_PRIMARY="us" ;;
@@ -120,7 +120,7 @@ log "SUCCESS - Keyboard layout mapped to: $KBD_PRIMARY"
 # Copy statusline.mjs into ~/.local/share/kivun-terminal/ and register it
 # in Claude Code's settings. Complication: on this user's machine, Claude
 # in WSL also walks up from cwd (/mnt/c/Users/<user>/) and picks up
-# %USERPROFILE%/.claude/settings.json - which has a Windows-path
+# %USERPROFILE%/.claude/settings.json — which has a Windows-path
 # statusline command that Linux node can't execute, SILENTLY breaking our
 # registration. Fix: write a settings.local.json override at the PROJECT
 # level (higher precedence than project settings.json) with a Linux-valid
@@ -140,7 +140,7 @@ if [ -f "$SCRIPT_DIR/statusline.mjs" ] && [ -f "$SCRIPT_DIR/configure-statusline
     # 2. Write a WSL-only settings file at $KT_HOME/settings.json. The
     # tmp launch script passes this to claude via --settings. The
     # outputStyle/verbosity knobs suppress tool-call spam and compact the
-    # transcript - matching the config the user runs on Windows Terminal.
+    # transcript — matching the config the user runs on Windows Terminal.
     cat > "$KT_HOME/settings.json" <<EOF
 {
   "statusLine": {
@@ -506,12 +506,12 @@ sleep 3
 
 # --- Determine target geometry for Konsole ---
 # Priority:
-#   1. PRIMARY_MON arg from Windows ("X Y W H") - most accurate, Windows knows
+#   1. PRIMARY_MON arg from Windows ("X Y W H") — most accurate, Windows knows
 #      the real primary monitor and taskbar.
-#   2. xrandr with "connected primary" tag - works on WSLg (single virtual
+#   2. xrandr with "connected primary" tag — works on WSLg (single virtual
 #      screen), sometimes on VcXsrv.
-#   3. Xinerama head #0 - VcXsrv exposes this with per-Windows-monitor info.
-#   4. Fall back to 100% 100% / 0,0 (legacy behavior - spans all monitors).
+#   3. Xinerama head #0 — VcXsrv exposes this with per-Windows-monitor info.
+#   4. Fall back to 100% 100% / 0,0 (legacy behavior — spans all monitors).
 TARGET_X=""; TARGET_Y=""; TARGET_W=""; TARGET_H=""
 if [ -n "$PRIMARY_MON" ]; then
   read -r TARGET_X TARGET_Y TARGET_W TARGET_H <<< "$PRIMARY_MON"
@@ -532,7 +532,7 @@ elif command -v xrandr >/dev/null 2>&1; then
 fi
 if [ -z "$TARGET_W" ] && command -v xdpyinfo >/dev/null 2>&1; then
   # VcXsrv Xinerama fallback. Each "head #N: WxH @ X,Y" line is a monitor.
-  # On Windows, the primary monitor is always at coord (0,0) - prefer that
+  # On Windows, the primary monitor is always at coord (0,0) — prefer that
   # head over head #0, since Xinerama head-ordering is VcXsrv-internal and
   # doesn't always map head #0 to primary.
   PRIMARY_HEAD=$(xdpyinfo -ext XINERAMA 2>/dev/null | awk '
@@ -557,7 +557,7 @@ fi
 if command -v wmctrl >/dev/null 2>&1; then
   log "INFO - Using wmctrl for window management"
   wmctrl -r "Konsole" -N "Kivun Terminal" 2>/dev/null
-  # Skip wmctrl's own maximize - it maximizes across the virtual screen
+  # Skip wmctrl's own maximize — it maximizes across the virtual screen
   # (spanning all monitors). We size/position manually via xdotool below.
   log "SUCCESS - Window renamed via wmctrl"
 else
@@ -583,7 +583,7 @@ if command -v xdotool >/dev/null 2>&1; then
       xdotool windowsize "$WID" "$WIN_W" "$WIN_H" 2>/dev/null
       log "SUCCESS - Konsole sized to ${WIN_W}x${WIN_H} at +${WIN_X}+${WIN_Y} (80% of primary ${TARGET_W}x${TARGET_H})"
     else
-      # No monitor info available - let KDE remember last window placement.
+      # No monitor info available — let KDE remember last window placement.
       log "WARNING - No monitor info, leaving Konsole at its default position"
     fi
   else

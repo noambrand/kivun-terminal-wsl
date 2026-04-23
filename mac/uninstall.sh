@@ -1,7 +1,7 @@
 #!/bin/bash
-# Kivun Terminal - macOS uninstaller
+# Kivun Terminal — macOS uninstaller
 # Removes files installed by the .pkg / postinstall. System-wide tooling
-# (Homebrew, Node, Git, Claude Code itself) is left in place - remove it
+# (Homebrew, Node, Git, Claude Code itself) is left in place — remove it
 # yourself if desired.
 #
 # Run as your normal user. The script uses sudo only when removing the
@@ -32,7 +32,7 @@ remove_if_exists() {
 remove_if_exists "$HOME/Desktop/Kivun Terminal.command"
 remove_if_exists "$HOME/Library/Services/Open with Kivun Terminal.workflow"
 
-# Config file - prompt, since user may have custom settings.
+# Config file — prompt, since user may have custom settings.
 CONFIG_DIR="$HOME/Library/Application Support/Kivun-Terminal"
 if [ -f "$CONFIG_DIR/config.txt" ]; then
     read -p "Remove config at $CONFIG_DIR/config.txt? [y/N] " ans
@@ -100,7 +100,7 @@ if pkgutil --pkg-info com.kivun.terminal &>/dev/null; then
     }
 fi
 
-# --- Stale sudoers file (safety belt - should never exist, but just in case) ---
+# --- Stale sudoers file (safety belt — should never exist, but just in case) ---
 if [ -f /etc/sudoers.d/kivun-brew-temp ]; then
     log "WARNING: stale /etc/sudoers.d/kivun-brew-temp found from a crashed install"
     log "Removing (sudo required)..."
@@ -111,10 +111,10 @@ log ""
 log "Removed $removed item(s)."
 log ""
 log "NOT removed (remove manually if desired):"
-log "  * Homebrew    - /opt/homebrew (Apple Silicon) or /usr/local/Homebrew (Intel)"
-log "  * Node.js     - brew uninstall node"
-log "  * Git         - brew uninstall git"
-log "  * Claude Code - rm -f \$(which claude) or follow Anthropic's docs"
+log "  * Homebrew    — /opt/homebrew (Apple Silicon) or /usr/local/Homebrew (Intel)"
+log "  * Node.js     — brew uninstall node"
+log "  * Git         — brew uninstall git"
+log "  * Claude Code — rm -f \$(which claude) or follow Anthropic's docs"
 log ""
 log "To reinstate the Finder right-click menu if you ever reinstall,"
 log "log out and back in so Automator re-scans services."

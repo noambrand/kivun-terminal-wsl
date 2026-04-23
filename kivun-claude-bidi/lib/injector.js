@@ -41,7 +41,7 @@ function isHebrew(cp) {
          (cp >= HEBREW_PRES_START && cp <= HEBREW_PRES_END);
 }
 
-// Tight predicate - Latin letters only. Widening to full UAX #9 L-class
+// Tight predicate — Latin letters only. Widening to full UAX #9 L-class
 // coverage (Cyrillic, Greek, CJK, etc.) is v2 work. Claude Code output is
 // Latin + Hebrew in practice.
 function isStrongLTR(cp) {
@@ -75,7 +75,7 @@ class Injector {
     // Mirror ANSI state during line-start buffering so that CSI/OSC internal
     // bytes (e.g., the `h` terminating `\x1b[?1049h`) don't get misread as
     // strong-L chars. Main inCsi/inOsc/afterEsc are not advanced during
-    // buffering - the buffer is re-processed at flush time and those vars
+    // buffering — the buffer is re-processed at flush time and those vars
     // update correctly then.
     this._lsInCsi = false;
     this._lsInOsc = false;
@@ -278,7 +278,7 @@ class Injector {
     return out;
   }
 
-  // Line-start buffer is NOT flushed at chunk boundary - held across chunks
+  // Line-start buffer is NOT flushed at chunk boundary — held across chunks
   // so the bullet-prefix RLM fix survives Claude's token-by-token streaming
   // (where "● " and the Hebrew that follows may arrive in separate write()
   // calls). Only end() force-flushes it.

