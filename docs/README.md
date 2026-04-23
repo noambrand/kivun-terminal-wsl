@@ -1,6 +1,6 @@
-# Kivun Terminal v1.0.6
+# Kivun Terminal v1.1.0
 
-[![Version](https://img.shields.io/badge/version-1.0.6-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.0-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -10,14 +10,16 @@
 
 ## How it's different from Launchpad CLI
 
-| | Launchpad CLI v2.4.2 | Kivun Terminal v1.0.6 |
+| | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.0 |
 |---|---|---|
 | **Runtime** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
-| **RTL/BiDi rendering** | Broken (Windows Terminal limitation) | Full support (Konsole BiDi engine) |
+| **RTL/BiDi rendering** | Broken (Windows Terminal limitation) | Full support (Konsole BiDi + bundled `kivun-claude-bidi` wrapper) |
+| **Hebrew bullet-line first-char bug** | Present | Fixed in v1.1.0 (line-start RLM injection) |
 | **Supported RTL languages** | 0 | 11 (hebrew, arabic, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, azerbaijani, +) |
+| **Linux + macOS support** | macOS only | Linux (apt/dnf/pacman/zypper) + macOS (.pkg) |
 | **Keyboard Alt+Shift toggle** | N/A | Yes (via optional VcXsrv) |
 | **Startup time** | ~2 s | ~6 s (Konsole launch) |
-| **Statusline** | Yes | No (planned v1.1) |
+| **Statusline** | Yes | Yes (model, context %, session/weekly limits) |
 | **Install footprint** | ~150 MB | ~2 GB (WSL + Ubuntu) |
 
 ## Quick Start
@@ -39,6 +41,7 @@ Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt` to change:
 - `PRIMARY_LANGUAGE` — keyboard layout paired with `us` for Alt+Shift toggle (default: `hebrew`)
 - `TEXT_DIRECTION` — `rtl` or `ltr` input alignment
 - `USE_VCXSRV` — `true` to use VcXsrv X server (enables working Alt+Shift)
+- `KIVUN_BIDI_WRAPPER` — `on` (the default) routes Claude Code output through the `kivun-claude-bidi` wrapper which injects explicit RLE/PDF bracket pairs around Hebrew runs. Set to `off` to fall back to unwrapped claude if the wrapper causes rendering issues on your setup.
 
 See [README_INSTALLATION.md](README_INSTALLATION.md) for full setup details and [SECURITY.txt](SECURITY.txt) for credential notes.
 

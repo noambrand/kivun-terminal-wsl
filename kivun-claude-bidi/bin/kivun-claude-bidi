@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+'use strict';
+
+// Entrypoint for kivun-claude-bidi.
+// Exit codes (per HEAVY §10):
+//   0  clean
+//   2  missing node-pty (wrapper not installable)
+//   5  wrong terminal (detect-terminal rejected)
+
+const { detectTerminal } = require('../lib/detect-terminal');
+const { checkCapability } = require('../lib/capability-check');
+
+function allowOverride(env) {
+  // Escape hatch for users running Kivun scripts inside non-Konsole
+  // profiles or for CI / testing. Documented in README.
+  return env.KIVUN_BIDI_FORCE === '1';
+}
+
+function main() {
+  const env = process.env;
+
+  const det = detectTerminal(env);
+  if (!det.ok && !allowOverride(env)) {
+    process.stderr.write(
+      `kivun-claude-bidi: ${det.reason}. ` +
+      `Set KIVUN_BIDI_FORCE=1 to bypass (v2 will widen the allowlist).\n`,
+    );
+    process.exit(5);
+  }
+
+  checkCapability(env);
+
+  let wrapper;
+  try {
+    wrapper = require('../lib/wrapper');
+  } catch (err) {
+    process.stderr.write(
+      `kivun-claude-bidi: wrapper unavailable (${err.code || err.message}).\n` +
+      `node-pty integration is pending — run with KIVUN_BIDI_WRAPPER=off to ` +
+      `disable this wrapper until v1.1.0 ships.\n`,
+    );
+    process.exit(2);
+  }
+
+  if (typeof wrapper.run !== 'function') {
+    process.stderr.write('kivun-claude-bidi: wrapper.run not yet implemented.\n');
+    process.exit(2);
+  }
+
+  wrapper.run(process.argv.slice(2), env);
+}
+
+main();

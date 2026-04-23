@@ -3,6 +3,43 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] — 2026-04-23
+
+### Added
+
+- **BiDi wrapper (`kivun-claude-bidi`).** Wrapper that pipes Claude Code output through a state machine doing two complementary BiDi fixes:
+  1. **Bracket every Hebrew run** with Unicode RLE (U+202B) / PDF (U+202C) — forces RTL direction within each run regardless of Konsole profile settings.
+  2. **Inject RLM (U+200F) at the start of any line whose first strong char is RTL** — forces the whole line's paragraph direction to RTL, which fixes the Claude Code `● שלום` first-line bug where the bullet prefix would otherwise make Konsole pick LTR paragraph direction.
+  Both fixes together mean Hebrew responses render right-aligned from the first line, not just from the second onward. Detection covers Hebrew block (U+0590–U+05FF) and Hebrew presentation forms (U+FB1D–U+FB4F). Lines whose first strong char is Latin (`Hello`, `def foo():`, etc.) get no RLM so English content stays left-aligned.
+  - **Default: on.** Ships enabled so Hebrew in Claude Code output works without manual config edits. Disable by setting `KIVUN_BIDI_WRAPPER=off` in `%LOCALAPPDATA%\Kivun-WSL\config.txt` and relaunching.
+  - **First enable** runs `npm install --production` inside WSL to build `node-pty` (~5–15 s, one-time). An install stamp (`.kivun-install-stamp`) under `node_modules/` gates subsequent launches to instant startup. Stamp invalidates if the shipped `package.json` is newer.
+  - **Deploy target:** `~/.local/share/kivun-terminal/kivun-claude-bidi/` (WSL-native, not `/mnt/c/...`) so `node-pty` builds against real Linux paths and avoids the filesystem-performance / path-translation penalty of `/mnt/c`.
+  - **Fallback:** if the key is `on` but the wrapper binary isn't reachable (missing install, failed `npm install`), the launcher logs a loud WARNING and runs unwrapped `claude` so the user never sees a silent launch failure.
+  - **Installer packaging:** the `kivun-claude-bidi/` source tree ships under `$INSTDIR\kivun-claude-bidi\` (no `node_modules`; that's built on first enable). Uninstaller removes the tree recursively.
+  - **Cross-platform parity (Mac + Linux):** the wrapper now ships in all three installers, not just Windows.
+    - **Linux** (`linux/install.sh`): copies the wrapper source to `~/.local/share/kivun-terminal/kivun-claude-bidi/` and runs `npm install --production` once at install time. If npm isn't on PATH yet (Node was just installed in the same run and the user's shell hasn't re-resolved), the launcher's `ensure_wrapper_installed` retries on first launch — same `.kivun-install-stamp` pattern as the WSL launcher. Also fixes a latent bug: the launcher previously set `CLAUDE_EXEC` but the inner launch script invoked `claude` literally, so the wrapper was never actually used on Linux even when configured on.
+    - **macOS** (`mac/build.sh` + `mac/scripts/postinstall`): the `.pkg` bundles the wrapper source under `scripts/kivun-claude-bidi/`; postinstall copies it to `/usr/local/share/kivun-terminal/kivun-claude-bidi/` and runs `npm install --production` as the real user (so `node-pty` builds against the correct arch — Intel vs Apple Silicon). The desktop `.command` shortcut now reads `KIVUN_BIDI_WRAPPER` from config and dispatches to the wrapper binary in three branches: default Terminal.app, iTerm2 respawn, and (no-op) WezTerm respawn.
+    - Both inline `config.txt` templates (linux installer + mac postinstall) now seed `KIVUN_BIDI_WRAPPER=on`, matching the Windows default.
+    - Existing uninstallers already remove the parent share directory, so the wrapper tree is cleaned up without changes to `linux/uninstall.sh` or `mac/uninstall.sh`.
+  - **Test coverage:**
+    - 18 injector unit fixtures (all passing) covering the HEAVY spec §7 core set (10 ship-blocking: ASCII baseline, pure Hebrew line, mixed-script, multiple runs, Hebrew-space-Hebrew, mid-run ANSI SGR, chunk boundary mid-Hebrew, chunk boundary mid-UTF-8 codepoint, newline inside run, 500-char paragraph) plus 8 extended (Hebrew-comma-Hebrew, Hebrew-period-English, Hebrew-in-parens, chunk mid-CSI, presentation forms, emoji, bracketed-paste, alt-screen toggle).
+    - 3 capability-check + 5 terminal-detect tests.
+    - End-to-end `test/smoke.sh` spawning the wrapper via node-pty against a fake-claude stand-in and asserting bracket placement in the captured output. 7/7 checks green.
+  - **Architecture spec:** `docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md` (RLE/PDF embedding design, edge-case handling, fallback heuristics). Alternatives considered and rejected: RLI/PDI isolates (v2 candidate if we observe direction-leak artifacts), line-start RLM (MEDIUM spec, deferred — `docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_MEDIUM_DEFERRED.md` for the decision trail), full xterm.js headless state machine (rejected as over-engineering).
+  - **Integration gate status:** §1 of HEAVY requires three `printf` lines in a functioning Konsole to empirically confirm RLE/PDF rendering. Deferred to pre-tag per canary-gated-ship plan; see `docs/research/integration-gate-status.md` for the three acceptable paths and `docs/research/pty-probe-2026-04-23.zip` for the prototype decision trail.
+
+### Changed
+
+- **`payload/config.txt`** gains a `KIVUN_BIDI_WRAPPER` section (default `on`). Existing `config.txt` files from prior installs are preserved on upgrade — those users won't have the key at all, and the launcher treats missing = `off`. To pick up the new default, delete `%LOCALAPPDATA%\Kivun-WSL\config.txt` and rerun the installer.
+- **`payload/kivun-launch.sh`** (WSL-side, invoked from `kivun-terminal.bat`) and **`linux/kivun-launch.sh`** (native-Linux launcher): conditional wrapper invocation based on `KIVUN_BIDI_WRAPPER`. Both launchers log the decision (`active` / `off` / `fallback WARNING`) so config drift is visible in `BASH_LAUNCH_LOG.txt` / `launch.log`.
+- **Linux launcher** writes `CLAUDE_EXEC` to its `launch-env.sh` via `printf %q`, preserving the #2 security property from the v1.0.6 audit (no command-substitution re-evaluation of values coming from user-editable config).
+
+### Notes
+
+- **Default-on rationale.** Earlier draft had the wrapper opt-in with a v1.2.0 default-flip after a 4-week feedback window. Dropped that: user base is small, the feedback-window signal thin, and "Hebrew just works after install" is the product promise — requiring a config edit to get the fix contradicts that. Rollback path if wrapper breaks in the wild: single-line `KIVUN_BIDI_WRAPPER=off` edit documented in TROUBLESHOOTING; v1.1.1 hotfix flips the shipped default back if root-cause fix isn't ready in 48 hours. See `docs/specs/ROADMAP.md` for details.
+- **Bullet-line fix verified empirically.** The `● שלום` first-line LTR bug from v1.0.6 is fixed in v1.1.0. Verification process: `docs/research/paragraph-direction-test.sh` run on a real KivunTerminal-profile Konsole tested 9 Unicode marker placements; only RLM at position 0 flipped the paragraph direction to RTL. RLE/RLI whole-line wraps did NOT flip paragraph direction (they only affect within-run embedding). The wrapper uses a line-start buffering loop to inject RLM at position 0 whenever the line's first strong char is Hebrew.
+- **Still pending before tag:** integration gate §1 run on real Konsole, 1-day production canary on the lead dev's real Claude Code usage, `VERSION` bump 1.0.6 → 1.1.0.
+
 ## [1.0.6] — 2026-04-19
 
 ### Security hardening pass — 2026-04-21

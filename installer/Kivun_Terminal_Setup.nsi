@@ -1,11 +1,11 @@
-; Kivun Terminal v1.0.6 - Professional Installer
+; Kivun Terminal v1.1.0 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.0.6"
+!define PRODUCT_VERSION "1.1.0"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.0.6.0"
+VIProductVersion "1.1.0.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.0.6.0"
+VIAddVersionKey "FileVersion" "1.1.0.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -102,6 +102,15 @@ Section "Core Files" SEC_CORE
   ${Else}
     DetailPrint "Preserving existing config.txt (user edits kept)"
   ${EndIf}
+
+  ; BiDi wrapper bundle — source files only (no node_modules). npm install
+  ; --production runs on first enable inside WSL; see payload/kivun-launch.sh
+  ; deploy_bidi_wrapper(). Wrapper is off by default via config.txt in
+  ; v1.1.0 — ships installed but dormant until the user flips
+  ; KIVUN_BIDI_WRAPPER=on.
+  SetOutPath "$INSTDIR"
+  File /r /x node_modules /x .git "..\kivun-claude-bidi"
+  DetailPrint "Installed BiDi wrapper source (enable via KIVUN_BIDI_WRAPPER=on in config.txt)"
 
   ; Log directory
   CreateDirectory "$LOCALAPPDATA\Kivun-WSL"
@@ -394,6 +403,10 @@ Section "Uninstall"
   Delete "$INSTDIR\TROUBLESHOOTING.md"
   Delete "$INSTDIR\kivun_icon.ico"
   Delete "$INSTDIR\Uninstall.exe"
+
+  ; Remove BiDi wrapper bundle
+  RMDir /r "$INSTDIR\kivun-claude-bidi"
+
   RMDir "$INSTDIR"
 
   ; NOTE: Deliberately do NOT uninstall WSL, Ubuntu, Konsole, or Claude Code.

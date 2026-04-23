@@ -1,0 +1,23 @@
+{
+  "name": "kivun-claude-bidi",
+  "version": "0.2.0-rlm",
+  "description": "BiDi wrapper for Claude Code under Konsole — HEAVY architecture (RLE/PDF bracket injection).",
+  "license": "MIT",
+  "bin": {
+    "kivun-claude-bidi": "bin/kivun-claude-bidi"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ]
+}

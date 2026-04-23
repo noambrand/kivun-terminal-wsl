@@ -90,6 +90,25 @@ FOLDER_PICKER=false
 TEXT_DIRECTION=rtl
 
 # =================================================================
+# BIDI WRAPPER (Hebrew rendering for Claude Code output)
+# =================================================================
+# When set to "on" (the default), Claude Code output is piped through
+# the kivun-claude-bidi wrapper, which injects Unicode RLE/PDF bracket
+# pairs (U+202B / U+202C) around Hebrew runs so they render
+# right-to-left regardless of the Konsole profile's BiDi settings.
+#
+# The installer deploys the wrapper automatically; first launch runs a
+# one-time `npm install` (~5-15 s) inside WSL to build its native
+# dependencies. Subsequent launches are instant.
+#
+# If you see rendering issues or want to fall back to unwrapped claude,
+# change the value below to "off" and relaunch. The launcher logs the
+# wrapper state to BASH_LAUNCH_LOG.txt on every launch.
+#
+# Default: on
+KIVUN_BIDI_WRAPPER=on
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information

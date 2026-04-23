@@ -131,20 +131,96 @@ wsl -d Ubuntu --user root -- rm -f /tmp/kivun-claude-launch.sh
 
 ## Symptom: Claude's Hebrew/Arabic response is left-aligned on the first line
 
-**This is a known upstream limitation in Claude Code, not a Kivun bug.**
+**Fixed in v1.1.0 on all three platforms** (Windows/WSL, Linux, macOS) when the BiDi wrapper is enabled (which is the default). If you're on v1.0.6 or have `KIVUN_BIDI_WRAPPER=off`, the bug is still there.
 
-Claude Code prepends every assistant message with a `●` bullet character (defined in `cli.js`). Per Unicode BiDi rule UAX #9 P2, neutral characters like `●` should be skipped when detecting paragraph direction, but all tested terminal emulators (Konsole, GNOME Terminal, Windows Terminal) use the simpler "first visible character wins" approach and pick LTR — so the single first line of Claude's RTL-language reply renders left-aligned.
+Per-platform launch log paths (search for `BiDi wrapper active` to confirm the wrapper is running):
 
-- Your own Hebrew **input** is right-aligned correctly ✓
-- Claude's Hebrew response **lines 2+** (no bullet) are right-aligned correctly ✓
-- Only Claude's response **line 1** (with the `●` bullet) renders LTR ✗
+- **Windows**: `%LOCALAPPDATA%\Kivun-WSL\BASH_LAUNCH_LOG.txt`
+- **Linux**: `~/.local/share/kivun-terminal/launch.log`
+- **macOS**: the `.command` shortcut prints to its own Terminal.app window; postinstall log lives at `/tmp/kivun_install.log`.
 
-Workarounds we tried and why they don't work:
+Root cause: Claude Code prepends every assistant message with a `●` bullet character. Konsole's BiDi auto-detect uses "first strong char wins" paragraph-direction detection, but empirically (see `docs/research/paragraph-direction-test.sh`) it only honors the first strong char if it appears **before any other visible char**. The `●` is a visible neutral, so Konsole falls back to LTR direction despite the Hebrew that follows.
 
-- Teaching Claude via system prompt to start responses with a blank / dash / header line: Claude ignores these on ~50% of replies.
-- Patching `cli.js` to remove the bullet: works, but modifying a signed npm package triggers Windows SmartScreen and antivirus heuristics — can't ship in an installer.
+How v1.1.0 fixes it: the wrapper injects a zero-width RLM (U+200F, strong-R) at position 0 of every line whose first strong char is RTL. That means the line always starts with strong-R from Konsole's perspective, paragraph direction becomes RTL, and the Hebrew (including the bullet line) renders right-aligned. English-first lines don't get RLM so Latin content stays LTR.
 
-Clean fix must come from Anthropic. **Tracked upstream at [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)** — please 👍 that issue to help prioritize the fix. The technical BiDi analysis (root cause in `cli.js`, two proposed fixes including an RLM-prefix option that preserves the visual bullet while fixing BiDi) is posted as a comment: [#39881 (comment)](https://github.com/anthropics/claude-code/issues/39881#issuecomment-4281323284). Full internal analysis kept at `docs/FEATURE_REQUEST_ANTHROPIC.md`.
+**If you see the bug in v1.1.0:**
+1. Check `BASH_LAUNCH_LOG.txt`. You should see `SUCCESS - BiDi wrapper active`. If instead you see `BiDi wrapper off`, edit `%LOCALAPPDATA%\Kivun-WSL\config.txt`, set `KIVUN_BIDI_WRAPPER=on`, relaunch.
+2. If log shows wrapper active but bullet line is still LTR, it's a new bug — please file an issue with a screenshot and your Konsole version (`wsl -d Ubuntu -- konsole --version`).
+
+Upstream tracker (relevant if you want Anthropic to fix this at the source): [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881).
+
+## Symptom: `KIVUN_BIDI_WRAPPER=on` but Hebrew still renders reversed
+
+**Cause:** The BiDi wrapper (`kivun-claude-bidi`) is default-on as of v1.1.0 but requires a one-time first-run `npm install` before it can be used. If something in that flow failed, the launcher falls back to unwrapped `claude` silently from the user's perspective — but the launch log records the reason.
+
+**Diagnose:** open the per-platform launch log (see paths in the previous symptom) and search for `BiDi` or `wrapper`. Three possible states:
+
+1. `BiDi wrapper active: <path>/kivun-claude-bidi/bin/kivun-claude-bidi` — wrapper is running. If Hebrew still looks wrong, the issue is not the wrapper; see the BiDi engine section below.
+2. `WARNING - Wrapper deploy failed` / `npm install failed` — see the next symptom.
+3. `BiDi wrapper off` — the key isn't set to `on`. Edit your config and set `KIVUN_BIDI_WRAPPER=on`. Config paths:
+   - **Windows:** `%LOCALAPPDATA%\Kivun-WSL\config.txt`
+   - **Linux:** `~/.config/kivun-terminal/config.txt`
+   - **macOS:** `~/Library/Application Support/Kivun-Terminal/config.txt`
+
+   If the key is missing entirely (upgrading from pre-v1.1.0 preserves your old `config.txt`), add it manually. Relaunch.
+
+## Symptom: Wrapper deploy fails with "npm install failed"
+
+**Cause:** `npm` or `node` isn't installed (or the version is too old for `node-pty`'s native build), or the build toolchain (`build-essential`/Xcode CLT) is missing.
+
+**Fix — Windows (WSL Ubuntu):**
+
+```bash
+wsl -d Ubuntu -u root -- apt-get update
+wsl -d Ubuntu -u root -- apt-get install -y nodejs npm build-essential python3
+```
+
+**Fix — Linux:**
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install -y nodejs npm build-essential python3
+# Fedora/RHEL
+sudo dnf install -y nodejs npm gcc-c++ make python3
+# Arch
+sudo pacman -S --needed nodejs npm base-devel python
+```
+
+**Fix — macOS:**
+
+```bash
+brew install node
+xcode-select --install   # if Xcode CLT isn't present (provides the C++ toolchain node-pty needs)
+```
+
+Then relaunch. On first launch with the wrapper enabled, `npm install` retries automatically. Expect 5–15 s the first time; subsequent launches are instant (an `.kivun-install-stamp` file in `<wrapper-dir>/node_modules/` gates re-installation).
+
+If you want to force a reinstall after updating Node/npm, delete `node_modules` from the platform-specific wrapper directory:
+
+- **Windows:** `wsl -d Ubuntu -- rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules`
+- **Linux:** `rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules`
+- **macOS:** `rm -rf /usr/local/share/kivun-terminal/kivun-claude-bidi/node_modules` (the postinstall chowns the wrapper subtree to your user, so no sudo needed)
+
+Check the tail of the launch log for the specific npm error message — common culprits are offline networks, missing build toolchains, or a Node version too old for `node-pty`.
+
+## Symptom: Pasted text from Konsole contains invisible characters that break shell commands
+
+**Cause:** When `KIVUN_BIDI_WRAPPER=on`, the wrapper injects zero-width RLE (U+202B) and PDF (U+202C) direction marks around Hebrew runs in Claude's output. Most modern terminals hide them on copy, but some tools see them as literal bytes and your `paste` target may render them as boxes, `‫` / `‬`, or choke on them in parsing.
+
+**Fix (one-off):** strip them at the receiving end:
+
+```bash
+tr -d '‫‬' < pasted.txt > clean.txt
+```
+
+Or pipe directly:
+
+```bash
+pbpaste | tr -d '‫‬'   # macOS
+xclip -selection clipboard -o | tr -d '‫‬'   # Linux
+```
+
+**Fix (permanent, trades RTL correctness for clean copy-paste):** set `KIVUN_BIDI_WRAPPER=off` in `config.txt`. Relies on Konsole's native BiDi engine alone — works for most output but can fail on profile drift or custom Konsole profiles.
 
 ## Symptom: Hebrew/Arabic letters render left-to-right or look garbled
 

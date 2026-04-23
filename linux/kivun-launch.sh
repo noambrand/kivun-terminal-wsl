@@ -26,6 +26,7 @@ TERMINAL_COLOR="kivun"
 KEYBOARD_TOGGLE="true"
 FOLDER_PICKER="false"
 CLAUDE_FLAGS=""
+KIVUN_BIDI_WRAPPER="on"
 trim() {
     # Pure-bash whitespace trim. Avoids `xargs` which both strips quotes
     # and globs unquoted special characters against the CWD (so a config
@@ -44,16 +45,70 @@ if [ -f "$CONFIG_FILE" ]; then
         key=$(trim "$key")
         value=$(trim "$value")
         case "$key" in
-            RESPONSE_LANGUAGE) RESPONSE_LANGUAGE="$value" ;;
-            TEXT_DIRECTION)    TEXT_DIRECTION="$value" ;;
-            TERMINAL_COLOR)    TERMINAL_COLOR="$value" ;;
-            KEYBOARD_TOGGLE)   KEYBOARD_TOGGLE="$value" ;;
-            FOLDER_PICKER)     FOLDER_PICKER="$value" ;;
-            CLAUDE_FLAGS)      CLAUDE_FLAGS="$value" ;;
+            RESPONSE_LANGUAGE)   RESPONSE_LANGUAGE="$value" ;;
+            TEXT_DIRECTION)      TEXT_DIRECTION="$value" ;;
+            TERMINAL_COLOR)      TERMINAL_COLOR="$value" ;;
+            KEYBOARD_TOGGLE)     KEYBOARD_TOGGLE="$value" ;;
+            FOLDER_PICKER)       FOLDER_PICKER="$value" ;;
+            CLAUDE_FLAGS)        CLAUDE_FLAGS="$value" ;;
+            KIVUN_BIDI_WRAPPER)  KIVUN_BIDI_WRAPPER="$value" ;;
         esac
     done < "$CONFIG_FILE"
 fi
-log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER"
+log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER"
+
+# Decide which binary the tmp launch script will invoke. Wrapper is
+# default-on in v1.1.0. Resolution order:
+#   1. Bundled wrapper at ~/.local/share/kivun-terminal/kivun-claude-bidi/
+#      (deployed by install.sh; npm install runs at install time, or here
+#      on first launch if install skipped it because node was missing).
+#   2. Anything called `kivun-claude-bidi` on PATH (manual installs).
+#   3. Unwrapped `claude` with a loud WARNING.
+ensure_wrapper_installed() {
+    # Returns 0 and echoes the wrapper binary path if usable; non-zero on failure.
+    local dst="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
+    local bin="$dst/bin/kivun-claude-bidi"
+    [ -d "$dst" ] || return 1
+
+    chmod +x "$bin" 2>/dev/null || true
+
+    # npm install guard — same stamp pattern as the WSL launcher. Reinstall
+    # only if node_modules is missing or package.json is newer than the stamp.
+    local stamp="$dst/node_modules/.kivun-install-stamp"
+    if [ ! -f "$stamp" ] || [ "$dst/package.json" -nt "$stamp" ]; then
+        if command -v npm >/dev/null 2>&1; then
+            log "Installing wrapper deps (one-time, ~5-15s) — npm install --production"
+            (cd "$dst" && npm install --production --no-audit --no-fund) >> "$LOG_FILE" 2>&1
+            local rc=$?
+            if [ $rc -ne 0 ]; then
+                log "ERROR: npm install failed (rc=$rc); see $LOG_FILE"
+                return 1
+            fi
+            mkdir -p "$(dirname "$stamp")"
+            touch "$stamp"
+        else
+            log "ERROR: npm not on PATH; cannot install wrapper deps. Install Node.js + npm and relaunch."
+            return 1
+        fi
+    fi
+
+    [ -x "$bin" ] || return 1
+    printf '%s' "$bin"
+    return 0
+}
+
+CLAUDE_EXEC="claude"
+if [ "$KIVUN_BIDI_WRAPPER" = "on" ]; then
+    if WRAPPER_BIN=$(ensure_wrapper_installed); then
+        CLAUDE_EXEC="$WRAPPER_BIN"
+        log "BiDi wrapper active: $CLAUDE_EXEC"
+    elif command -v kivun-claude-bidi >/dev/null 2>&1; then
+        CLAUDE_EXEC="kivun-claude-bidi"
+        log "BiDi wrapper active (PATH fallback): kivun-claude-bidi"
+    else
+        log "WARNING: KIVUN_BIDI_WRAPPER=on but wrapper unavailable; using unwrapped claude"
+    fi
+fi
 
 # --- Resolve target folder ---
 TARGET_DIR=""
@@ -204,6 +259,7 @@ ENV_FILE="$CACHE_DIR/launch-env.sh"
     printf 'KT_SETTINGS=%q\n'   "$KT_SETTINGS"
     printf 'LANG_PROMPT=%q\n'   "$LANG_PROMPT"
     printf 'CLAUDE_FLAGS=%q\n'  "$CLAUDE_FLAGS"
+    printf 'CLAUDE_EXEC=%q\n'   "$CLAUDE_EXEC"
 } > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
@@ -224,20 +280,43 @@ fi
 : "${KT_SETTINGS:=}"
 : "${LANG_PROMPT:=}"
 : "${CLAUDE_FLAGS:=}"
+: "${CLAUDE_EXEC:=claude}"
 
-if ! command -v claude >/dev/null 2>&1; then
-    echo "ERROR: 'claude' not found in PATH."
-    echo "PATH: $PATH"
-    echo ""
-    echo "Install it with:"
-    echo "  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh"
-    echo ""
-    echo "Press Enter to close."
-    read -r
-    exit 1
-fi
+# `command -v` resolves both PATH lookups (`claude`) and absolute paths
+# (the wrapper binary). For absolute paths, `command -v` succeeds only if
+# the file is executable — so handle that case explicitly to give a
+# wrapper-specific error rather than the generic "install claude" message.
+case "$CLAUDE_EXEC" in
+    /*)
+        if [ ! -x "$CLAUDE_EXEC" ]; then
+            echo "ERROR: BiDi wrapper not executable at: $CLAUDE_EXEC"
+            echo ""
+            echo "Try (one of):"
+            echo "  chmod +x \"$CLAUDE_EXEC\""
+            echo "  rm -rf \"$(dirname "$(dirname "$CLAUDE_EXEC")")\" && re-run linux/install.sh"
+            echo "  set KIVUN_BIDI_WRAPPER=off in ~/.config/kivun-terminal/config.txt"
+            echo ""
+            echo "Press Enter to close."
+            read -r
+            exit 1
+        fi
+        ;;
+    *)
+        if ! command -v "$CLAUDE_EXEC" >/dev/null 2>&1; then
+            echo "ERROR: '$CLAUDE_EXEC' not found in PATH."
+            echo "PATH: $PATH"
+            echo ""
+            echo "Install it with:"
+            echo "  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh"
+            echo ""
+            echo "Press Enter to close."
+            read -r
+            exit 1
+        fi
+        ;;
+esac
 
-echo "Claude:  $(command -v claude)"
+echo "Claude:  $CLAUDE_EXEC"
 echo "Folder:  $(pwd)"
 echo ""
 
@@ -252,7 +331,7 @@ ARGS=()
 [ -f "$KT_SETTINGS" ] && ARGS+=(--settings "$KT_SETTINGS")
 [ -n "$LANG_PROMPT" ] && ARGS+=(--append-system-prompt "$LANG_PROMPT")
 
-claude "${ARGS[@]}" $CLAUDE_FLAGS
+"$CLAUDE_EXEC" "${ARGS[@]}" $CLAUDE_FLAGS
 EXIT_CODE=$?
 
 echo ""

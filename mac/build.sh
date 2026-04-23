@@ -34,6 +34,21 @@ cp payload/statusline.mjs "$BUILD_DIR/scripts/statusline.mjs"
 cp payload/configure-statusline.js "$BUILD_DIR/scripts/configure-statusline.js"
 cp payload/languages.sh "$BUILD_DIR/scripts/languages.sh"
 cp mac/uninstall.sh "$BUILD_DIR/scripts/uninstall.sh"
+
+# Stage the BiDi wrapper source — node_modules and .git excluded so the
+# .pkg ships only sources; postinstall runs `npm install --production` on
+# the target machine so node-pty builds against the local arch (Intel vs
+# Apple Silicon) and libc. Mirrors the Windows installer's File /r /x.
+if [ -d "kivun-claude-bidi" ]; then
+    mkdir -p "$BUILD_DIR/scripts/kivun-claude-bidi"
+    (cd kivun-claude-bidi && tar --exclude=node_modules --exclude=.git -cf - .) \
+        | (cd "$BUILD_DIR/scripts/kivun-claude-bidi" && tar xf -)
+    chmod +x "$BUILD_DIR/scripts/kivun-claude-bidi/bin/kivun-claude-bidi" 2>/dev/null || true
+    echo "Staged kivun-claude-bidi wrapper source"
+else
+    echo "WARNING: kivun-claude-bidi/ not found at repo root — wrapper will not ship"
+fi
+
 # Integrity check: postinstall verifies statusline.mjs against this SHA
 # before installing. macOS has `shasum`; Linux uses `sha256sum`.
 if command -v shasum &>/dev/null; then
