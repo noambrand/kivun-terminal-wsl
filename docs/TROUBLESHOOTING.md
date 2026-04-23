@@ -146,6 +146,62 @@ Workarounds we tried and why they don't work:
 
 Clean fix must come from Anthropic. **Tracked upstream at [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)** — please 👍 that issue to help prioritize the fix. The technical BiDi analysis (root cause in `cli.js`, two proposed fixes including an RLM-prefix option that preserves the visual bullet while fixing BiDi) is posted as a comment: [#39881 (comment)](https://github.com/anthropics/claude-code/issues/39881#issuecomment-4281323284). Full internal analysis kept at `docs/FEATURE_REQUEST_ANTHROPIC.md`.
 
+## Symptom: `KIVUN_BIDI_WRAPPER=on` but Hebrew still renders reversed
+
+**Cause:** The BiDi wrapper (`kivun-claude-bidi`) is opt-in as of v1.1.0 and requires a one-time first-run install before it can be used. If something in that flow failed, the launcher falls back to unwrapped `claude` silently from the user's perspective — but the launch log records the reason.
+
+**Diagnose:** open `%LOCALAPPDATA%\Kivun-WSL\BASH_LAUNCH_LOG.txt` and search for `BiDi` or `wrapper`. Three possible states:
+
+1. `BiDi wrapper active: /home/<user>/.local/share/kivun-terminal/kivun-claude-bidi/bin/kivun-claude-bidi` — wrapper is running. If Hebrew still looks wrong, the issue is not the wrapper; see the Konsole BiDi engine section below.
+2. `WARNING - Wrapper deploy failed` — `npm install` failed inside WSL. See the next symptom.
+3. `INFO - BiDi wrapper off (KIVUN_BIDI_WRAPPER=off)` — the key isn't set to `on`. Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt`, add or change the line:
+
+   ```
+   KIVUN_BIDI_WRAPPER=on
+   ```
+
+   If the key is missing entirely (upgrading from pre-v1.1.0 preserves your old `config.txt`), add it manually. Relaunch.
+
+## Symptom: Wrapper deploy fails with "npm install failed"
+
+**Cause:** `npm` or `node` isn't installed in your Ubuntu WSL distribution, or the version is too old for `node-pty`'s native build.
+
+**Fix:**
+
+```bash
+wsl -d Ubuntu -u root -- apt-get update
+wsl -d Ubuntu -u root -- apt-get install -y nodejs npm build-essential python3
+```
+
+Then relaunch Kivun Terminal. The first launch with the wrapper enabled will retry `npm install`. Expect 5–15 s the first time; subsequent launches are instant (an `.kivun-install-stamp` file in `~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules/` gates re-installation).
+
+If you want to force a reinstall after updating Node/npm:
+
+```bash
+wsl -d Ubuntu -- rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules
+```
+
+Check the tail of `BASH_LAUNCH_LOG.txt` for the specific npm error message — common culprits are offline WSL, expired apt cache, or missing `build-essential`.
+
+## Symptom: Pasted text from Konsole contains invisible characters that break shell commands
+
+**Cause:** When `KIVUN_BIDI_WRAPPER=on`, the wrapper injects zero-width RLE (U+202B) and PDF (U+202C) direction marks around Hebrew runs in Claude's output. Most modern terminals hide them on copy, but some tools see them as literal bytes and your `paste` target may render them as boxes, `‫` / `‬`, or choke on them in parsing.
+
+**Fix (one-off):** strip them at the receiving end:
+
+```bash
+tr -d '‫‬' < pasted.txt > clean.txt
+```
+
+Or pipe directly:
+
+```bash
+pbpaste | tr -d '‫‬'   # macOS
+xclip -selection clipboard -o | tr -d '‫‬'   # Linux
+```
+
+**Fix (permanent, trades RTL correctness for clean copy-paste):** set `KIVUN_BIDI_WRAPPER=off` in `config.txt`. Relies on Konsole's native BiDi engine alone — works for most output but can fail on profile drift or custom Konsole profiles.
+
 ## Symptom: Hebrew/Arabic letters render left-to-right or look garbled
 
 **Cause:** Konsole's BiDi engine is disabled or the installed Konsole is too old.

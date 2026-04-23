@@ -3,6 +3,35 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased] — targeting v1.1.0
+
+### Added
+
+- **BiDi wrapper (`kivun-claude-bidi`).** Optional opt-in wrapper that pipes Claude Code output through a state machine wrapping every Hebrew run in Unicode RLE (U+202B) / PDF (U+202C) bracket pairs. This forces RTL paragraph direction within each wrapped run regardless of Konsole profile settings — fixing rendering edge cases where profile drift or custom Konsole profiles cause Hebrew to appear LTR, and future-proofing against ICU/Konsole BiDi changes. Detection covers Hebrew block (U+0590–U+05FF) and Hebrew presentation forms (U+FB1D–U+FB4F).
+  - **Enable:** set `KIVUN_BIDI_WRAPPER=on` in `%LOCALAPPDATA%\Kivun-WSL\config.txt` (default: `off`). The key's comment block in `config.txt` documents the toggle and links to the ROADMAP for the v1.2.0 default-flip plan.
+  - **First enable** runs `npm install --production` inside WSL to build `node-pty` (~5–15 s, one-time). An install stamp (`.kivun-install-stamp`) under `node_modules/` gates subsequent launches to instant startup. Stamp invalidates if the shipped `package.json` is newer.
+  - **Deploy target:** `~/.local/share/kivun-terminal/kivun-claude-bidi/` (WSL-native, not `/mnt/c/...`) so `node-pty` builds against real Linux paths and avoids the filesystem-performance / path-translation penalty of `/mnt/c`.
+  - **Fallback:** if the key is `on` but the wrapper binary isn't reachable (missing install, failed `npm install`), the launcher logs a loud WARNING and runs unwrapped `claude` so the user never sees a silent launch failure.
+  - **Installer packaging:** the `kivun-claude-bidi/` source tree ships under `$INSTDIR\kivun-claude-bidi\` (no `node_modules`; that's built on first enable). Uninstaller removes the tree recursively.
+  - **Test coverage:**
+    - 18 injector unit fixtures (all passing) covering the HEAVY spec §7 core set (10 ship-blocking: ASCII baseline, pure Hebrew line, mixed-script, multiple runs, Hebrew-space-Hebrew, mid-run ANSI SGR, chunk boundary mid-Hebrew, chunk boundary mid-UTF-8 codepoint, newline inside run, 500-char paragraph) plus 8 extended (Hebrew-comma-Hebrew, Hebrew-period-English, Hebrew-in-parens, chunk mid-CSI, presentation forms, emoji, bracketed-paste, alt-screen toggle).
+    - 3 capability-check + 5 terminal-detect tests.
+    - End-to-end `test/smoke.sh` spawning the wrapper via node-pty against a fake-claude stand-in and asserting bracket placement in the captured output. 7/7 checks green.
+  - **Architecture spec:** `docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md` (RLE/PDF embedding design, edge-case handling, fallback heuristics). Alternatives considered and rejected: RLI/PDI isolates (v2 candidate if we observe direction-leak artifacts), line-start RLM (MEDIUM spec, deferred — `docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_MEDIUM_DEFERRED.md` for the decision trail), full xterm.js headless state machine (rejected as over-engineering).
+  - **Integration gate status:** §1 of HEAVY requires three `printf` lines in a functioning Konsole to empirically confirm RLE/PDF rendering. Deferred to pre-tag per canary-gated-ship plan; see `docs/research/integration-gate-status.md` for the three acceptable paths and `docs/research/pty-probe-2026-04-23.zip` for the prototype decision trail.
+
+### Changed
+
+- **`payload/config.txt`** gains a `KIVUN_BIDI_WRAPPER` section (default `off`) with comment block explaining the toggle and pointing at `docs/specs/ROADMAP.md`. Existing `config.txt` files are preserved on upgrade — users wanting the wrapper must add the key manually or let a fresh install write the new default.
+- **`payload/kivun-launch.sh`** (WSL-side, invoked from `kivun-terminal.bat`) and **`linux/kivun-launch.sh`** (native-Linux launcher): conditional wrapper invocation based on `KIVUN_BIDI_WRAPPER`. Both launchers log the decision (`active` / `off` / `fallback WARNING`) so config drift is visible in `BASH_LAUNCH_LOG.txt` / `launch.log`.
+- **Linux launcher** writes `CLAUDE_EXEC` to its `launch-env.sh` via `printf %q`, preserving the #2 security property from the v1.0.6 audit (no command-substitution re-evaluation of values coming from user-editable config).
+
+### Notes
+
+- **Opt-in.** Wrapper is off by default so existing users see zero behavioral change on upgrade. `KIVUN_BIDI_WRAPPER=off` preserves v1.0.6 behavior exactly.
+- **Default flip in v1.2.0.** After a ≥4-week feedback window and gate criteria in `docs/specs/ROADMAP.md`, `KIVUN_BIDI_WRAPPER=on` becomes the shipped default.
+- **Still pending before tag:** integration gate §1 run on real Konsole, 1-day production canary on the lead dev's real Claude Code usage, `VERSION` bump 1.0.6 → 1.1.0.
+
 ## [1.0.6] — 2026-04-19
 
 ### Security hardening pass — 2026-04-21
