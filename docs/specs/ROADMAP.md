@@ -50,7 +50,7 @@ If a user reports output corruption, silent hang, or Claude launch failure attri
 
 ## Beyond v1.1.0 (tracked, not scheduled)
 
-- **Fix Claude Code's `●` bullet first-line LTR alignment.** Separate from the HEAVY wrapper's scope. Possible approaches: (a) extend wrapper to inject line-start RLM (U+200F) before the first Hebrew character on each Hebrew-containing line — requires empirical verification that Konsole honors RLM for paragraph detection with `BidiLineLTR=false`; test script at `docs/research/paragraph-direction-test.sh`; (b) upstream fix at claude-code#39881; (c) strip the bullet in the wrapper (cross-cuts from rendering into content modification, risky).
+- **~~Fix Claude Code's `●` bullet first-line LTR alignment~~ — DONE in v1.1.0.** Extended wrapper with line-start RLM (U+200F) injection for lines whose first strong char is RTL. Empirically verified on real Konsole via `docs/research/paragraph-direction-test.sh`: only RLM at position 0 flips paragraph direction; RLE/RLI wraps don't. See commit `79335be` and the line-start buffering loop in `kivun-claude-bidi/lib/injector.js`.
 - **Arabic support** via `KIVUN_BIDI_WRAP_ARABIC=1` env flag. Wraps U+0600–U+06FF in addition to Hebrew block. Trigger: explicit user request or Arabic adoption of Kivun.
 - **Non-Konsole terminals.** Widen `detect-terminal.js` allowlist to gnome-terminal+VTE, alacritty with BiDi, Windows Terminal when/if it adopts BiDi. Each addition requires its own integration gate test.
 - **RLI/PDI isolates migration.** One-line constant change from RLE/PDF. Triggered only if direction-leak artifacts are observed in practice.

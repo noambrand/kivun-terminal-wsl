@@ -131,20 +131,17 @@ wsl -d Ubuntu --user root -- rm -f /tmp/kivun-claude-launch.sh
 
 ## Symptom: Claude's Hebrew/Arabic response is left-aligned on the first line
 
-**This is a known upstream limitation in Claude Code, not a Kivun bug.**
+**Fixed in v1.1.0** when the BiDi wrapper is enabled (which is the default). If you're on v1.0.6 or have `KIVUN_BIDI_WRAPPER=off`, the bug is still there.
 
-Claude Code prepends every assistant message with a `●` bullet character (defined in `cli.js`). Per Unicode BiDi rule UAX #9 P2, neutral characters like `●` should be skipped when detecting paragraph direction, but all tested terminal emulators (Konsole, GNOME Terminal, Windows Terminal) use the simpler "first visible character wins" approach and pick LTR — so the single first line of Claude's RTL-language reply renders left-aligned.
+Root cause: Claude Code prepends every assistant message with a `●` bullet character. Konsole's BiDi auto-detect uses "first strong char wins" paragraph-direction detection, but empirically (see `docs/research/paragraph-direction-test.sh`) it only honors the first strong char if it appears **before any other visible char**. The `●` is a visible neutral, so Konsole falls back to LTR direction despite the Hebrew that follows.
 
-- Your own Hebrew **input** is right-aligned correctly ✓
-- Claude's Hebrew response **lines 2+** (no bullet) are right-aligned correctly ✓
-- Only Claude's response **line 1** (with the `●` bullet) renders LTR ✗
+How v1.1.0 fixes it: the wrapper injects a zero-width RLM (U+200F, strong-R) at position 0 of every line whose first strong char is RTL. That means the line always starts with strong-R from Konsole's perspective, paragraph direction becomes RTL, and the Hebrew (including the bullet line) renders right-aligned. English-first lines don't get RLM so Latin content stays LTR.
 
-Workarounds we tried and why they don't work:
+**If you see the bug in v1.1.0:**
+1. Check `BASH_LAUNCH_LOG.txt`. You should see `SUCCESS - BiDi wrapper active`. If instead you see `BiDi wrapper off`, edit `%LOCALAPPDATA%\Kivun-WSL\config.txt`, set `KIVUN_BIDI_WRAPPER=on`, relaunch.
+2. If log shows wrapper active but bullet line is still LTR, it's a new bug — please file an issue with a screenshot and your Konsole version (`wsl -d Ubuntu -- konsole --version`).
 
-- Teaching Claude via system prompt to start responses with a blank / dash / header line: Claude ignores these on ~50% of replies.
-- Patching `cli.js` to remove the bullet: works, but modifying a signed npm package triggers Windows SmartScreen and antivirus heuristics — can't ship in an installer.
-
-Clean fix must come from Anthropic. **Tracked upstream at [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)** — please 👍 that issue to help prioritize the fix. The technical BiDi analysis (root cause in `cli.js`, two proposed fixes including an RLM-prefix option that preserves the visual bullet while fixing BiDi) is posted as a comment: [#39881 (comment)](https://github.com/anthropics/claude-code/issues/39881#issuecomment-4281323284). Full internal analysis kept at `docs/FEATURE_REQUEST_ANTHROPIC.md`.
+Upstream tracker (relevant if you want Anthropic to fix this at the source): [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881).
 
 ## Symptom: `KIVUN_BIDI_WRAPPER=on` but Hebrew still renders reversed
 

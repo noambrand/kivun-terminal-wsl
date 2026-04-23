@@ -7,7 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **BiDi wrapper (`kivun-claude-bidi`).** Wrapper that pipes Claude Code output through a state machine wrapping every Hebrew run in Unicode RLE (U+202B) / PDF (U+202C) bracket pairs. Forces RTL paragraph direction within each wrapped run regardless of Konsole profile settings — fixes rendering edge cases where profile drift or custom Konsole profiles cause Hebrew to appear LTR, and future-proofs against ICU/Konsole BiDi changes. Detection covers Hebrew block (U+0590–U+05FF) and Hebrew presentation forms (U+FB1D–U+FB4F).
+- **BiDi wrapper (`kivun-claude-bidi`).** Wrapper that pipes Claude Code output through a state machine doing two complementary BiDi fixes:
+  1. **Bracket every Hebrew run** with Unicode RLE (U+202B) / PDF (U+202C) — forces RTL direction within each run regardless of Konsole profile settings.
+  2. **Inject RLM (U+200F) at the start of any line whose first strong char is RTL** — forces the whole line's paragraph direction to RTL, which fixes the Claude Code `● שלום` first-line bug where the bullet prefix would otherwise make Konsole pick LTR paragraph direction.
+  Both fixes together mean Hebrew responses render right-aligned from the first line, not just from the second onward. Detection covers Hebrew block (U+0590–U+05FF) and Hebrew presentation forms (U+FB1D–U+FB4F). Lines whose first strong char is Latin (`Hello`, `def foo():`, etc.) get no RLM so English content stays left-aligned.
   - **Default: on.** Ships enabled so Hebrew in Claude Code output works without manual config edits. Disable by setting `KIVUN_BIDI_WRAPPER=off` in `%LOCALAPPDATA%\Kivun-WSL\config.txt` and relaunching.
   - **First enable** runs `npm install --production` inside WSL to build `node-pty` (~5–15 s, one-time). An install stamp (`.kivun-install-stamp`) under `node_modules/` gates subsequent launches to instant startup. Stamp invalidates if the shipped `package.json` is newer.
   - **Deploy target:** `~/.local/share/kivun-terminal/kivun-claude-bidi/` (WSL-native, not `/mnt/c/...`) so `node-pty` builds against real Linux paths and avoids the filesystem-performance / path-translation penalty of `/mnt/c`.
@@ -29,7 +32,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Notes
 
 - **Default-on rationale.** Earlier draft had the wrapper opt-in with a v1.2.0 default-flip after a 4-week feedback window. Dropped that: user base is small, the feedback-window signal thin, and "Hebrew just works after install" is the product promise — requiring a config edit to get the fix contradicts that. Rollback path if wrapper breaks in the wild: single-line `KIVUN_BIDI_WRAPPER=off` edit documented in TROUBLESHOOTING; v1.1.1 hotfix flips the shipped default back if root-cause fix isn't ready in 48 hours. See `docs/specs/ROADMAP.md` for details.
-- **Known gap.** The Claude Code `●` bullet on the first line of an assistant Hebrew response makes Konsole's auto-detect pick LTR paragraph direction (first-visible-char behavior), so that specific line may still render left-aligned even with the wrapper active. Tracked as a separate item in the roadmap — possible fix path is line-start RLM injection, pending empirical verification via `docs/research/paragraph-direction-test.sh`.
+- **Bullet-line fix verified empirically.** The `● שלום` first-line LTR bug from v1.0.6 is fixed in v1.1.0. Verification process: `docs/research/paragraph-direction-test.sh` run on a real KivunTerminal-profile Konsole tested 9 Unicode marker placements; only RLM at position 0 flipped the paragraph direction to RTL. RLE/RLI whole-line wraps did NOT flip paragraph direction (they only affect within-run embedding). The wrapper uses a line-start buffering loop to inject RLM at position 0 whenever the line's first strong char is Hebrew.
 - **Still pending before tag:** integration gate §1 run on real Konsole, 1-day production canary on the lead dev's real Claude Code usage, `VERSION` bump 1.0.6 → 1.1.0.
 
 ## [1.0.6] — 2026-04-19
