@@ -1,6 +1,6 @@
 {
   "name": "kivun-claude-bidi",
-  "version": "0.1.0-scaffold",
+  "version": "0.2.0-rlm",
   "description": "BiDi wrapper for Claude Code under Konsole — HEAVY architecture (RLE/PDF bracket injection).",
   "license": "MIT",
   "bin": {

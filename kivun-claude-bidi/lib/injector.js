@@ -4,6 +4,12 @@ const { StringDecoder } = require('node:string_decoder');
 
 const RLE = '‫';
 const PDF = '‬';
+// RLM injected at line-start when the line's first strong char is RTL.
+// Empirically verified via docs/research/paragraph-direction-test.sh that
+// Konsole honors RLM at position 0 for paragraph-direction detection; other
+// positions and RLE/RLI wraps don't flip paragraph direction on Konsole.
+// This is what fixes the Claude Code `● שלום` first-line LTR bug.
+const RLM = '‏';
 
 const HEBREW_BLOCK_START = 0x0590;
 const HEBREW_BLOCK_END = 0x05FF;
@@ -24,9 +30,25 @@ const EXTENDABLE_PUNCT = new Set([
   0x05F3, 0x05F4,
 ]);
 
+// Cap on line-start buffer. Claude's bullet-prefix lines are typically
+// under 200 chars before the first strong Hebrew char; this is a safety
+// valve so a pathological input (e.g., an infinite escape sequence without
+// a newline) doesn't hold the stream hostage.
+const LINE_START_BUFFER_MAX = 2048;
+
 function isHebrew(cp) {
   return (cp >= HEBREW_BLOCK_START && cp <= HEBREW_BLOCK_END) ||
          (cp >= HEBREW_PRES_START && cp <= HEBREW_PRES_END);
+}
+
+// Tight predicate — Latin letters only. Widening to full UAX #9 L-class
+// coverage (Cyrillic, Greek, CJK, etc.) is v2 work. Claude Code output is
+// Latin + Hebrew in practice.
+function isStrongLTR(cp) {
+  if (cp >= 0x0041 && cp <= 0x005A) return true;
+  if (cp >= 0x0061 && cp <= 0x007A) return true;
+  if (cp >= 0x00C0 && cp <= 0x02AF) return true;
+  return false;
 }
 
 function isCsiFinal(cp) {
@@ -43,9 +65,22 @@ class Injector {
     this.insideRun = false;
     // Codepoints provisionally inside a run, awaiting a following Hebrew
     // codepoint to confirm them as run-internal. See HEAVY §2 punctuation
-    // rule: space / comma / period / etc. between Hebrew words stay inside
-    // the bracket pair, but only if the next strong char is also Hebrew.
+    // rule.
     this.pending = [];
+    // Line-start RLM buffering. Hold chars since last \n until we know
+    // whether the first strong char is RTL (Hebrew → inject RLM) or LTR
+    // (Latin → no RLM). See `docs/research/paragraph-direction-test.sh`.
+    this.atLineStart = true;
+    this.lineStartBuffer = '';
+    // Mirror ANSI state during line-start buffering so that CSI/OSC internal
+    // bytes (e.g., the `h` terminating `\x1b[?1049h`) don't get misread as
+    // strong-L chars. Main inCsi/inOsc/afterEsc are not advanced during
+    // buffering — the buffer is re-processed at flush time and those vars
+    // update correctly then.
+    this._lsInCsi = false;
+    this._lsInOsc = false;
+    this._lsOscSawEsc = false;
+    this._lsAfterEsc = false;
   }
 
   write(chunk) {
@@ -62,6 +97,9 @@ class Injector {
     }
     text += this.decoder.end();
     let out = this._process(text);
+    if (this.lineStartBuffer.length > 0) {
+      out += this._flushLineStartBuffer(false);
+    }
     out += this._flushAtBoundary(true);
     return out;
   }
@@ -75,6 +113,83 @@ class Injector {
   }
 
   _step(cp, ch) {
+    if (this.atLineStart) {
+      return this._stepAtLineStart(cp, ch);
+    }
+    return this._stepAfterLineStart(cp, ch);
+  }
+
+  _stepAtLineStart(cp, ch) {
+    // Inside ANSI sequence → just buffer, don't classify (CSI params like
+    // digits or finals like 'h' must not be treated as strong chars).
+    if (this._lsInCsi) {
+      this.lineStartBuffer += ch;
+      if (isCsiFinal(cp)) this._lsInCsi = false;
+      return '';
+    }
+    if (this._lsInOsc) {
+      this.lineStartBuffer += ch;
+      if (cp === CP_BEL) {
+        this._lsInOsc = false;
+        this._lsOscSawEsc = false;
+      } else if (this._lsOscSawEsc && cp === CP_BACKSLASH) {
+        this._lsInOsc = false;
+        this._lsOscSawEsc = false;
+      } else {
+        this._lsOscSawEsc = (cp === CP_ESC);
+      }
+      return '';
+    }
+    if (this._lsAfterEsc) {
+      this.lineStartBuffer += ch;
+      this._lsAfterEsc = false;
+      if (cp === CP_LBRACKET) this._lsInCsi = true;
+      else if (cp === CP_RBRACKET) this._lsInOsc = true;
+      return '';
+    }
+    if (cp === CP_ESC) {
+      this.lineStartBuffer += ch;
+      this._lsAfterEsc = true;
+      return '';
+    }
+
+    if (isHebrew(cp)) {
+      return this._flushLineStartBuffer(true) + this._stepAfterLineStart(cp, ch);
+    }
+    if (isStrongLTR(cp)) {
+      return this._flushLineStartBuffer(false) + this._stepAfterLineStart(cp, ch);
+    }
+    if (cp === CP_LF || cp === CP_CR) {
+      this.lineStartBuffer += ch;
+      const out = this.lineStartBuffer;
+      this.lineStartBuffer = '';
+      return out;
+    }
+    this.lineStartBuffer += ch;
+    if (this.lineStartBuffer.length > LINE_START_BUFFER_MAX) {
+      return this._flushLineStartBuffer(false);
+    }
+    return '';
+  }
+
+  _flushLineStartBuffer(injectRlm) {
+    const buffered = this.lineStartBuffer;
+    this.lineStartBuffer = '';
+    this.atLineStart = false;
+    // Reset buffer-local ANSI shadow state; main inCsi/inOsc/afterEsc take
+    // over via _stepAfterLineStart below.
+    this._lsInCsi = false;
+    this._lsInOsc = false;
+    this._lsOscSawEsc = false;
+    this._lsAfterEsc = false;
+    let out = injectRlm ? RLM : '';
+    for (const ch of buffered) {
+      out += this._stepAfterLineStart(ch.codePointAt(0), ch);
+    }
+    return out;
+  }
+
+  _stepAfterLineStart(cp, ch) {
     if (this.inCsi) {
       if (isCsiFinal(cp)) this.inCsi = false;
       return ch;
@@ -98,9 +213,6 @@ class Injector {
       return ch;
     }
     if (cp === CP_ESC) {
-      // Flush pending inside the run before emitting ESC so buffered
-      // codepoints don't end up emitted after the ANSI sequence (which
-      // would reorder them relative to their position in the input).
       let out = '';
       if (this.insideRun && this.pending.length > 0) {
         out += String.fromCodePoint(...this.pending);
@@ -109,7 +221,11 @@ class Injector {
       this.afterEsc = true;
       return out + ch;
     }
-    return this._stepText(cp, ch);
+    const out = this._stepText(cp, ch);
+    if (cp === CP_LF || cp === CP_CR) {
+      this.atLineStart = true;
+    }
+    return out;
   }
 
   _stepText(cp, ch) {
@@ -162,16 +278,10 @@ class Injector {
     return out;
   }
 
-  // At a write-boundary we have no lookahead, so we flush any pending
-  // codepoints as if the run continued (inside), then close the bracket.
-  // The alternative — flushing outside — would break fixture #5 when the
-  // paragraph ends on a trailing space. Inside-flush is conservative and
-  // visually identical for a plain space.
-  //
-  // Never close a bracket mid-ANSI (invariant 2 from HEAVY §2) — a PDF
-  // codepoint injected mid-CSI/OSC would corrupt the escape. Hold the
-  // bracket open until the ANSI sequence completes, unless `force` is set
-  // (stream end with dangling ANSI: close anyway, caller's problem).
+  // Line-start buffer is NOT flushed at chunk boundary — held across chunks
+  // so the bullet-prefix RLM fix survives Claude's token-by-token streaming
+  // (where "● " and the Hebrew that follows may arrive in separate write()
+  // calls). Only end() force-flushes it.
   _flushAtBoundary(force) {
     if (!force && (this.inCsi || this.inOsc || this.afterEsc)) return '';
     let out = '';
@@ -187,4 +297,4 @@ class Injector {
   }
 }
 
-module.exports = { Injector, RLE, PDF, isHebrew };
+module.exports = { Injector, RLE, PDF, RLM, isHebrew };
