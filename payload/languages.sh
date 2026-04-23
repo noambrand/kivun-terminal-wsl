@@ -1,11 +1,11 @@
-# Kivun Terminal — shared language → prompt map.
+# Kivun Terminal - shared language → prompt map.
 # Sourced by the Linux launcher and the macOS desktop .command shortcut
 # so both stay in sync with the documented 23-language set. The Windows
 # .bat cannot source this; if you add a language here you must also
 # update `:SET_LANG_PROMPT` in payload/kivun-terminal.bat.
 #
 # Both the hyphen form (e.g. `azeri-south`) and the underscore form
-# (e.g. `azeri_south`) are accepted — the hyphen form is canonical and
+# (e.g. `azeri_south`) are accepted - the hyphen form is canonical and
 # documented in every README; underscore is backwards-compat for users
 # migrating from older configs.
 

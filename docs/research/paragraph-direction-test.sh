@@ -3,7 +3,7 @@
 #
 # Purpose: empirically determine which Unicode marker (if any) forces Konsole
 # into RTL paragraph direction for the specific pattern that breaks Claude
-# Code's first-response line — a leading `●` bullet followed by Hebrew text.
+# Code's first-response line - a leading `●` bullet followed by Hebrew text.
 #
 # Background: TROUBLESHOOTING.md claims Konsole uses "first-visible-char
 # wins" paragraph detection, which would make zero-width marks like RLM
@@ -23,7 +23,7 @@
 # prefixed Hebrew responses.
 
 RLM=$'‏'   # Right-to-Left Mark (zero-width, strong-R)
-LRM=$'‎'   # Left-to-Right Mark (zero-width, strong-L) — control
+LRM=$'‎'   # Left-to-Right Mark (zero-width, strong-L) - control
 RLE=$'‫'   # Right-to-Left Embedding (opens RTL bracket)
 PDF=$'‬'   # Pop Directional Format (closes bracket)
 RLI=$'⁧'   # Right-to-Left Isolate (modern alternative to RLE)
@@ -31,7 +31,7 @@ PDI=$'⁩'   # Pop Directional Isolate (closes RLI)
 
 clear
 echo "================================================================"
-echo "  BiDi paragraph-direction test — which variants right-align?"
+echo "  BiDi paragraph-direction test - which variants right-align?"
 echo "================================================================"
 echo ""
 echo "Control: pure Hebrew, no neutrals (expected: right-aligned)"
@@ -58,7 +58,7 @@ echo ""
 echo "Test E: RLM before bullet + RLE around Hebrew"
 echo "--> [8] ${RLM}● ${RLE}שלום עולם${PDF}"
 echo ""
-echo "Test F: LRM before bullet (control — expected left-aligned)"
+echo "Test F: LRM before bullet (control - expected left-aligned)"
 echo "--> [9] ${LRM}● שלום עולם"
 echo ""
 echo "================================================================"

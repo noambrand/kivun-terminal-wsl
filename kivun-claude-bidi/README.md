@@ -2,7 +2,7 @@
 
 BiDi wrapper for Claude Code. Injects Unicode RLE/PDF bracket pairs around
 Hebrew runs in Claude Code's output stream and an RLM (U+200F) at the start
-of any line whose first strong char is RTL — so Hebrew renders right-to-left
+of any line whose first strong char is RTL - so Hebrew renders right-to-left
 regardless of the host terminal's BiDi profile and the bullet-prefixed
 first line is no longer LTR-stuck.
 
@@ -39,4 +39,4 @@ pasting into tools that render the marks as visible boxes.
 
 ## License
 
-MIT — see repository root LICENSE.
+MIT - see repository root LICENSE.

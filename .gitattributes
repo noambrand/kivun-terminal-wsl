@@ -26,7 +26,7 @@ mac/scripts/postinstall      text eol=lf
 *.wsf         text eol=crlf
 *.xlaunch     text eol=crlf
 
-# Binary assets — never normalize
+# Binary assets - never normalize
 *.ico         binary
 *.png         binary
 *.jpg         binary

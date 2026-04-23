@@ -1,4 +1,4 @@
-# Kivun Terminal — Linux Quickstart
+# Kivun Terminal - Linux Quickstart
 
 A shell-script installer that installs Claude Code with a Kivun-themed Konsole profile and file-manager integrations for Hebrew/Arabic/Persian and other RTL languages.
 
@@ -11,11 +11,11 @@ A shell-script installer that installs Claude Code with a Kivun-themed Konsole p
 | Arch/Manjaro  | `pacman`        | Arch Linux, Manjaro             |
 | openSUSE      | `zypper`        | openSUSE Tumbleweed             |
 
-Other distros work if you install `konsole`, `nodejs`, `git`, and `zenity` (or `kdialog`) manually, then run the installer — it will skip the package step.
+Other distros work if you install `konsole`, `nodejs`, `git`, and `zenity` (or `kdialog`) manually, then run the installer - it will skip the package step.
 
 ## What the installer does
 
-1. Detects your package manager and desktop environment and installs: `konsole`, `nodejs`, `git`, a color-emoji font, and a folder-picker helper — `kdialog` on KDE/Plasma (avoids pulling GTK dependencies), `zenity` elsewhere.
+1. Detects your package manager and desktop environment and installs: `konsole`, `nodejs`, `git`, a color-emoji font, and a folder-picker helper - `kdialog` on KDE/Plasma (avoids pulling GTK dependencies), `zenity` elsewhere.
 2. Installs the Claude Code CLI via Anthropic's official installer (skipped if `claude` is already on PATH).
 3. Deploys `statusline.mjs` to `~/.local/share/kivun-terminal/` and registers it in `~/.claude/settings.json`.
 4. Writes a Konsole profile `KivunTerminal` with `BidiEnabled=true` + a light-blue color scheme `ColorSchemeNoam`.
@@ -25,7 +25,7 @@ Other distros work if you install `konsole`, `nodejs`, `git`, and `zenity` (or `
 8. Deploys the **`kivun-claude-bidi` wrapper** to `~/.local/share/kivun-terminal/kivun-claude-bidi/` and runs `npm install --production` once. The launcher pipes Claude Code through this wrapper to fix the Hebrew bullet-line direction bug regardless of Konsole BiDi settings (default-on; toggle via `KIVUN_BIDI_WRAPPER`). If `npm` isn't on PATH at install time, the launcher retries on first launch.
 9. Creates `~/.config/kivun-terminal/config.txt` with default settings (RTL, Kivun colors, English response, Alt+Shift keyboard toggle, BiDi wrapper on).
 
-System packages are installed as root via `sudo`; everything else lands in your user home — no system-wide files.
+System packages are installed as root via `sudo`; everything else lands in your user home - no system-wide files.
 
 ## Install
 
@@ -56,12 +56,12 @@ Install log: `/tmp/kivun_install.log`
 | `TERMINAL_COLOR` | `kivun` / `default` | `kivun` | Light-blue profile vs Konsole defaults |
 | `KEYBOARD_TOGGLE` | `true` / `false` | `true` | Sets up Alt+Shift US ↔ primary-script layout via setxkbmap (X11 only) |
 | `FOLDER_PICKER` | `true` / `false` | `false` | Pop a zenity/kdialog folder picker before launching |
-| `CLAUDE_FLAGS` | — | empty | Extra flags passed to every `claude` call (e.g. `--continue`) |
+| `CLAUDE_FLAGS` | - | empty | Extra flags passed to every `claude` call (e.g. `--continue`) |
 | `KIVUN_BIDI_WRAPPER` | `on` / `off` | `on` | Pipe Claude through the BiDi wrapper for correct Hebrew/Arabic rendering |
 
 Supported `RESPONSE_LANGUAGE` values: `english, hebrew, arabic, persian, urdu, kurdish, pashto, sindhi, yiddish, syriac, dhivehi, nko, adlam, mandaic, samaritan, dari, uyghur, balochi, kashmiri, shahmukhi, azeri-south, jawi, turoyo`.
 
-Changes take effect on next launch — no reinstall needed.
+Changes take effect on next launch - no reinstall needed.
 
 ## Uninstall
 
@@ -69,11 +69,11 @@ Changes take effect on next launch — no reinstall needed.
 ./linux/uninstall.sh
 ```
 
-Removes the launcher, config, Konsole profile, desktop entries, and file-manager integrations. System packages (konsole, nodejs, git, claude) are **not** removed — do that yourself if desired.
+Removes the launcher, config, Konsole profile, desktop entries, and file-manager integrations. System packages (konsole, nodejs, git, claude) are **not** removed - do that yourself if desired.
 
 ## Keyboard switching on Wayland
 
-`setxkbmap` only works on X11. On Wayland sessions (GNOME Wayland, KDE Plasma Wayland on recent versions), use your desktop environment's keyboard-settings panel to add a second layout and bind Alt+Shift as the toggle — the installer will log a warning and skip automatic layout setup in that case.
+`setxkbmap` only works on X11. On Wayland sessions (GNOME Wayland, KDE Plasma Wayland on recent versions), use your desktop environment's keyboard-settings panel to add a second layout and bind Alt+Shift as the toggle - the installer will log a warning and skip automatic layout setup in that case.
 
 ## Known limitations
 
@@ -83,7 +83,7 @@ Removes the launcher, config, Konsole profile, desktop entries, and file-manager
 
 ## Build from source
 
-There's no "build" step on Linux — `install.sh` copies files directly from `payload/` and `linux/` into `~/.local/`. If you want a distributable archive, tar up the repo:
+There's no "build" step on Linux - `install.sh` copies files directly from `payload/` and `linux/` into `~/.local/`. If you want a distributable archive, tar up the repo:
 
 ```bash
 tar -czf kivun-terminal-linux-$(cat VERSION).tar.gz \

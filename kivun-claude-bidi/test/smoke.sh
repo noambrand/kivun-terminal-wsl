@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke.sh — end-to-end wrapper + fake-claude smoke test.
+# smoke.sh - end-to-end wrapper + fake-claude smoke test.
 # Verifies that bin/kivun-claude-bidi can spawn a stand-in binary under
 # node-pty, pipe its output through the injector, and emit RLE/PDF
 # brackets around Hebrew runs.
@@ -45,7 +45,7 @@ check "Hebrew-period-English: period outside"    "${RLE}שלום${PDF}. Hello"
 
 if [[ $fail -ne 0 ]]; then
   echo ""
-  echo "smoke: FAIL — captured output was:"
+  echo "smoke: FAIL - captured output was:"
   cat "$tmp"
   exit 1
 fi

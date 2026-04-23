@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Minimal stand-in for the `claude` binary — used by test/smoke.sh to
+// Minimal stand-in for the `claude` binary - used by test/smoke.sh to
 // exercise the wrapper without needing a real Claude Code install.
 // Emits a few HEAVY §7 fixture shapes and exits cleanly.
 

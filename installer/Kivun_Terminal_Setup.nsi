@@ -17,7 +17,7 @@ Unicode True
 !include "WinMessages.nsh"
 
 ; SECURITY (#10): this is a PER-USER install to $LOCALAPPDATA\Kivun-WSL
-; — nothing is written to Program Files, HKLM, or other system locations.
+; - nothing is written to Program Files, HKLM, or other system locations.
 ; Running as `admin` under over-the-shoulder UAC would land HKCU writes
 ; and $LOCALAPPDATA paths in the elevating admin's hive, not the
 ; invoking user's. Run as `user` and reject the install if `wsl --install`
@@ -103,10 +103,10 @@ Section "Core Files" SEC_CORE
     DetailPrint "Preserving existing config.txt (user edits kept)"
   ${EndIf}
 
-  ; BiDi wrapper bundle — source files only (no node_modules). npm install
+  ; BiDi wrapper bundle - source files only (no node_modules). npm install
   ; --production runs on first enable inside WSL; see payload/kivun-launch.sh
   ; deploy_bidi_wrapper(). Wrapper is off by default via config.txt in
-  ; v1.1.0 — ships installed but dormant until the user flips
+  ; v1.1.0 - ships installed but dormant until the user flips
   ; KIVUN_BIDI_WRAPPER=on.
   SetOutPath "$INSTDIR"
   File /r /x node_modules /x .git "..\kivun-claude-bidi"
@@ -137,11 +137,11 @@ Section "WSL2 + Ubuntu" SEC_WSL
     ; as `user`. Rather than escalate the whole installer (which causes
     ; HKCU/LOCALAPPDATA-under-admin-hive bugs), we ask the user to do
     ; the one admin step themselves, then re-run us as themselves.
-    MessageBox MB_ICONEXCLAMATION|MB_OK "WSL is not installed on this system.$\r$\n$\r$\nKivun Terminal installs to your user profile and does not need admin rights — but WSL installation does. Please:$\r$\n$\r$\n1. Close this installer$\r$\n2. Open PowerShell as Administrator (right-click Start > Terminal (Admin))$\r$\n3. Run:   wsl --install$\r$\n4. Reboot your computer$\r$\n5. Run this installer again (normal double-click, no admin needed)$\r$\n$\r$\nIf 'wsl --install' reports it is not recognized, you are on an older Windows build — see https://learn.microsoft.com/en-us/windows/wsl/install"
-    Abort "WSL not installed — please install it first via admin PowerShell."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "WSL is not installed on this system.$\r$\n$\r$\nKivun Terminal installs to your user profile and does not need admin rights - but WSL installation does. Please:$\r$\n$\r$\n1. Close this installer$\r$\n2. Open PowerShell as Administrator (right-click Start > Terminal (Admin))$\r$\n3. Run:   wsl --install$\r$\n4. Reboot your computer$\r$\n5. Run this installer again (normal double-click, no admin needed)$\r$\n$\r$\nIf 'wsl --install' reports it is not recognized, you are on an older Windows build - see https://learn.microsoft.com/en-us/windows/wsl/install"
+    Abort "WSL not installed - please install it first via admin PowerShell."
   ${EndIf}
 
-  ; Best-effort set default version 2 — on modern Windows 11 this works
+  ; Best-effort set default version 2 - on modern Windows 11 this works
   ; as user; on older systems it may require admin, in which case we log
   ; and continue (user can run it themselves from admin shell if needed).
   DetailPrint "Setting WSL default version to 2 (best-effort)..."
@@ -332,7 +332,7 @@ Section /o "Open VcXsrv download page (optional, manual install)" SEC_VCXSRV
   ; SECURITY (#6): we intentionally do NOT download + silently-exec the
   ; VcXsrv installer from this NSIS script. The combination of (a) a
   ; curl-to-TEMP, (b) silent-exec of the downloaded binary, (c) under
-  ; elevation — previously — (d) from an unsigned parent, is the exact
+  ; elevation - previously - (d) from an unsigned parent, is the exact
   ; cluster of heuristics that Microsoft Defender / SmartScreen flag as
   ; a dropper. It also means we'd be executing a binary whose SHA we
   ; can't pin (SourceForge "latest" URL changes per release). Instead:
@@ -340,7 +340,7 @@ Section /o "Open VcXsrv download page (optional, manual install)" SEC_VCXSRV
   ; download and install it themselves with full visibility.
   DetailPrint "Opening the VcXsrv download page in your browser..."
   ExecShell "open" "https://sourceforge.net/projects/vcxsrv/"
-  MessageBox MB_ICONINFORMATION "VcXsrv was not found on this system.$\r$\n$\r$\nTo enable Alt+Shift keyboard-layout switching inside Konsole, install VcXsrv from the page that just opened, then set USE_VCXSRV=true in $INSTDIR\config.txt.$\r$\n$\r$\nThis step is optional — if you skip it, Kivun Terminal falls back to WSLg (Alt+Shift will not work but everything else does)."
+  MessageBox MB_ICONINFORMATION "VcXsrv was not found on this system.$\r$\n$\r$\nTo enable Alt+Shift keyboard-layout switching inside Konsole, install VcXsrv from the page that just opened, then set USE_VCXSRV=true in $INSTDIR\config.txt.$\r$\n$\r$\nThis step is optional - if you skip it, Kivun Terminal falls back to WSLg (Alt+Shift will not work but everything else does)."
   vcxsrv_done:
 SectionEnd
 

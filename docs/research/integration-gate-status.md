@@ -1,4 +1,4 @@
-# HEAVY §1 integration gate — status
+# HEAVY §1 integration gate - status
 
 **Gate:** run the three `printf` lines from HEAVY §1 inside a real Konsole
 and visually confirm BiDi renders (line 2 and line 3 must show Hebrew
@@ -12,7 +12,7 @@ printf 'mixed: Hello ‫שלום‬ world\n'
 
 ## Status (as of 2026-04-23)
 
-**Deferred.** Noam-approved canary-gated ship approach — document the gate
+**Deferred.** Noam-approved canary-gated ship approach - document the gate
 as required pre-tag, don't block wrapper development on it.
 
 ## Why deferred
@@ -43,7 +43,7 @@ Before anyone pushes `v1.1.0`, one of:
    is what "canary-gated ship" means in ROADMAP.md context.
 
 Whatever path is taken, the log file must exist in this folder before
-`v1.2.0` gate criteria can even be evaluated — you cannot flip the
+`v1.2.0` gate criteria can even be evaluated - you cannot flip the
 default-on switch if the underlying assumption was never empirically
 checked.
 
@@ -54,5 +54,5 @@ reversed (that's the baseline bug the wrapper fixes). Lines 2 and 3 must
 show Hebrew right-to-left with Latin in correct positions.
 
 If any line is broken, HEAVY's assumption is invalid and no version
-of this wrapper can help — escalate to architectural discussion (switch
+of this wrapper can help - escalate to architectural discussion (switch
 terminal? patch ink? change platform?). See HEAVY §1 "Fail" row.

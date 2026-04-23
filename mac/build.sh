@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kivun Terminal — local macOS .pkg builder
+# Kivun Terminal - local macOS .pkg builder
 # Requires: macOS with Xcode Command Line Tools installed.
 # Usage: ./mac/build.sh [version]
 
@@ -26,7 +26,7 @@ if ! command -v pkgbuild &>/dev/null; then
     exit 1
 fi
 
-# Stage the scripts dir — postinstall needs its payload siblings so it can
+# Stage the scripts dir - postinstall needs its payload siblings so it can
 # copy them into /usr/local/share/kivun-terminal/ during install.
 mkdir -p "$BUILD_DIR/scripts"
 cp mac/scripts/postinstall "$BUILD_DIR/scripts/"
@@ -35,7 +35,7 @@ cp payload/configure-statusline.js "$BUILD_DIR/scripts/configure-statusline.js"
 cp payload/languages.sh "$BUILD_DIR/scripts/languages.sh"
 cp mac/uninstall.sh "$BUILD_DIR/scripts/uninstall.sh"
 
-# Stage the BiDi wrapper source — node_modules and .git excluded so the
+# Stage the BiDi wrapper source - node_modules and .git excluded so the
 # .pkg ships only sources; postinstall runs `npm install --production` on
 # the target machine so node-pty builds against the local arch (Intel vs
 # Apple Silicon) and libc. Mirrors the Windows installer's File /r /x.
@@ -46,7 +46,7 @@ if [ -d "kivun-claude-bidi" ]; then
     chmod +x "$BUILD_DIR/scripts/kivun-claude-bidi/bin/kivun-claude-bidi" 2>/dev/null || true
     echo "Staged kivun-claude-bidi wrapper source"
 else
-    echo "WARNING: kivun-claude-bidi/ not found at repo root — wrapper will not ship"
+    echo "WARNING: kivun-claude-bidi/ not found at repo root - wrapper will not ship"
 fi
 
 # Integrity check: postinstall verifies statusline.mjs against this SHA

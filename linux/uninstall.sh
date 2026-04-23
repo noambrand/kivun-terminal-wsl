@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kivun Terminal — Linux uninstaller
+# Kivun Terminal - Linux uninstaller
 # Removes user-level files deployed by install.sh. System packages
 # (konsole, nodejs, git, claude) are intentionally left installed;
 # remove them yourself if desired.
@@ -23,7 +23,7 @@ remove_if_exists() {
 remove_if_exists "$HOME/.local/share/kivun-terminal"
 remove_if_exists "$HOME/.local/bin/kivun-terminal"
 
-# Config (ask first — user may have custom settings)
+# Config (ask first - user may have custom settings)
 if [ -f "$HOME/.config/kivun-terminal/config.txt" ]; then
     read -p "Remove config file $HOME/.config/kivun-terminal/config.txt? [y/N] " ans
     case "$ans" in

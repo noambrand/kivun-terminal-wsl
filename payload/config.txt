@@ -45,7 +45,7 @@ RESPONSE_LANGUAGE=english
 # =================================================================
 # UBUNTU CREDENTIALS
 # =================================================================
-# The WSL Ubuntu account is created interactively during installation —
+# The WSL Ubuntu account is created interactively during installation -
 # the installer prompts for a username and password in a terminal the
 # first time Ubuntu boots. There are no credential keys in this file
 # (earlier builds shipped USERNAME=username / PASSWORD=password defaults;
@@ -70,11 +70,11 @@ USE_VCXSRV=true
 # FOLDER PICKER ON LAUNCH
 # =================================================================
 # When true, the desktop shortcut pops a native Windows folder-browse
-# dialog before Konsole opens — pick the working directory each time.
+# dialog before Konsole opens - pick the working directory each time.
 # When false, the shortcut always opens in %USERPROFILE%.
 #
 # Right-click "Open with Kivun Terminal" on a folder always uses that
-# folder directly — this setting is ignored in that path.
+# folder directly - this setting is ignored in that path.
 #
 # Default: false
 FOLDER_PICKER=false

@@ -1,20 +1,20 @@
-> # DEFERRED — do not build from this spec
+> # DEFERRED - do not build from this spec
 >
 > **Status:** Deferred 2026-04-23.
 >
-> MEDIUM's §1 integration gate (empirical Konsole BiDi validation on a machine with working GUI Konsole) couldn't be cheaply closed in this environment: no VM, no Kubuntu live USB, no native Linux box with functioning Konsole, and WSLg Konsole was unresponsive on the dev machine. MEDIUM's economic case — "cheaper code if we can cheaply verify Assumption A" — collapsed because verification stopped being cheap.
+> MEDIUM's §1 integration gate (empirical Konsole BiDi validation on a machine with working GUI Konsole) couldn't be cheaply closed in this environment: no VM, no Kubuntu live USB, no native Linux box with functioning Konsole, and WSLg Konsole was unresponsive on the dev machine. MEDIUM's economic case - "cheaper code if we can cheaply verify Assumption A" - collapsed because verification stopped being cheap.
 >
 > HEAVY (`CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md`) was chosen instead. HEAVY's Assumption B (terminal honors RLE/PDF per UAX #9) is near-universal for BiDi-capable terminals, carries no profile-drift failure modes, and requires no release gate.
 >
 > **Revisit this document if** Kivun ever adds a non-Kivun Konsole target that can be cheaply gate-tested natively *and* the ~200-line code delta between HEAVY and MEDIUM becomes relevant to ship cost. Neither is true today.
 >
-> The decision trail matters — this file is preserved in full below.
+> The decision trail matters - this file is preserved in full below.
 >
 > ---
 
-# Claude Code Task: MEDIUM_SPEC — Production RTL wrapper for Claude Code in Konsole
+# Claude Code Task: MEDIUM_SPEC - Production RTL wrapper for Claude Code in Konsole
 
-> **Verdict basis:** The two prior prototypes (`CLAUDE_CODE_TASK_PROTOTYPE_STREAM.md` → NO-GO, `CLAUDE_CODE_TASK_PROTOTYPE_PTY.md` → HEAVY-or-MEDIUM) eliminated stdout-intercept and naive-per-Hebrew-run RLM injection. The third micro-prototype (line-start RLM under node-pty) functions correctly end-to-end (probe.js mode `line-rlm`, confirmed via fake-claude smoke), but its visual effect in real Konsole **was not observed** — the test environment's Konsole (WSLg) was non-functional. This spec proceeds on the **theoretical case** (Konsole source + KivunTerminal.profile settings), with a required integration gate before release.
+> **Verdict basis:** The two prior prototypes (`CLAUDE_CODE_TASK_PROTOTYPE_STREAM.md` → NO-GO, `CLAUDE_CODE_TASK_PROTOTYPE_PTY.md` → HEAVY-or-MEDIUM) eliminated stdout-intercept and naive-per-Hebrew-run RLM injection. The third micro-prototype (line-start RLM under node-pty) functions correctly end-to-end (probe.js mode `line-rlm`, confirmed via fake-claude smoke), but its visual effect in real Konsole **was not observed** - the test environment's Konsole (WSLg) was non-functional. This spec proceeds on the **theoretical case** (Konsole source + KivunTerminal.profile settings), with a required integration gate before release.
 >
 > **Owner:** Kivun Terminal. Wraps Claude Code on Linux (Konsole) so Hebrew responses render RTL.
 
@@ -32,8 +32,8 @@ If Assumption A fails, MEDIUM_SPEC does **not** solve the problem and you must a
 Before tagging v1 of the wrapper for release, run in a **native-Linux Konsole** (not WSLg), on a workstation/VM/CI-runner where Konsole GUI actually functions, with the KivunTerminal profile active:
 
 ```bash
-printf '‏שלום עולם\n'       # With RLM prefix — must render right-to-left
-printf 'שלום עולם\n'              # Without RLM — likely renders reversed
+printf '‏שלום עולם\n'       # With RLM prefix - must render right-to-left
+printf 'שלום עולם\n'              # Without RLM - likely renders reversed
 printf '‏❯ שלום world bar\n'  # Mixed-script; RLM must flip paragraph to RTL
 ```
 
@@ -49,8 +49,8 @@ Treat this gate as a required pre-release check; do not skip.
 A single small wrapper that sits between Konsole and the `claude` binary. When the user runs `claude` inside a Kivun Terminal session, they actually run the wrapper; the wrapper spawns the real `claude` under node-pty and rewrites the pty→stdout stream to inject `‏` at each logical line start.
 
 Two artifacts:
-1. **`kivun-claude-bidi`** — the wrapper binary (Node script, probably a symlink in `$PATH` named `claude`).
-2. **Konsole profile validator** — runs at install time (or first launch), fails loudly if the active profile does not have the required BiDi settings.
+1. **`kivun-claude-bidi`** - the wrapper binary (Node script, probably a symlink in `$PATH` named `claude`).
+2. **Konsole profile validator** - runs at install time (or first launch), fails loudly if the active profile does not have the required BiDi settings.
 
 ### Explicit non-goals
 
@@ -61,14 +61,14 @@ Two artifacts:
 
 ---
 
-## 3. Source of the wrapper — adapt, don't re-derive
+## 3. Source of the wrapper - adapt, don't re-derive
 
 Start from the prototype in `~/claude-bidi-pty-probe/probe.js`, mode `line-rlm`. The algorithm is proven. Production-ization:
 
 - **Remove modes `raw`, `passthrough`, `naive-rlm`.** Only `line-rlm` ships. Simpler surface, smaller test matrix.
 - **Remove verbose JSONL logging** from the hot path. Production wrapper logs only: startup meta, errors, clean exit. Debug logging behind `KIVUN_BIDI_DEBUG=1`, writes to `$XDG_STATE_HOME/kivun/bidi.log` (or `~/.local/state/kivun/bidi.log` fallback) with rotation at 5 MB.
-- **Replace `process.exit(127)` on missing node-pty** with a user-readable message in Hebrew + English ("Kivun BiDi wrapper is missing its node-pty dependency. Please reinstall."). **Exit code 2**, not 127. Rationale — leave as a code comment next to the `process.exit(2)` call: *"Using 2 instead of shell-convention 127 for consistency with Kivun's internal exit-code taxonomy (§10). 127 is shell-convention for command-not-found at the shell level; this is a missing runtime dependency inside an already-running process, which is categorically different."*
-- **Keep** the cross-chunk state (`StringDecoder`, `atLineStart`, `inCsi`, `inOsc`, `afterEsc`). These are correctness-load-bearing — do not simplify.
+- **Replace `process.exit(127)` on missing node-pty** with a user-readable message in Hebrew + English ("Kivun BiDi wrapper is missing its node-pty dependency. Please reinstall."). **Exit code 2**, not 127. Rationale - leave as a code comment next to the `process.exit(2)` call: *"Using 2 instead of shell-convention 127 for consistency with Kivun's internal exit-code taxonomy (§10). 127 is shell-convention for command-not-found at the shell level; this is a missing runtime dependency inside an already-running process, which is categorically different."*
+- **Keep** the cross-chunk state (`StringDecoder`, `atLineStart`, `inCsi`, `inOsc`, `afterEsc`). These are correctness-load-bearing - do not simplify.
 - **Keep** `SIGWINCH` forwarding and signal pass-through (SIGINT, SIGTERM, SIGHUP).
 - **Keep** `stdio.setRawMode(true)` on stdin for bidirectional TTY transparency.
 
@@ -84,9 +84,9 @@ On each byte arriving from pty→stdout:
 
 ---
 
-## 4. Konsole profile audit — content-validated, fail-loudly
+## 4. Konsole profile audit - content-validated, fail-loudly
 
-The wrapper's install step (or equivalent first-launch check) MUST validate the Konsole profile it expects its users to run under. **Existence is not enough** — a user who hand-edited `KivunTerminal.profile` and flipped `BidiLineLTR` back to `true` would silently break the wrapper's entire premise, and all Hebrew would render reversed with no diagnostic. That's the worst failure mode.
+The wrapper's install step (or equivalent first-launch check) MUST validate the Konsole profile it expects its users to run under. **Existence is not enough** - a user who hand-edited `KivunTerminal.profile` and flipped `BidiLineLTR` back to `true` would silently break the wrapper's entire premise, and all Hebrew would render reversed with no diagnostic. That's the worst failure mode.
 
 ### What to validate
 
@@ -110,11 +110,11 @@ On violation:
     BidiLineLTR=false
     BidiRenderingEnabled=true   # or omitted (default is true)
   Found: <describe what's wrong>
-  Cannot safely run — Hebrew rendering would be incorrect.
+  Cannot safely run - Hebrew rendering would be incorrect.
   Fix the profile and retry.
   ```
 - **Exit code 3.** Reserved for "profile audit failed."
-- **Do not proceed to spawn `claude`.** This is the whole point of "fail loudly" — no silent degradation.
+- **Do not proceed to spawn `claude`.** This is the whole point of "fail loudly" - no silent degradation.
 
 ### When to run the audit
 
@@ -122,7 +122,7 @@ On violation:
 - At every invocation of the wrapper: as the first check before spawning node-pty. Cheap (one file read, two regex checks). If the user has edited their profile after install, we catch it the next time they run `claude`.
 - **NOT only at install time.** Re-check every run. Profile drift is real.
 
-### Konsole version check — warn on untested majors
+### Konsole version check - warn on untested majors
 
 In addition to content validation, the audit reads Konsole's version: `konsole --version 2>/dev/null | head -n 1` → extract the major version (e.g., `konsole 23.08.5` → major `23`). Compare against the release's tested range.
 
@@ -156,7 +156,7 @@ Detection (in order):
 2. If `$KONSOLE_DBUS_SERVICE` is non-empty but `$KONSOLE_PROFILE_NAME` is empty → unusual Konsole launch; treat as unsupported, exit code 5 with a hint to set the profile.
 3. If neither → exit code 5 (not in Konsole).
 
-No attempt to support other terminals in v1. If that becomes a requirement later, it's a v2 feature — likely driven by HEAVY_SPEC architecture, because non-Konsole terminals may not support ICU-style BiDi with `BidiLineLTR=false` semantics.
+No attempt to support other terminals in v1. If that becomes a requirement later, it's a v2 feature - likely driven by HEAVY_SPEC architecture, because non-Konsole terminals may not support ICU-style BiDi with `BidiLineLTR=false` semantics.
 
 ### Do we offer a `--force` flag?
 
@@ -179,24 +179,24 @@ kivun-claude-bidi/
 │   ├── injector.js                  # the line-start RLM state machine (pure fn, unit-testable)
 │   └── detect-terminal.js           # §5 terminal detection
 ├── test/
-│   ├── injector.test.js             # unit tests — pure function, no I/O
+│   ├── injector.test.js             # unit tests - pure function, no I/O
 │   ├── audit.test.js                # fixture profiles (pass + 5 fail modes)
 │   └── smoke.sh                     # end-to-end against fake-claude (reuse prototype's approach)
 └── README.md
 ```
 
-### Install targets — userspace only, **no `/usr/local`, no `sudo`**
+### Install targets - userspace only, **no `/usr/local`, no `sudo`**
 
 Kivun's install footprint is entirely per-user. The wrapper follows suit:
 
-- `~/.local/share/kivun-terminal/claude-bidi/` — wrapper source + `node_modules/` (compiled node-pty lives here).
-- `~/.local/bin/claude-bidi` — executable shim (Node shebang, points at the source above). This is the name users' commands must hit.
-- `~/.local/share/konsole/KivunTerminal.profile` — the installer writes this with the correct BiDi settings. The audit (§4) validates it.
-- `~/.local/share/konsole/ColorSchemeNoam.colorscheme` — unchanged from current distribution.
+- `~/.local/share/kivun-terminal/claude-bidi/` - wrapper source + `node_modules/` (compiled node-pty lives here).
+- `~/.local/bin/claude-bidi` - executable shim (Node shebang, points at the source above). This is the name users' commands must hit.
+- `~/.local/share/konsole/KivunTerminal.profile` - the installer writes this with the correct BiDi settings. The audit (§4) validates it.
+- `~/.local/share/konsole/ColorSchemeNoam.colorscheme` - unchanged from current distribution.
 
-### How `claude` calls get routed through the wrapper — launcher exec, NOT an alias
+### How `claude` calls get routed through the wrapper - launcher exec, NOT an alias
 
-**Do NOT use a shell alias** for `claude`. Aliases only apply in interactive shells — they silently break for:
+**Do NOT use a shell alias** for `claude`. Aliases only apply in interactive shells - they silently break for:
 - `claude` invoked from scripts (most dangerous; appears to work in terminal but fails elsewhere)
 - Subprocess invocations (Claude Code itself spawns some tool children)
 - Non-interactive shells started by IDEs, cron, systemd units
@@ -218,12 +218,12 @@ Your Kivun launcher may not be loading correctly. Typical fix:
 (Or fix kivun-launch.sh to prepend this before invoking the session.)
 ```
 
-This is a **warning, not fatal** — proceed with the run. Catches installer bugs where the launcher didn't run, or the user stripped the PATH prepend. Cheap defense; one `realpath` + one substring check per session.
+This is a **warning, not fatal** - proceed with the run. Catches installer bugs where the launcher didn't run, or the user stripped the PATH prepend. Cheap defense; one `realpath` + one substring check per session.
 
 ### Installer requirements (Kivun installer team, out of this repo's scope but noted)
 
 - `node >= 18` installed (for node-pty compat).
-- `build-essential`, `make`, `g++`, `python3` at install time for node-pty's native build. The install that hit us today had none of these — surface this explicitly in install-time dependency checks.
+- `build-essential`, `make`, `g++`, `python3` at install time for node-pty's native build. The install that hit us today had none of these - surface this explicitly in install-time dependency checks.
 - Post-install hook runs the profile audit once; if it fails, abort install.
 
 ---
@@ -233,27 +233,27 @@ This is a **warning, not fatal** — proceed with the run. Catches installer bug
 ### Unit (fast, CI-friendly)
 
 1. `injector.test.js`: feed the line-start injector a list of representative fixtures and assert output byte-for-byte:
-   - Plain ASCII line — no injection
-   - Line starting with Hebrew — RLM prepended
-   - Line starting with ANSI (SGR) then Hebrew — RLM between SGR and Hebrew
-   - Chunk boundary splits a UTF-8 codepoint in half — output correct when concatenated with next chunk's output
-   - Chunk boundary splits a CSI sequence in half — state machine resumes correctly
-   - Line already starting with RLM — no double injection
-   - `\r\n` vs `\n` vs bare `\r` — all treated as line start
-   - Alt-screen-buffer toggle (`\x1b[?1049h` / `\x1b[?1049l`) in a chunk — does not break state
+   - Plain ASCII line - no injection
+   - Line starting with Hebrew - RLM prepended
+   - Line starting with ANSI (SGR) then Hebrew - RLM between SGR and Hebrew
+   - Chunk boundary splits a UTF-8 codepoint in half - output correct when concatenated with next chunk's output
+   - Chunk boundary splits a CSI sequence in half - state machine resumes correctly
+   - Line already starting with RLM - no double injection
+   - `\r\n` vs `\n` vs bare `\r` - all treated as line start
+   - Alt-screen-buffer toggle (`\x1b[?1049h` / `\x1b[?1049l`) in a chunk - does not break state
 2. `audit.test.js`: fixture profiles for every failure mode:
-   - Profile missing — fails with code 3
-   - `BidiLineLTR=true` — fails
-   - `BidiLineLTR` key absent — fails
-   - `BidiRenderingEnabled=false` — fails
-   - Correct profile — passes
-   - Profile has the `BidiEnabled=true` legacy key (like KivunTerminal.profile currently has) — treated as informational warning; passes if other keys are right.
+   - Profile missing - fails with code 3
+   - `BidiLineLTR=true` - fails
+   - `BidiLineLTR` key absent - fails
+   - `BidiRenderingEnabled=false` - fails
+   - Correct profile - passes
+   - Profile has the `BidiEnabled=true` legacy key (like KivunTerminal.profile currently has) - treated as informational warning; passes if other keys are right.
 
 ### Smoke (medium, pre-release)
 
 Reuse the fake-claude smoke from the prototype. `test/smoke.sh` exits 0 on expected byte output.
 
-### Integration gate (slow, pre-release — §1)
+### Integration gate (slow, pre-release - §1)
 
 The three `printf` lines in native Linux Konsole. Manual-visual, once per release.
 
@@ -291,7 +291,7 @@ Pipe a 10 MB stream of mixed Hebrew/English through the wrapper and measure thro
 - [ ] `lib/injector.js` with unit tests (at least the 8 fixtures from §7).
 - [ ] `lib/audit.js` with unit tests (the 6 scenarios from §7).
 - [ ] `lib/detect-terminal.js` small; tests or manual verification.
-- [ ] `lib/wrapper.js` — main event loop.
+- [ ] `lib/wrapper.js` - main event loop.
 - [ ] `bin/kivun-claude-bidi` entrypoint.
 - [ ] `test/smoke.sh` reusing the prototype's fake-claude approach.
 - [ ] README covering: install, dependencies, usage, `KIVUN_BIDI_DEBUG` flag, `KIVUN_BIDI_SKIP_AUDIT` escape hatch, Konsole profile requirement.

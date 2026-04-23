@@ -49,12 +49,12 @@ jobs:
 
       - name: Dry-run install (non-interactive)
         run: |
-          # Pre-install the system packages the installer would fetch — we'd
+          # Pre-install the system packages the installer would fetch - we'd
           # rather fail here in CI than silently skip them.
           sudo apt-get update -y
           sudo apt-get install -y konsole nodejs npm git fonts-noto-color-emoji zenity
           # Skip the sudo-keepalive and package-install paths by setting
-          # $CI=1 — installer should still deploy user files correctly.
+          # $CI=1 - installer should still deploy user files correctly.
           chmod +x linux/install.sh linux/uninstall.sh linux/kivun-launch.sh
           # Run but don't fail the build on non-fatal warnings.
           ./linux/install.sh || true
