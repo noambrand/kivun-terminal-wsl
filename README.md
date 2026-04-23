@@ -46,7 +46,6 @@
 | **Supported RTL languages** | 0 | 11 (hebrew, arabic, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, yiddish, syriac) |
 | **Linux support** | Windows + macOS only (Linux planned) | ✅ apt / dnf / pacman / zypper |
 | **macOS support** | ✅ .pkg | ✅ .pkg with BiDi wrapper |
-| **Keyboard Alt+Shift toggle** | — (uses Windows Terminal's native handling) | ✅ via VcXsrv (Windows) / setxkbmap (Linux) |
 | **Statusline** (model, context %, usage limits) | ✅ pre-installed | ✅ pre-installed (same `statusline.mjs`) |
 | **Light-blue "Kivun" terminal theme** | ✅ Windows Terminal color scheme | ✅ Konsole `KivunTerminal` profile + `ColorSchemeNoam` |
 | **Startup time** | ~2 s | ~6 s (Konsole launch) |
@@ -191,5 +190,5 @@ Fork the repo, make your changes, and open a PR.
   <strong>Made by <a href="https://github.com/noambrand">Noam Brand</a></strong>
   <br><br>
   <a href="https://github.com/noambrand"><img src="https://img.shields.io/badge/GitHub-noambrand-181717?logo=github" alt="GitHub"></a>
-  <a href="mailto:office@orhitec.com"><img src="https://img.shields.io/badge/Email-office%40orhitec.com-EA4335?logo=gmail&logoColor=white" alt="Email"></a>
+  <a href="mailto:noambbb@gmail.com"><img src="https://img.shields.io/badge/Email-noambbb%40gmail.com-EA4335?logo=gmail&logoColor=white" alt="Email"></a>
 </p>
