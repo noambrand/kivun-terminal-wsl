@@ -39,7 +39,7 @@ Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt` to change:
 - `PRIMARY_LANGUAGE` — keyboard layout paired with `us` for Alt+Shift toggle (default: `hebrew`)
 - `TEXT_DIRECTION` — `rtl` or `ltr` input alignment
 - `USE_VCXSRV` — `true` to use VcXsrv X server (enables working Alt+Shift)
-- `KIVUN_BIDI_WRAPPER` — `on` to route Claude Code output through the `kivun-claude-bidi` wrapper which injects explicit RLE/PDF bracket pairs around Hebrew runs (default: `off`). Belt-and-suspenders against Konsole profile drift. Default flips to `on` in v1.2.0.
+- `KIVUN_BIDI_WRAPPER` — `on` (the default) routes Claude Code output through the `kivun-claude-bidi` wrapper which injects explicit RLE/PDF bracket pairs around Hebrew runs. Set to `off` to fall back to unwrapped claude if the wrapper causes rendering issues on your setup.
 
 See [README_INSTALLATION.md](README_INSTALLATION.md) for full setup details and [SECURITY.txt](SECURITY.txt) for credential notes.
 

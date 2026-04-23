@@ -26,7 +26,7 @@ TERMINAL_COLOR="kivun"
 KEYBOARD_TOGGLE="true"
 FOLDER_PICKER="false"
 CLAUDE_FLAGS=""
-KIVUN_BIDI_WRAPPER="off"
+KIVUN_BIDI_WRAPPER="on"
 trim() {
     # Pure-bash whitespace trim. Avoids `xargs` which both strips quotes
     # and globs unquoted special characters against the CWD (so a config

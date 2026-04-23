@@ -7,8 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **BiDi wrapper (`kivun-claude-bidi`).** Optional opt-in wrapper that pipes Claude Code output through a state machine wrapping every Hebrew run in Unicode RLE (U+202B) / PDF (U+202C) bracket pairs. This forces RTL paragraph direction within each wrapped run regardless of Konsole profile settings — fixing rendering edge cases where profile drift or custom Konsole profiles cause Hebrew to appear LTR, and future-proofing against ICU/Konsole BiDi changes. Detection covers Hebrew block (U+0590–U+05FF) and Hebrew presentation forms (U+FB1D–U+FB4F).
-  - **Enable:** set `KIVUN_BIDI_WRAPPER=on` in `%LOCALAPPDATA%\Kivun-WSL\config.txt` (default: `off`). The key's comment block in `config.txt` documents the toggle and links to the ROADMAP for the v1.2.0 default-flip plan.
+- **BiDi wrapper (`kivun-claude-bidi`).** Wrapper that pipes Claude Code output through a state machine wrapping every Hebrew run in Unicode RLE (U+202B) / PDF (U+202C) bracket pairs. Forces RTL paragraph direction within each wrapped run regardless of Konsole profile settings — fixes rendering edge cases where profile drift or custom Konsole profiles cause Hebrew to appear LTR, and future-proofs against ICU/Konsole BiDi changes. Detection covers Hebrew block (U+0590–U+05FF) and Hebrew presentation forms (U+FB1D–U+FB4F).
+  - **Default: on.** Ships enabled so Hebrew in Claude Code output works without manual config edits. Disable by setting `KIVUN_BIDI_WRAPPER=off` in `%LOCALAPPDATA%\Kivun-WSL\config.txt` and relaunching.
   - **First enable** runs `npm install --production` inside WSL to build `node-pty` (~5–15 s, one-time). An install stamp (`.kivun-install-stamp`) under `node_modules/` gates subsequent launches to instant startup. Stamp invalidates if the shipped `package.json` is newer.
   - **Deploy target:** `~/.local/share/kivun-terminal/kivun-claude-bidi/` (WSL-native, not `/mnt/c/...`) so `node-pty` builds against real Linux paths and avoids the filesystem-performance / path-translation penalty of `/mnt/c`.
   - **Fallback:** if the key is `on` but the wrapper binary isn't reachable (missing install, failed `npm install`), the launcher logs a loud WARNING and runs unwrapped `claude` so the user never sees a silent launch failure.
@@ -22,14 +22,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **`payload/config.txt`** gains a `KIVUN_BIDI_WRAPPER` section (default `off`) with comment block explaining the toggle and pointing at `docs/specs/ROADMAP.md`. Existing `config.txt` files are preserved on upgrade — users wanting the wrapper must add the key manually or let a fresh install write the new default.
+- **`payload/config.txt`** gains a `KIVUN_BIDI_WRAPPER` section (default `on`). Existing `config.txt` files from prior installs are preserved on upgrade — those users won't have the key at all, and the launcher treats missing = `off`. To pick up the new default, delete `%LOCALAPPDATA%\Kivun-WSL\config.txt` and rerun the installer.
 - **`payload/kivun-launch.sh`** (WSL-side, invoked from `kivun-terminal.bat`) and **`linux/kivun-launch.sh`** (native-Linux launcher): conditional wrapper invocation based on `KIVUN_BIDI_WRAPPER`. Both launchers log the decision (`active` / `off` / `fallback WARNING`) so config drift is visible in `BASH_LAUNCH_LOG.txt` / `launch.log`.
 - **Linux launcher** writes `CLAUDE_EXEC` to its `launch-env.sh` via `printf %q`, preserving the #2 security property from the v1.0.6 audit (no command-substitution re-evaluation of values coming from user-editable config).
 
 ### Notes
 
-- **Opt-in.** Wrapper is off by default so existing users see zero behavioral change on upgrade. `KIVUN_BIDI_WRAPPER=off` preserves v1.0.6 behavior exactly.
-- **Default flip in v1.2.0.** After a ≥4-week feedback window and gate criteria in `docs/specs/ROADMAP.md`, `KIVUN_BIDI_WRAPPER=on` becomes the shipped default.
+- **Default-on rationale.** Earlier draft had the wrapper opt-in with a v1.2.0 default-flip after a 4-week feedback window. Dropped that: user base is small, the feedback-window signal thin, and "Hebrew just works after install" is the product promise — requiring a config edit to get the fix contradicts that. Rollback path if wrapper breaks in the wild: single-line `KIVUN_BIDI_WRAPPER=off` edit documented in TROUBLESHOOTING; v1.1.1 hotfix flips the shipped default back if root-cause fix isn't ready in 48 hours. See `docs/specs/ROADMAP.md` for details.
+- **Known gap.** The Claude Code `●` bullet on the first line of an assistant Hebrew response makes Konsole's auto-detect pick LTR paragraph direction (first-visible-char behavior), so that specific line may still render left-aligned even with the wrapper active. Tracked as a separate item in the roadmap — possible fix path is line-start RLM injection, pending empirical verification via `docs/research/paragraph-direction-test.sh`.
 - **Still pending before tag:** integration gate §1 run on real Konsole, 1-day production canary on the lead dev's real Claude Code usage, `VERSION` bump 1.0.6 → 1.1.0.
 
 ## [1.0.6] — 2026-04-19

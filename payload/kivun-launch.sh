@@ -354,8 +354,10 @@ log "SUCCESS - Current directory: $(pwd)"
 
 log "INFO - Checking BiDi wrapper config (KIVUN_BIDI_WRAPPER)"
 # Parent .bat doesn't pass this key, so read it directly from the
-# config.txt deployed next to this script.
-KIVUN_BIDI_WRAPPER="off"
+# config.txt deployed next to this script. Default-when-absent is "on"
+# so users upgrading from v1.0.6 (whose config.txt predates this key)
+# get the wrapper activated without needing a config edit.
+KIVUN_BIDI_WRAPPER="on"
 if [ -f "$SCRIPT_DIR/config.txt" ]; then
     val=$(grep -E '^[[:space:]]*KIVUN_BIDI_WRAPPER[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
         | sed -e 's/^[[:space:]]*KIVUN_BIDI_WRAPPER[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
