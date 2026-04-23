@@ -22,7 +22,8 @@ Other distros work if you install `konsole`, `nodejs`, `git`, and `zenity` (or `
 5. Installs the launcher at `~/.local/bin/kivun-terminal` and adds `~/.local/bin` to your `$PATH` (in `.bashrc` / `.zshrc`).
 6. Creates an app-menu entry `~/.local/share/applications/kivun-terminal.desktop` and a desktop launcher at `~/Desktop/Kivun Terminal.desktop`.
 7. Installs right-click integrations for GNOME Files (Nautilus scripts) and KDE Dolphin (service menu).
-8. Creates `~/.config/kivun-terminal/config.txt` with default settings (RTL, Kivun colors, English response, Alt+Shift keyboard toggle).
+8. Deploys the **`kivun-claude-bidi` wrapper** to `~/.local/share/kivun-terminal/kivun-claude-bidi/` and runs `npm install --production` once. The launcher pipes Claude Code through this wrapper to fix the Hebrew bullet-line direction bug regardless of Konsole BiDi settings (default-on; toggle via `KIVUN_BIDI_WRAPPER`). If `npm` isn't on PATH at install time, the launcher retries on first launch.
+9. Creates `~/.config/kivun-terminal/config.txt` with default settings (RTL, Kivun colors, English response, Alt+Shift keyboard toggle, BiDi wrapper on).
 
 System packages are installed as root via `sudo`; everything else lands in your user home — no system-wide files.
 
@@ -56,6 +57,7 @@ Install log: `/tmp/kivun_install.log`
 | `KEYBOARD_TOGGLE` | `true` / `false` | `true` | Sets up Alt+Shift US ↔ primary-script layout via setxkbmap (X11 only) |
 | `FOLDER_PICKER` | `true` / `false` | `false` | Pop a zenity/kdialog folder picker before launching |
 | `CLAUDE_FLAGS` | — | empty | Extra flags passed to every `claude` call (e.g. `--continue`) |
+| `KIVUN_BIDI_WRAPPER` | `on` / `off` | `on` | Pipe Claude through the BiDi wrapper for correct Hebrew/Arabic rendering |
 
 Supported `RESPONSE_LANGUAGE` values: `english, hebrew, arabic, persian, urdu, kurdish, pashto, sindhi, yiddish, syriac, dhivehi, nko, adlam, mandaic, samaritan, dari, uyghur, balochi, kashmiri, shahmukhi, azeri-south, jawi, turoyo`.
 
@@ -75,7 +77,7 @@ Removes the launcher, config, Konsole profile, desktop entries, and file-manager
 
 ## Known limitations
 
-- **Hebrew/Arabic first-line direction**: Claude Code's assistant-message bullet (`●`) is a direction-neutral character placed at the logical start of each line, which tricks terminal emulators into picking LTR paragraph direction for RTL replies. Tracking upstream at [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881). Konsole's BiDi is still stronger than Terminal.app or xterm — the first line may be left-aligned but the rest of the reply is right-aligned.
+- **Hebrew/Arabic first-line direction**: fixed in v1.1.0 by the bundled `kivun-claude-bidi` wrapper (default-on). The wrapper injects an RLM at line start when the first strong char is RTL, forcing paragraph direction. Disable with `KIVUN_BIDI_WRAPPER=off` if you need a clean copy-paste experience. Upstream tracking issue: [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881).
 - **Wayland keyboard toggle**: `setxkbmap` is X11-only. See the section above.
 - **Emoji font on older distros**: On Ubuntu < 22.04 or Fedora < 38, `fonts-noto-color-emoji` may not exist; install `noto-fonts-emoji` or similar manually.
 

@@ -209,6 +209,41 @@ if [ -f "$PAYLOAD_DIR/configure-statusline.js" ] && command -v node >/dev/null 2
         || err "configure-statusline.js failed"
 fi
 
+# --- BiDi wrapper (kivun-claude-bidi) ---
+# Bundled the same way Windows does: ship the wrapper source under the
+# user's local share dir and run `npm install --production` once at install
+# time so first launch is instant. If npm or node is missing right now,
+# we skip the install — the launcher's first-launch fallback will retry
+# (see linux/kivun-launch.sh deploy_bidi_wrapper).
+WRAPPER_SRC="$(cd "$SCRIPT_DIR/../kivun-claude-bidi" 2>/dev/null && pwd || echo "")"
+WRAPPER_DST="$KT_SHARE/kivun-claude-bidi"
+if [ -n "$WRAPPER_SRC" ] && [ -d "$WRAPPER_SRC" ]; then
+    log "Deploying BiDi wrapper from $WRAPPER_SRC -> $WRAPPER_DST"
+    mkdir -p "$WRAPPER_DST"
+    # Excludes match the Windows installer's `File /r /x node_modules /x .git`.
+    # node_modules will be (re)built by `npm install --production` below so we
+    # don't ship a host-built copy that may be wrong-arch / wrong-libc.
+    (cd "$WRAPPER_SRC" && tar --exclude=node_modules --exclude=.git -cf - .) \
+        | (cd "$WRAPPER_DST" && tar xf -) 2>&1 | tee -a "$LOG_FILE"
+    sed -i 's/\r$//' "$WRAPPER_DST/bin/kivun-claude-bidi" 2>/dev/null || true
+    chmod +x "$WRAPPER_DST/bin/kivun-claude-bidi" 2>/dev/null || true
+
+    if command -v npm >/dev/null 2>&1; then
+        log "Running npm install --production for wrapper (one-time, ~5-15s)..."
+        if (cd "$WRAPPER_DST" && npm install --production --no-audit --no-fund) 2>&1 | tee -a "$LOG_FILE"; then
+            mkdir -p "$WRAPPER_DST/node_modules"
+            touch "$WRAPPER_DST/node_modules/.kivun-install-stamp"
+            log "BiDi wrapper installed at $WRAPPER_DST/bin/kivun-claude-bidi"
+        else
+            err "npm install failed for wrapper — first launch will retry"
+        fi
+    else
+        log "npm not on PATH yet — skipping wrapper npm install (launcher will retry on first run)"
+    fi
+else
+    log "WARNING: kivun-claude-bidi source not found at $SCRIPT_DIR/../kivun-claude-bidi — wrapper will not be available"
+fi
+
 # Linux-only settings file that the launcher passes via --settings
 cat > "$KT_SHARE/settings.json" <<EOF
 {
@@ -315,6 +350,22 @@ FOLDER_PICKER=false
 # Optional flags applied on every launch.
 # Example: CLAUDE_FLAGS=--continue
 CLAUDE_FLAGS=
+
+# =================================================================
+# BIDI WRAPPER (Hebrew rendering for Claude Code output)
+# =================================================================
+# When "on" (default), Claude Code output is piped through the
+# kivun-claude-bidi wrapper, which injects Unicode RLE/PDF bracket
+# pairs (U+202B / U+202C) around Hebrew runs and an RLM (U+200F) at
+# line start when the first strong char is RTL — fixing the Hebrew
+# bullet-line direction bug regardless of Konsole BiDi settings.
+#
+# The installer deploys the wrapper to
+# ~/.local/share/kivun-terminal/kivun-claude-bidi/ and runs npm install
+# once. If install was skipped (no npm at install time), the launcher
+# retries on first launch. Set to "off" to fall back to unwrapped claude.
+# Default: on
+KIVUN_BIDI_WRAPPER=on
 CONFIG
     log "Config created at $CONFIG_FILE"
 fi

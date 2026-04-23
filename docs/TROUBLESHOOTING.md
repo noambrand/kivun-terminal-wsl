@@ -131,7 +131,13 @@ wsl -d Ubuntu --user root -- rm -f /tmp/kivun-claude-launch.sh
 
 ## Symptom: Claude's Hebrew/Arabic response is left-aligned on the first line
 
-**Fixed in v1.1.0** when the BiDi wrapper is enabled (which is the default). If you're on v1.0.6 or have `KIVUN_BIDI_WRAPPER=off`, the bug is still there.
+**Fixed in v1.1.0 on all three platforms** (Windows/WSL, Linux, macOS) when the BiDi wrapper is enabled (which is the default). If you're on v1.0.6 or have `KIVUN_BIDI_WRAPPER=off`, the bug is still there.
+
+Per-platform launch log paths (search for `BiDi wrapper active` to confirm the wrapper is running):
+
+- **Windows**: `%LOCALAPPDATA%\Kivun-WSL\BASH_LAUNCH_LOG.txt`
+- **Linux**: `~/.local/share/kivun-terminal/launch.log`
+- **macOS**: the `.command` shortcut prints to its own Terminal.app window; postinstall log lives at `/tmp/kivun_install.log`.
 
 Root cause: Claude Code prepends every assistant message with a `●` bullet character. Konsole's BiDi auto-detect uses "first strong char wins" paragraph-direction detection, but empirically (see `docs/research/paragraph-direction-test.sh`) it only honors the first strong char if it appears **before any other visible char**. The `●` is a visible neutral, so Konsole falls back to LTR direction despite the Hebrew that follows.
 
@@ -145,40 +151,57 @@ Upstream tracker (relevant if you want Anthropic to fix this at the source): [an
 
 ## Symptom: `KIVUN_BIDI_WRAPPER=on` but Hebrew still renders reversed
 
-**Cause:** The BiDi wrapper (`kivun-claude-bidi`) is opt-in as of v1.1.0 and requires a one-time first-run install before it can be used. If something in that flow failed, the launcher falls back to unwrapped `claude` silently from the user's perspective — but the launch log records the reason.
+**Cause:** The BiDi wrapper (`kivun-claude-bidi`) is default-on as of v1.1.0 but requires a one-time first-run `npm install` before it can be used. If something in that flow failed, the launcher falls back to unwrapped `claude` silently from the user's perspective — but the launch log records the reason.
 
-**Diagnose:** open `%LOCALAPPDATA%\Kivun-WSL\BASH_LAUNCH_LOG.txt` and search for `BiDi` or `wrapper`. Three possible states:
+**Diagnose:** open the per-platform launch log (see paths in the previous symptom) and search for `BiDi` or `wrapper`. Three possible states:
 
-1. `BiDi wrapper active: /home/<user>/.local/share/kivun-terminal/kivun-claude-bidi/bin/kivun-claude-bidi` — wrapper is running. If Hebrew still looks wrong, the issue is not the wrapper; see the Konsole BiDi engine section below.
-2. `WARNING - Wrapper deploy failed` — `npm install` failed inside WSL. See the next symptom.
-3. `INFO - BiDi wrapper off (KIVUN_BIDI_WRAPPER=off)` — the key isn't set to `on`. Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt`, add or change the line:
-
-   ```
-   KIVUN_BIDI_WRAPPER=on
-   ```
+1. `BiDi wrapper active: <path>/kivun-claude-bidi/bin/kivun-claude-bidi` — wrapper is running. If Hebrew still looks wrong, the issue is not the wrapper; see the BiDi engine section below.
+2. `WARNING - Wrapper deploy failed` / `npm install failed` — see the next symptom.
+3. `BiDi wrapper off` — the key isn't set to `on`. Edit your config and set `KIVUN_BIDI_WRAPPER=on`. Config paths:
+   - **Windows:** `%LOCALAPPDATA%\Kivun-WSL\config.txt`
+   - **Linux:** `~/.config/kivun-terminal/config.txt`
+   - **macOS:** `~/Library/Application Support/Kivun-Terminal/config.txt`
 
    If the key is missing entirely (upgrading from pre-v1.1.0 preserves your old `config.txt`), add it manually. Relaunch.
 
 ## Symptom: Wrapper deploy fails with "npm install failed"
 
-**Cause:** `npm` or `node` isn't installed in your Ubuntu WSL distribution, or the version is too old for `node-pty`'s native build.
+**Cause:** `npm` or `node` isn't installed (or the version is too old for `node-pty`'s native build), or the build toolchain (`build-essential`/Xcode CLT) is missing.
 
-**Fix:**
+**Fix — Windows (WSL Ubuntu):**
 
 ```bash
 wsl -d Ubuntu -u root -- apt-get update
 wsl -d Ubuntu -u root -- apt-get install -y nodejs npm build-essential python3
 ```
 
-Then relaunch Kivun Terminal. The first launch with the wrapper enabled will retry `npm install`. Expect 5–15 s the first time; subsequent launches are instant (an `.kivun-install-stamp` file in `~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules/` gates re-installation).
-
-If you want to force a reinstall after updating Node/npm:
+**Fix — Linux:**
 
 ```bash
-wsl -d Ubuntu -- rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules
+# Debian/Ubuntu
+sudo apt-get install -y nodejs npm build-essential python3
+# Fedora/RHEL
+sudo dnf install -y nodejs npm gcc-c++ make python3
+# Arch
+sudo pacman -S --needed nodejs npm base-devel python
 ```
 
-Check the tail of `BASH_LAUNCH_LOG.txt` for the specific npm error message — common culprits are offline WSL, expired apt cache, or missing `build-essential`.
+**Fix — macOS:**
+
+```bash
+brew install node
+xcode-select --install   # if Xcode CLT isn't present (provides the C++ toolchain node-pty needs)
+```
+
+Then relaunch. On first launch with the wrapper enabled, `npm install` retries automatically. Expect 5–15 s the first time; subsequent launches are instant (an `.kivun-install-stamp` file in `<wrapper-dir>/node_modules/` gates re-installation).
+
+If you want to force a reinstall after updating Node/npm, delete `node_modules` from the platform-specific wrapper directory:
+
+- **Windows:** `wsl -d Ubuntu -- rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules`
+- **Linux:** `rm -rf ~/.local/share/kivun-terminal/kivun-claude-bidi/node_modules`
+- **macOS:** `sudo rm -rf /usr/local/share/kivun-terminal/kivun-claude-bidi/node_modules`
+
+Check the tail of the launch log for the specific npm error message — common culprits are offline networks, missing build toolchains, or a Node version too old for `node-pty`.
 
 ## Symptom: Pasted text from Konsole contains invisible characters that break shell commands
 

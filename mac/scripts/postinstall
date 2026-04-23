@@ -254,6 +254,43 @@ if [ -f "$UNINSTALL_SRC" ]; then
     log "Uninstaller copied to $STATUSLINE_DIR/uninstall.sh — run it to remove Kivun Terminal"
 fi
 
+# --- BiDi wrapper (kivun-claude-bidi) ---
+# Mirrors the Windows installer: ship source under STATUSLINE_DIR and run
+# `npm install --production` once so first launch is instant. Run as the
+# real user (not root) so node-pty's native build picks up that user's
+# Homebrew node and lands in a tree the user can write to. Failure is
+# non-fatal — the launcher silently falls back to unwrapped `claude`.
+WRAPPER_SRC="$(dirname "$0")/kivun-claude-bidi"
+WRAPPER_DST="$STATUSLINE_DIR/kivun-claude-bidi"
+if [ -d "$WRAPPER_SRC" ]; then
+    log "Installing BiDi wrapper to $WRAPPER_DST..."
+    rm -rf "$WRAPPER_DST" 2>/dev/null || true
+    mkdir -p "$WRAPPER_DST"
+    (cd "$WRAPPER_SRC" && tar --exclude=node_modules --exclude=.git -cf - .) \
+        | (cd "$WRAPPER_DST" && tar xf -)
+    chmod +x "$WRAPPER_DST/bin/kivun-claude-bidi" 2>/dev/null || true
+    # Real user must own the tree so `npm install` can write node_modules
+    # (and so non-root subsequent launches can read it).
+    chown -R "$REAL_USER" "$WRAPPER_DST" 2>/dev/null || true
+
+    # npm install — best effort. If node was just installed via brew above,
+    # `command -v node` from a login shell will find it; if it failed, we
+    # log and move on (the .command launcher will still try unwrapped claude).
+    if run_as_user "command -v npm" &>/dev/null; then
+        log "Running npm install --production for wrapper (one-time, ~5-15s)..."
+        if run_as_user "cd '$WRAPPER_DST' && npm install --production --no-audit --no-fund" 2>&1 | tee -a "$LOG_FILE"; then
+            run_as_user "mkdir -p '$WRAPPER_DST/node_modules' && touch '$WRAPPER_DST/node_modules/.kivun-install-stamp'"
+            log "BiDi wrapper installed at $WRAPPER_DST/bin/kivun-claude-bidi"
+        else
+            log "WARNING: npm install for wrapper failed — launcher will fall back to unwrapped claude"
+        fi
+    else
+        log "WARNING: npm not on user's PATH — skipping wrapper install (launcher will fall back to unwrapped claude)"
+    fi
+else
+    log "WARNING: kivun-claude-bidi source not found in package — skipping wrapper install"
+fi
+
 # Set CLAUDE_CODE_STATUSLINE in user's shell profile
 SHELL_RC="$REAL_HOME/.zshrc"
 if [ -f "$REAL_HOME/.bashrc" ] && [ ! -f "$REAL_HOME/.zshrc" ]; then
@@ -348,6 +385,21 @@ FOLDER_PICKER=true
 CLAUDE_FLAGS=
 
 # =================================================================
+# BIDI WRAPPER (Hebrew rendering for Claude Code output)
+# =================================================================
+# When "on" (default), Claude Code output is piped through the
+# kivun-claude-bidi wrapper, which injects Unicode RLE/PDF bracket
+# pairs around Hebrew runs and an RLM at line start when the first
+# strong char is RTL — fixing the Hebrew bullet-line direction bug
+# regardless of which terminal emulator you're using.
+#
+# The .pkg deploys the wrapper to /usr/local/share/kivun-terminal/
+# kivun-claude-bidi/ and runs npm install once during postinstall. Set
+# to "off" to fall back to unwrapped claude.
+# Default: on
+KIVUN_BIDI_WRAPPER=on
+
+# =================================================================
 # Not used on macOS: USE_VCXSRV (Windows/WSL only)
 # =================================================================
 CONFIG
@@ -379,6 +431,7 @@ TERMINAL_COLOR="kivun"
 MAC_TERMINAL="terminal"
 FOLDER_PICKER="true"
 CLAUDE_FLAGS=""
+KIVUN_BIDI_WRAPPER="on"
 # Pure-bash trim avoids xargs's glob expansion and quote stripping —
 # a value like `*` or `?` must pass through unchanged.
 trim() {
@@ -401,8 +454,22 @@ if [ -f "$CONFIG_FILE" ]; then
             MAC_TERMINAL) MAC_TERMINAL="$value" ;;
             FOLDER_PICKER) FOLDER_PICKER="$value" ;;
             CLAUDE_FLAGS) CLAUDE_FLAGS="$value" ;;
+            KIVUN_BIDI_WRAPPER) KIVUN_BIDI_WRAPPER="$value" ;;
         esac
     done < "$CONFIG_FILE"
+fi
+
+# Decide which binary to run. The wrapper, if installed and on, fixes the
+# Hebrew bullet-line direction bug regardless of which terminal emulator
+# you use. Falls back silently to plain `claude` when missing/disabled.
+CLAUDE_EXEC="claude"
+if [ "$KIVUN_BIDI_WRAPPER" = "on" ]; then
+    WRAPPER_BIN="/usr/local/share/kivun-terminal/kivun-claude-bidi/bin/kivun-claude-bidi"
+    if [ -x "$WRAPPER_BIN" ]; then
+        CLAUDE_EXEC="$WRAPPER_BIN"
+    elif command -v kivun-claude-bidi >/dev/null 2>&1; then
+        CLAUDE_EXEC="kivun-claude-bidi"
+    fi
 fi
 
 # Apply Terminal.app color scheme only if this window is Terminal.app AND
@@ -480,7 +547,7 @@ shell_quote() {
 }
 case "$MAC_TERMINAL" in
     iterm2)
-        ITERM_CMD="cd $(shell_quote "$FOLDER") && claude"
+        ITERM_CMD="cd $(shell_quote "$FOLDER") && $(shell_quote "$CLAUDE_EXEC")"
         [ -n "$LANG_PROMPT" ] && ITERM_CMD="$ITERM_CMD --append-system-prompt $(shell_quote "$LANG_PROMPT")"
         [ -n "$CLAUDE_FLAGS" ] && ITERM_CMD="$ITERM_CMD $CLAUDE_FLAGS"
         # Second escape layer: the AppleScript `write text "..."` string
@@ -503,17 +570,20 @@ esac
 
 # Default: run claude directly in this Terminal.app window.
 # SECURITY: no eval; pass flags as separate arguments.
+# CLAUDE_EXEC is either `claude` or the absolute path to the BiDi wrapper
+# binary (chosen above based on KIVUN_BIDI_WRAPPER and the wrapper's
+# install state). Quote it to handle paths with spaces.
 if [ -n "$LANG_PROMPT" ]; then
     if [ -n "$CLAUDE_FLAGS" ]; then
-        claude --append-system-prompt "$LANG_PROMPT" $CLAUDE_FLAGS
+        "$CLAUDE_EXEC" --append-system-prompt "$LANG_PROMPT" $CLAUDE_FLAGS
     else
-        claude --append-system-prompt "$LANG_PROMPT"
+        "$CLAUDE_EXEC" --append-system-prompt "$LANG_PROMPT"
     fi
 else
     if [ -n "$CLAUDE_FLAGS" ]; then
-        claude $CLAUDE_FLAGS
+        "$CLAUDE_EXEC" $CLAUDE_FLAGS
     else
-        claude
+        "$CLAUDE_EXEC"
     fi
 fi
 SCRIPT

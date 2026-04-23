@@ -1,26 +1,31 @@
 # kivun-claude-bidi
 
-BiDi wrapper for Claude Code running under Konsole on Linux (WSL or native).
-Injects Unicode RLE/PDF bracket pairs around Hebrew runs in Claude Code's
-output stream so Hebrew renders right-to-left regardless of Konsole profile
-settings.
+BiDi wrapper for Claude Code. Injects Unicode RLE/PDF bracket pairs around
+Hebrew runs in Claude Code's output stream and an RLM (U+200F) at the start
+of any line whose first strong char is RTL — so Hebrew renders right-to-left
+regardless of the host terminal's BiDi profile and the bullet-prefixed
+first line is no longer LTR-stuck.
 
-**Status: scaffold only.** Injector logic is not yet implemented. See
-[`docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md`](../docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md)
-for the architecture spec and [`docs/specs/ROADMAP.md`](../docs/specs/ROADMAP.md)
-for the ship plan.
+See [`docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md`](../docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md)
+for the architecture spec.
 
-## Fixture partition
+## Where it ships
 
-See ROADMAP.md. Ship-blocking core = 10 fixtures in `test/core.test.js`.
-Nice-to-have = 8 fixtures in `test/extended.test.js`. Partition approved
-2026-04-23.
+The wrapper is bundled into all three Kivun Terminal installers and is
+default-on as of v1.1.0:
 
-## v1.1.0 posture
+- **Windows (WSL):** Source ships under `%LOCALAPPDATA%\Kivun-WSL\kivun-claude-bidi\`. The launcher syncs it to `~/.local/share/kivun-terminal/kivun-claude-bidi/` on first run and runs `npm install` once inside WSL.
+- **Linux:** `linux/install.sh` deploys to `~/.local/share/kivun-terminal/kivun-claude-bidi/` and runs `npm install --production` at install time. Launcher retries on first launch if npm wasn't on PATH yet.
+- **macOS:** The `.pkg` postinstall deploys to `/usr/local/share/kivun-terminal/kivun-claude-bidi/` and runs `npm install --production` as the real user (so `node-pty` builds against the host arch).
 
-Wrapper is opt-in. Enable by setting `KIVUN_BIDI_WRAPPER=on` in
-`~/.config/kivun-terminal/config.txt`. Default-on lands in v1.2.0 after
-a feedback cycle — see ROADMAP.md for criteria.
+Toggle with `KIVUN_BIDI_WRAPPER=on|off` in the platform-specific config
+(see TROUBLESHOOTING.md for paths). Off → fall back to unwrapped `claude`.
+
+## Test coverage
+
+Ship-blocking core = 10 fixtures in `test/core.test.js`. Extended = 8 in
+`test/extended.test.js`. End-to-end smoke at `test/smoke.sh` exercises the
+wrapper via node-pty against a fake-claude stand-in.
 
 ## Copy/paste note
 

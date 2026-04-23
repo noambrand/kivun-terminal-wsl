@@ -58,16 +58,55 @@ fi
 log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER"
 
 # Decide which binary the tmp launch script will invoke. Wrapper is
-# opt-in for v1.1.0; fallback to unwrapped claude if the key is on but
-# the binary isn't installed (log a warning so the config drift is
-# visible in launch.log).
+# default-on in v1.1.0. Resolution order:
+#   1. Bundled wrapper at ~/.local/share/kivun-terminal/kivun-claude-bidi/
+#      (deployed by install.sh; npm install runs at install time, or here
+#      on first launch if install skipped it because node was missing).
+#   2. Anything called `kivun-claude-bidi` on PATH (manual installs).
+#   3. Unwrapped `claude` with a loud WARNING.
+ensure_wrapper_installed() {
+    # Returns 0 and echoes the wrapper binary path if usable; non-zero on failure.
+    local dst="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
+    local bin="$dst/bin/kivun-claude-bidi"
+    [ -d "$dst" ] || return 1
+
+    chmod +x "$bin" 2>/dev/null || true
+
+    # npm install guard — same stamp pattern as the WSL launcher. Reinstall
+    # only if node_modules is missing or package.json is newer than the stamp.
+    local stamp="$dst/node_modules/.kivun-install-stamp"
+    if [ ! -f "$stamp" ] || [ "$dst/package.json" -nt "$stamp" ]; then
+        if command -v npm >/dev/null 2>&1; then
+            log "Installing wrapper deps (one-time, ~5-15s) — npm install --production"
+            (cd "$dst" && npm install --production --no-audit --no-fund) >> "$LOG_FILE" 2>&1
+            local rc=$?
+            if [ $rc -ne 0 ]; then
+                log "ERROR: npm install failed (rc=$rc); see $LOG_FILE"
+                return 1
+            fi
+            mkdir -p "$(dirname "$stamp")"
+            touch "$stamp"
+        else
+            log "ERROR: npm not on PATH; cannot install wrapper deps. Install Node.js + npm and relaunch."
+            return 1
+        fi
+    fi
+
+    [ -x "$bin" ] || return 1
+    printf '%s' "$bin"
+    return 0
+}
+
 CLAUDE_EXEC="claude"
 if [ "$KIVUN_BIDI_WRAPPER" = "on" ]; then
-    if command -v kivun-claude-bidi >/dev/null 2>&1; then
+    if WRAPPER_BIN=$(ensure_wrapper_installed); then
+        CLAUDE_EXEC="$WRAPPER_BIN"
+        log "BiDi wrapper active: $CLAUDE_EXEC"
+    elif command -v kivun-claude-bidi >/dev/null 2>&1; then
         CLAUDE_EXEC="kivun-claude-bidi"
-        log "BiDi wrapper active: kivun-claude-bidi"
+        log "BiDi wrapper active (PATH fallback): kivun-claude-bidi"
     else
-        log "WARNING: KIVUN_BIDI_WRAPPER=on but 'kivun-claude-bidi' not on PATH; using unwrapped claude"
+        log "WARNING: KIVUN_BIDI_WRAPPER=on but wrapper unavailable; using unwrapped claude"
     fi
 fi
 
@@ -270,7 +309,7 @@ ARGS=()
 [ -f "$KT_SETTINGS" ] && ARGS+=(--settings "$KT_SETTINGS")
 [ -n "$LANG_PROMPT" ] && ARGS+=(--append-system-prompt "$LANG_PROMPT")
 
-claude "${ARGS[@]}" $CLAUDE_FLAGS
+"$CLAUDE_EXEC" "${ARGS[@]}" $CLAUDE_FLAGS
 EXIT_CODE=$?
 
 echo ""
