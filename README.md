@@ -17,8 +17,7 @@
   <img src="https://img.shields.io/badge/version-1.1.0-brightgreen" alt="v1.1.0">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?color=purple&label=total%20downloads" alt="Total Downloads"></a>
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/latest/total?color=brightgreen&label=v1.1.0%20downloads" alt="Latest release downloads"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?color=purple&label=downloads" alt="Total Downloads"></a>
 </p>
 
 <h3 align="center">Real RTL Claude Code. Hebrew, Arabic, Persian, Urdu and 8 more — rendered correctly, on Windows, Linux, and macOS.</h3>
