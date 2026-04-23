@@ -103,6 +103,15 @@ Section "Core Files" SEC_CORE
     DetailPrint "Preserving existing config.txt (user edits kept)"
   ${EndIf}
 
+  ; BiDi wrapper bundle — source files only (no node_modules). npm install
+  ; --production runs on first enable inside WSL; see payload/kivun-launch.sh
+  ; deploy_bidi_wrapper(). Wrapper is off by default via config.txt in
+  ; v1.1.0 — ships installed but dormant until the user flips
+  ; KIVUN_BIDI_WRAPPER=on.
+  SetOutPath "$INSTDIR"
+  File /r /x node_modules /x .git "..\kivun-claude-bidi"
+  DetailPrint "Installed BiDi wrapper source (enable via KIVUN_BIDI_WRAPPER=on in config.txt)"
+
   ; Log directory
   CreateDirectory "$LOCALAPPDATA\Kivun-WSL"
 
@@ -394,6 +403,10 @@ Section "Uninstall"
   Delete "$INSTDIR\TROUBLESHOOTING.md"
   Delete "$INSTDIR\kivun_icon.ico"
   Delete "$INSTDIR\Uninstall.exe"
+
+  ; Remove BiDi wrapper bundle
+  RMDir /r "$INSTDIR\kivun-claude-bidi"
+
   RMDir "$INSTDIR"
 
   ; NOTE: Deliberately do NOT uninstall WSL, Ubuntu, Konsole, or Claude Code.

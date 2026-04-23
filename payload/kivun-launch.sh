@@ -354,22 +354,80 @@ log "SUCCESS - Current directory: $(pwd)"
 
 log "INFO - Checking BiDi wrapper config (KIVUN_BIDI_WRAPPER)"
 # Parent .bat doesn't pass this key, so read it directly from the
-# config.txt deployed next to this script. Minimal parse: we only care
-# about one key, so grep+sed is simpler than a full while-read loop
-# and can't clash with the values already passed as $1..$7.
+# config.txt deployed next to this script.
 KIVUN_BIDI_WRAPPER="off"
 if [ -f "$SCRIPT_DIR/config.txt" ]; then
     val=$(grep -E '^[[:space:]]*KIVUN_BIDI_WRAPPER[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
         | sed -e 's/^[[:space:]]*KIVUN_BIDI_WRAPPER[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
     [ -n "$val" ] && KIVUN_BIDI_WRAPPER="$val"
 fi
+
+# Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
+# install once, and return the absolute path to the wrapper binary. Called
+# only when KIVUN_BIDI_WRAPPER=on. Side effects: creates
+# ~/.local/share/kivun-terminal/kivun-claude-bidi/ and node_modules inside
+# it on first run. Subsequent runs skip npm install unless package.json has
+# been updated.
+deploy_bidi_wrapper() {
+    local src="$SCRIPT_DIR/kivun-claude-bidi"
+    local dst="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
+
+    if [ ! -d "$src" ]; then
+        log "WARNING - Wrapper source not found at $src (installer may be outdated)"
+        return 1
+    fi
+
+    mkdir -p "$dst"
+    log "INFO - Syncing wrapper: $src -> $dst"
+    (cd "$src" && tar --exclude=node_modules --exclude=.git -cf - .) \
+        | (cd "$dst" && tar xf -) >> "$LOG_FILE" 2>&1
+
+    # Installer files come from Windows and may have CRLF even if the repo
+    # itself is LF-clean (git autocrlf on checkout). Strip CR from the
+    # handful of text files the wrapper actually sources at runtime.
+    find "$dst" -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.json' -o -name '*.sh' \) \
+        -exec sed -i 's/\r$//' {} + 2>/dev/null
+    [ -f "$dst/bin/kivun-claude-bidi" ] && sed -i 's/\r$//' "$dst/bin/kivun-claude-bidi" 2>/dev/null
+    chmod +x "$dst/bin/kivun-claude-bidi" 2>/dev/null
+
+    # npm install guard: reinstall only if node_modules is missing or the
+    # shipped package.json is newer than our install stamp.
+    local stamp="$dst/node_modules/.kivun-install-stamp"
+    if [ ! -f "$stamp" ] || [ "$dst/package.json" -nt "$stamp" ]; then
+        if command -v npm >/dev/null 2>&1; then
+            log "INFO - Installing wrapper dependencies (npm install --production)"
+            (cd "$dst" && npm install --production --no-audit --no-fund) >> "$LOG_FILE" 2>&1
+            local rc=$?
+            if [ $rc -ne 0 ]; then
+                log "ERROR - npm install failed (exit $rc); wrapper will not work"
+                return 1
+            fi
+            mkdir -p "$(dirname "$stamp")"
+            touch "$stamp"
+            log "SUCCESS - Wrapper dependencies installed"
+        else
+            log "ERROR - npm not found in WSL; install Node.js first (apt install nodejs npm)"
+            return 1
+        fi
+    else
+        log "INFO - Wrapper dependencies up to date"
+    fi
+
+    return 0
+}
+
 CLAUDE_EXEC="claude"
 if [ "$KIVUN_BIDI_WRAPPER" = "on" ]; then
-    if command -v kivun-claude-bidi >/dev/null 2>&1; then
-        CLAUDE_EXEC="kivun-claude-bidi"
-        log "SUCCESS - BiDi wrapper active (kivun-claude-bidi on PATH)"
+    if deploy_bidi_wrapper; then
+        WRAPPER_BIN="$HOME/.local/share/kivun-terminal/kivun-claude-bidi/bin/kivun-claude-bidi"
+        if [ -x "$WRAPPER_BIN" ]; then
+            CLAUDE_EXEC="$WRAPPER_BIN"
+            log "SUCCESS - BiDi wrapper active: $CLAUDE_EXEC"
+        else
+            log "WARNING - Wrapper binary missing after deploy; using unwrapped claude"
+        fi
     else
-        log "WARNING - KIVUN_BIDI_WRAPPER=on but 'kivun-claude-bidi' not on PATH; falling back to unwrapped claude"
+        log "WARNING - Wrapper deploy failed; using unwrapped claude (see log above)"
     fi
 else
     log "INFO - BiDi wrapper off (KIVUN_BIDI_WRAPPER=$KIVUN_BIDI_WRAPPER)"
@@ -387,11 +445,11 @@ echo " Kivun Terminal - Starting Claude Code"
 echo "==============================================="
 echo ""
 
-if ! command -v claude >/dev/null 2>&1; then
-    echo "ERROR: 'claude' command not found in PATH."
+if ! command -v "$CLAUDE_EXEC" >/dev/null 2>&1; then
+    echo "ERROR: '$CLAUDE_EXEC' not found / not executable."
     echo "PATH: \$PATH"
     echo ""
-    echo "Install it with:"
+    echo "If 'claude' is missing, install it with:"
     echo "  curl -fsSL https://claude.ai/install.sh | bash"
     echo ""
     echo "Press Enter to close."
@@ -399,7 +457,7 @@ if ! command -v claude >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "Claude binary: \$(command -v claude)"
+echo "Claude binary: \$(command -v "$CLAUDE_EXEC")"
 echo "Working directory: \$(pwd)"
 echo ""
 
