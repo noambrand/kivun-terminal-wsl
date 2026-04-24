@@ -199,6 +199,8 @@ Five independent developers each built userland RTL fixes for five different sur
 
 The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Microsoft Word, terminal) are disjoint — pick the one that matches where you're hitting the BiDi problem.
 
+<div dir="rtl">
+
 ## הסבר בעברית 🇮🇱
 
 > 💡 **עובדים רק באנגלית (LTR)?** הציצו בפרויקט האח **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - אותו קונספט שיגור, אתחול מהיר יותר (~2 שניות), בלי WSL. כיוון טרמינל מתאים כשצריך תמיכת RTL/BiDi בעברית, ערבית, פרסית וכד'.
@@ -251,6 +253,8 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 - **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (הפרויקט הזה) - תיקון בשכבת הטרמינל.
 
 חמש הסביבות (DOM של דפדפן גנרי, ממשק הווב של Claude.ai, webview של VS Code, Microsoft Word, טרמינל) נפרדות זו מזו - בחרו את הפתרון שמתאים למקום שבו אתם נתקלים בבעיית ה-BiDi.
+
+</div>
 
 ## License
 
