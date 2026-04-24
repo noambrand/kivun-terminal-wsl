@@ -15,11 +15,21 @@ PDF=$'‬'
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
-KIVUN_CLAUDE_BIN=/usr/bin/node \
+# Resolve node dynamically. Hardcoding /usr/bin/node only works on Linux
+# distros that apt-installed nodejs there; on macOS node lives at
+# /usr/local/bin/node (Intel + Homebrew) or /opt/homebrew/bin/node
+# (Apple Silicon), and via nvm it's $NVM_DIR/versions/node/.../bin/node.
+NODE_BIN="$(command -v node)"
+if [ -z "$NODE_BIN" ]; then
+  echo "ERROR: node not on PATH; smoke test requires Node.js" >&2
+  exit 127
+fi
+
+KIVUN_CLAUDE_BIN="$NODE_BIN" \
 KIVUN_BIDI_FORCE=1 \
 KONSOLE_VERSION=230400 \
 TERM=xterm-256color \
-  node "$ROOT/bin/kivun-claude-bidi" "$SCRIPT_DIR/fake-claude.cjs" < /dev/null > "$tmp" 2>&1
+  "$NODE_BIN" "$ROOT/bin/kivun-claude-bidi" "$SCRIPT_DIR/fake-claude.cjs" < /dev/null > "$tmp" 2>&1
 
 fail=0
 
