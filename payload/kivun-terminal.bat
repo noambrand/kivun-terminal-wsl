@@ -26,14 +26,18 @@ echo Computer: %COMPUTERNAME% >> "%LOG_FILE%"
 echo Working Directory: %CD% >> "%LOG_FILE%"
 echo Script Location: %~dp0 >> "%LOG_FILE%"
 echo ======================================== >> "%LOG_FILE%"
+REM v1.1.2: every wsl probe before set /p YN is fed `< nul` so it can't
+REM swallow user input intended for the Claude install prompt. Without
+REM this, the wsl pipe handshake consumed the "Y" the user typed and
+REM the launcher silently behaved as if the user had declined.
 echo WSL VERSION: >> "%LOG_FILE%"
-wsl --version >> "%LOG_FILE%" 2>&1
+wsl --version < nul >> "%LOG_FILE%" 2>&1
 echo ---------------------------------------- >> "%LOG_FILE%"
 echo WSL STATUS: >> "%LOG_FILE%"
-wsl --status >> "%LOG_FILE%" 2>&1
+wsl --status < nul >> "%LOG_FILE%" 2>&1
 echo ---------------------------------------- >> "%LOG_FILE%"
 echo WSL DISTRIBUTIONS: >> "%LOG_FILE%"
-wsl -l -v >> "%LOG_FILE%" 2>&1
+wsl -l -v < nul >> "%LOG_FILE%" 2>&1
 echo ======================================== >> "%LOG_FILE%"
 echo. >> "%LOG_FILE%"
 
@@ -120,7 +124,7 @@ REM Check WSL
 echo.
 echo Checking WSL...
 call :LOG "INFO - Checking WSL installation"
-wsl --version 2>&1 >> "%LOG_FILE%"
+wsl --version < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "ERROR - WSL not found or not working (error %ERRORLEVEL%)"
     echo ERROR: WSL not found or not working.
@@ -134,14 +138,14 @@ call :LOG "SUCCESS - WSL is installed and working"
 echo   WSL: OK
 
 call :LOG "INFO - Checking Ubuntu distribution"
-wsl -d Ubuntu echo OK 2>&1 >> "%LOG_FILE%"
+wsl -d Ubuntu echo OK < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "WARNING - Ubuntu not responding, attempting WSL restart"
     echo Ubuntu not responding, restarting WSL...
     wsl --shutdown
     call :LOG "INFO - WSL shutdown command issued, waiting 3 seconds"
     timeout /t 3 /nobreak >nul
-    wsl -d Ubuntu echo OK 2>&1 >> "%LOG_FILE%"
+    wsl -d Ubuntu echo OK < nul 2>&1 >> "%LOG_FILE%"
     if %ERRORLEVEL% NEQ 0 (
         call :LOG "ERROR - Ubuntu not available after restart (error %ERRORLEVEL%)"
         echo ERROR: Ubuntu not available.
@@ -165,7 +169,7 @@ REM Now Claude is checked first: even if Konsole later fails, the user
 REM still gets offered the auto-install.)
 call :LOG "INFO - Checking if Claude Code is installed"
 set "CLAUDE_IN_WSL=0"
-wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
+wsl -d Ubuntu -- bash -c "command -v claude" < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 goto :claude_present
 call :LOG "ERROR - Claude Code not found in Ubuntu"
 echo   Claude Code: NOT FOUND in WSL
