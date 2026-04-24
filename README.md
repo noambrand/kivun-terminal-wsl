@@ -189,13 +189,15 @@ Fork the repo, make your changes, and open a PR.
 
 ## 🤝 Related projects in the RTL-for-AI-tools community
 
-Three independent developers each built userland RTL fixes for three different surfaces. The fact that all three of us had to ship our own fix is itself a comment on how overdue the upstream BiDi work is across the AI-tooling stack:
+Five independent developers each built userland RTL fixes for five different surfaces. The fact that all of us had to ship our own fix is itself a comment on how overdue the upstream BiDi work is across the AI-tooling stack:
 
-- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** by Lidor Mashiach — browser extension with click-to-select RTL for any website, including LLM chat UIs (Claude.ai, ChatGPT, Gemini, etc.).
+- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** by Lidor Mashiach — generic browser extension with click-to-select RTL for any website, including LLM chat UIs (Claude.ai, ChatGPT, Gemini, etc.).
+- **[Claude.ai RTL Support (Chrome extension)](https://chromewebstore.google.com/detail/claude-ai-rtl-support/lkopcjdmfmffphbomfhecalbojiaeape)** — Chrome extension purpose-built for Claude.ai specifically. Lighter than the generic adaptive one if you only need RTL on Claude's web UI.
 - **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** by Guy Ronnen — VS Code extension covering Claude Code, Cursor, Antigravity, and Gemini Code Assist in the VS Code webview layer.
+- **[Claude-for-word-RTL-fix](https://github.com/asaf-aizone/Claude-for-word-RTL-fix)** by Asaf Aizone — Hebrew/Arabic RTL fix for the Claude for Word (Desktop) add-in.
 - **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (this repo) — terminal-layer fix: a `kivun-claude-bidi` Node wrapper for Claude Code's TUI output, plus a one-click installer for WSL2+Konsole / Linux Konsole / macOS Terminal.
 
-The three surfaces (browser DOM, VS Code webview, terminal) are disjoint — pick the one that matches where you're hitting the BiDi pain.
+The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Microsoft Word, terminal) are disjoint — pick the one that matches where you're hitting the BiDi problem.
 
 ## הסבר בעברית 🇮🇱
 
@@ -240,13 +242,15 @@ The three surfaces (browser DOM, VS Code webview, terminal) are disjoint — pic
 
 ### 🤝 פרויקטים קשורים בקהילת RTL-for-AI-tools
 
-שלושה מפתחים עצמאיים בנו פתרונות RTL לשלוש סביבות שונות. העובדה שכולנו נאלצנו לכתוב פתרון userland נפרד מעידה לבדה על כמה זמן זה כבר נדחה ב-upstream:
+חמישה מפתחים עצמאיים בנו פתרונות RTL לחמש סביבות שונות. העובדה שכולנו נאלצנו לכתוב פתרון userland נפרד מעידה לבדה על כמה זמן זה כבר נדחה ב-upstream:
 
-- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** מאת לידור משיח - הרחבת דפדפן עם click-to-select ל-RTL בכל אתר, כולל ממשקי צ'אט של מודלי שפה.
+- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** מאת לידור משיח - הרחבת דפדפן גנרית עם click-to-select ל-RTL בכל אתר, כולל ממשקי צ'אט של מודלי שפה.
+- **[Claude.ai RTL Support (הרחבת Chrome)](https://chromewebstore.google.com/detail/claude-ai-rtl-support/lkopcjdmfmffphbomfhecalbojiaeape)** - הרחבה ל-Chrome ייעודית ל-Claude.ai. קלה יותר מהגנרית אם אתם צריכים RTL רק על ממשק הווב של Claude.
 - **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** מאת גיא רונן - הרחבה ל-VS Code עבור Claude Code, Cursor, Antigravity ו-Gemini Code Assist בשכבת ה-webview.
+- **[Claude-for-word-RTL-fix](https://github.com/asaf-aizone/Claude-for-word-RTL-fix)** מאת אסף אייזון - תיקון RTL לעברית/ערבית עבור תוסף Claude ל-Microsoft Word (Desktop).
 - **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (הפרויקט הזה) - תיקון בשכבת הטרמינל.
 
-שלוש הסביבות (DOM של דפדפן, webview של VS Code, טרמינל) נפרדות זו מזו - בחרו את הפתרון שמתאים למקום שבו אתם נתקלים בבעיית ה-BiDi.
+חמש הסביבות (DOM של דפדפן גנרי, ממשק הווב של Claude.ai, webview של VS Code, Microsoft Word, טרמינל) נפרדות זו מזו - בחרו את הפתרון שמתאים למקום שבו אתם נתקלים בבעיית ה-BiDi.
 
 ## License
 
