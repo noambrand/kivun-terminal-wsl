@@ -285,6 +285,25 @@ Run with the wrapper against claude for 1 full day of the lead dev's actual use 
 
 HEAVY's risk profile is strictly smaller. This is the operational argument for HEAVY.
 
+### Non-goals (added 2026-04-24)
+
+**Do not substitute directional characters.** Direction comes from BiDi
+markers only, never from character substitution. Arrows
+(`→ ← ↑ ↓`), box-drawing characters (`├ └ │ ─ ┌ ┐ ┘ ┤`), and other
+directionally-asymmetric glyphs must pass through unchanged.
+
+[Lidor Mashiach's Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)
+substitutes `→` ↔ `←` in Hebrew paragraphs - that is correct for DOM
+content but **wrong for terminal output** because tree renderers and
+status indicators in Claude Code rely on the original glyph. Future
+contributors must resist adding character substitution.
+
+This non-goal is enforced by absence: `lib/injector.js` has no
+character-mapping table and a comment at the top of the file reiterates
+the constraint to catch well-intentioned PRs. See
+`docs/specs/BIDI_ALGORITHM.md` for the full algorithm rationale and the
+documented limitation around tree-visual reordering on Hebrew lines.
+
 ---
 
 ## 9. MEDIUM vs HEAVY decision matrix

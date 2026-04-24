@@ -27,6 +27,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     - End-to-end `test/smoke.sh` spawning the wrapper via node-pty against a fake-claude stand-in and asserting bracket placement in the captured output. 7/7 checks green.
   - **Architecture spec:** `docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_HEAVY.md` (RLE/PDF embedding design, edge-case handling, fallback heuristics). Alternatives considered and rejected: RLI/PDI isolates (v2 candidate if we observe direction-leak artifacts), line-start RLM (MEDIUM spec, deferred - `docs/specs/CLAUDE_CODE_TASK_RTL_WRAPPER_MEDIUM_DEFERRED.md` for the decision trail), full xterm.js headless state machine (rejected as over-engineering).
   - **Integration gate status:** §1 of HEAVY requires three `printf` lines in a functioning Konsole to empirically confirm RLE/PDF rendering. Deferred to pre-tag per canary-gated-ship plan; see `docs/research/integration-gate-status.md` for the three acceptable paths and `docs/research/pty-probe-2026-04-23.zip` for the prototype decision trail.
+  - **§1a LTR-island fixtures (added 2026-04-24):** 6 new tests in `test/ltr-island.test.js` covering Hebrew-dominant lines with embedded English tokens (the `קלט → Process → תוצאה`, `הפעלה של npm install אמורה לעבוד`, `קובץ config.txt נמצא ב-~/.local/share/`, and `שגיאה ב-line 42 של injector.js` cases plus two non-substitution checks for arrows and box-drawing chars). All 6 pass with the existing RLE/PDF-only algorithm — confirms LRI/PDI isolates are not needed. Total fixture count now 36/36 green.
+
+- **`docs/specs/BIDI_ALGORITHM.md` (new).** Records the three BiDi algorithms considered (RLE/PDF only; RLE/PDF + LRI/PDI; full xterm.js-style state machine) and the evidence-based decision to ship Option A (RLE/PDF only). Also documents the §8 non-substitution rule and the tree-visual-on-Hebrew-lines limitation.
+
+- **Bilingual README (English + Hebrew).** Root `README.md` now has language pill jump-links at the top (`English 🇬🇧` / `עברית 🇮🇱`), with the English content followed by a complete Hebrew mirror — not a machine translation. `<!-- REVIEW_HE -->` markers flag phrases for native-speaker review at PR time.
+
+- **"Related projects in the RTL-for-AI-tools community" section** linking the three sibling userland fixes shipping today: [Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension) by Lidor Mashiach (browser DOM), [rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents) by Guy Ronnen (VS Code webview), and this repo (terminal). Three disjoint surfaces, three independent userland fixes — itself a comment on how overdue the upstream BiDi work is.
+
+### Non-goals (HEAVY §8 addition, 2026-04-24)
+
+- **No character substitution.** Direction comes from BiDi markers only; arrows (`→ ← ↑ ↓`), box-drawing chars (`├ └ │ ─ ┌ ┐ ┘ ┤`), and other directionally-asymmetric glyphs pass through unchanged. Lidor Mashiach's browser extension swaps `→`↔`←` in Hebrew paragraphs (correct for DOM), but that would corrupt tree renderers and status indicators in Claude Code TUI output. Enforced by absence (no character-mapping table in `lib/injector.js`) plus a top-of-file comment to catch well-intentioned PRs.
 
 ### Changed
 
