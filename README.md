@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Kivun_Terminal_Hero.jpeg" width="700" alt="Kivun Terminal — RTL Claude Code on Windows, Linux, macOS">
+  <img src="Kivun_Terminal_Hero.jpeg" width="700" alt="Kivun Terminal - RTL Claude Code on Windows, Linux, macOS">
 </p>
 
 <p align="center">
@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <em>📹 Demo: Hebrew Claude Code session inside Kivun Terminal —
+  <em>📹 Demo: Hebrew Claude Code session inside Kivun Terminal -
   <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.1.0/kivun_terminal_Hebrew_demo.mp4">download MP4 (12 MB)</a>
   if your browser doesn't autoplay above.</em>
 </p>
@@ -17,11 +17,10 @@
   <img src="https://img.shields.io/badge/version-1.1.0-brightgreen" alt="v1.1.0">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?color=purple&label=total%20downloads" alt="Total Downloads"></a>
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/latest/total?color=brightgreen&label=v1.1.0%20downloads" alt="Latest release downloads"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?color=purple&label=downloads" alt="Total Downloads"></a>
 </p>
 
-<h3 align="center">Real RTL Claude Code. Hebrew, Arabic, Persian, Urdu and 8 more — rendered correctly, on Windows, Linux, and macOS.</h3>
+<h3 align="center">Real RTL Claude Code. Hebrew, Arabic, Persian, Urdu and 8 more - rendered correctly, on Windows, Linux, and macOS.</h3>
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> &bull;
@@ -35,7 +34,7 @@
 
 ---
 
-> 💡 **Working in English (LTR) only?** Check out the sister project **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** — same launcher concept, faster startup (~2 s), no WSL needed. Kivun Terminal is the right pick when you need RTL/BiDi rendering for Hebrew, Arabic, Persian, etc.
+> 💡 **Working in English (LTR) only?** Check out the sister project **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - same launcher concept, faster startup (~2 s), no WSL needed. Kivun Terminal is the right pick when you need RTL/BiDi rendering for Hebrew, Arabic, Persian, etc.
 
 ## Why Kivun Terminal?
 
@@ -46,7 +45,6 @@
 | **Supported RTL languages** | 0 | 11 (hebrew, arabic, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, yiddish, syriac) |
 | **Linux support** | Windows + macOS only (Linux planned) | ✅ apt / dnf / pacman / zypper |
 | **macOS support** | ✅ .pkg | ✅ .pkg with BiDi wrapper |
-| **Keyboard Alt+Shift toggle** | — (uses Windows Terminal's native handling) | ✅ via VcXsrv (Windows) / setxkbmap (Linux) |
 | **Statusline** (model, context %, usage limits) | ✅ pre-installed | ✅ pre-installed (same `statusline.mjs`) |
 | **Light-blue "Kivun" terminal theme** | ✅ Windows Terminal color scheme | ✅ Konsole `KivunTerminal` profile + `ColorSchemeNoam` |
 | **Startup time** | ~2 s | ~6 s (Konsole launch) |
@@ -58,7 +56,7 @@
 
 1. **One-time WSL setup** (skip if `wsl --status` already prints WSL info): open **Terminal (Admin)**, run `wsl --install`, reboot.
 2. **[Download `Kivun_Terminal_Setup.exe`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)**
-3. Double-click to run — no admin rights needed once WSL is up.
+3. Double-click to run - no admin rights needed once WSL is up.
 4. Double-click the **Kivun Terminal** desktop shortcut, or right-click any folder → **Open with Kivun Terminal**.
 
 ### Linux
@@ -81,7 +79,7 @@ Supports apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch/Manjaro), zypper (
 
 ## Status Bar
 
-A two-line live status bar at the bottom of every Claude Code session — the same `statusline.mjs` ships in all three installers and registers into `~/.claude/settings.json` automatically:
+A two-line live status bar at the bottom of every Claude Code session - the same `statusline.mjs` ships in all three installers and registers into `~/.claude/settings.json` automatically:
 
 > **MyProject** | 🟢 Sonnet 4.6 | Context 🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜ 51% | tokens: 284K | 24:13
 >
@@ -175,9 +173,9 @@ See `docs/CHANGELOG.md` for the full list of supported languages and config keys
 
 Contributions welcome. Areas where help is especially useful:
 
-- **Wayland keyboard toggle** — `setxkbmap` is X11-only; Wayland needs DE-specific layout switching.
-- **More RTL language coverage** — N'Ko, Adlam, Mandaic, and a few others currently fall back to Hebrew xkb layouts.
-- **Integration testing** — different distros, different DEs, different macOS terminal emulators.
+- **Wayland keyboard toggle** - `setxkbmap` is X11-only; Wayland needs DE-specific layout switching.
+- **More RTL language coverage** - N'Ko, Adlam, Mandaic, and a few others currently fall back to Hebrew xkb layouts.
+- **Integration testing** - different distros, different DEs, different macOS terminal emulators.
 
 Fork the repo, make your changes, and open a PR.
 
@@ -191,5 +189,5 @@ Fork the repo, make your changes, and open a PR.
   <strong>Made by <a href="https://github.com/noambrand">Noam Brand</a></strong>
   <br><br>
   <a href="https://github.com/noambrand"><img src="https://img.shields.io/badge/GitHub-noambrand-181717?logo=github" alt="GitHub"></a>
-  <a href="mailto:office@orhitec.com"><img src="https://img.shields.io/badge/Email-office%40orhitec.com-EA4335?logo=gmail&logoColor=white" alt="Email"></a>
+  <a href="mailto:noambbb@gmail.com"><img src="https://img.shields.io/badge/Email-noambbb%40gmail.com-EA4335?logo=gmail&logoColor=white" alt="Email"></a>
 </p>

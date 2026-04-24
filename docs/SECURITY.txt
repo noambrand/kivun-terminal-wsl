@@ -18,7 +18,7 @@ Ubuntu account setup now happens interactively:
     or any cloud service.
   - Because WSL Ubuntu has no network-exposed SSH and is not
     reachable from other machines, the password only matters if
-    someone else has access to your Windows account — in which
+    someone else has access to your Windows account - in which
     case they can already read your files regardless.
 
 TO CHANGE AFTER INSTALL
@@ -30,7 +30,7 @@ API KEYS AND CLAUDE AUTHENTICATION
 ----------------------------------
 Your Claude API key (or Pro/Max OAuth token) is stored by the
 Claude Code CLI inside the Ubuntu distribution, under
-~/.config/anthropic/ or similar — NOT in config.txt, and NOT
+~/.config/anthropic/ or similar - NOT in config.txt, and NOT
 anywhere managed by Kivun Terminal. Kivun Terminal never reads,
 transmits, or stores your API key.
 
@@ -45,7 +45,7 @@ directory path, and timing information. They do NOT contain
 API keys, passwords, or the content of your Claude sessions.
 
 If you report a bug and attach these logs, they are safe to
-share — but review them first if your working directory path
+share - but review them first if your working directory path
 itself contains sensitive information.
 
 CODE SIGNING
@@ -62,7 +62,7 @@ Installer posture improvements in v1.0.6:
     silent execution. (VcXsrv is now opened in your browser for
     manual install if you want it.)
   - Claude Code installer is downloaded to a file and size-checked
-    before execution — not piped from curl to bash (which could
+    before execution - not piped from curl to bash (which could
     execute a truncated script on network drop).
   - Statusline.mjs integrity is verified via SHA256 before install
     on both macOS and Linux.
