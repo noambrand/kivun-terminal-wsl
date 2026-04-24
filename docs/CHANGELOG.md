@@ -3,6 +3,27 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.1] - 2026-04-25
+
+### Fixed
+
+- **Launcher no longer invokes `claude` after detecting it is missing in WSL.** Prior behavior on a clean WSL install (Claude Code not yet installed inside Ubuntu): the launcher printed `ERROR - Claude Code not found in Ubuntu`, then logged `INFO - Falling back to direct Claude execution in terminal`, then ran the exact same WSL invocation that just failed. The result was `bash: claude: command not found` and a launcher that ended on a crash instead of a help message. The "fallback" was a lie — it went through the same WSL shell that had just reported Claude missing. The presence check in `kivun-terminal.bat` now either leads to a successful auto-install path or a clean exit with real manual instructions; the `:run_direct` block is gated by a new `CLAUDE_IN_WSL` flag and refuses to run when Claude is known-missing.
+
+### Added
+
+- **Optional one-shot Claude Code auto-install inside Ubuntu when missing.** When the WSL presence check fails, the launcher now prints a clear explanation (including "Windows-side Claude Code does NOT work here - Konsole runs in WSL") and prompts the user to install Claude Code inside Ubuntu. On `Y`, it runs the official `curl -fsSL https://claude.ai/install.sh | bash` installer as root (avoiding sudo-TTY hangs), with a `apt-get install nodejs npm + npm install -g @anthropic-ai/claude-code` fallback if the curl installer fails. Matches the installer NSI's existing two-step strategy so behavior is identical whether the user runs the full installer or hits a missing-Claude state on launch.
+- **`claude --version` captured to LAUNCH_LOG.txt** after a successful auto-install, so future bug reports include the exact Claude Code version the user has.
+
+### Changed
+
+- **"NOT FOUND" message points at the official `curl` installer, not the deprecated `npm install -g @anthropic-ai/claude-code`.** Per [Anthropic's current docs](https://docs.claude.com/en/docs/claude-code/setup), the npm-global path is deprecated. The installer NSI already uses the curl script primary with npm fallback; the launcher message was out of sync and told users to run the deprecated command. Now consistent.
+- **Exit code 2 when Claude is absent and the user declines auto-install.** Previously the launcher would have crashed through `:run_direct` with whatever `claude` returned (typically 127). Now it exits deliberately with a distinguishable code so wrapping scripts can detect this specific state.
+- **`docs/TROUBLESHOOTING.md`** "Claude Code: NOT FOUND" section rewritten to document v1.1.1 auto-install behavior and explicitly note that Windows-side Claude Code does not help because Konsole runs inside WSL.
+
+### Known limitations
+
+- The `:run_direct` label is still misleading (it runs Claude inside WSL, not natively on Windows). Keeping the name for v1.1.1 to keep the diff reviewable; rename planned for v1.2.0.
+
 ## [1.1.0] - 2026-04-23
 
 ### Added

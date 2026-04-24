@@ -35,16 +35,25 @@ Wait for the one-time user setup to finish, set your Ubuntu username and passwor
 
 ## Symptom: "Claude Code: NOT FOUND"
 
-**Cause:** The Claude Code CLI isn't installed inside Ubuntu (installer section failed or was skipped).
+**Cause:** The Claude Code CLI isn't installed inside Ubuntu (installer section failed or was skipped). **Windows-side Claude Code does not help here** — Kivun Terminal runs Konsole through WSL and only sees the Ubuntu PATH.
 
-**Fix - inside Kivun Terminal or any WSL shell:**
+**v1.1.1 and newer:** the launcher itself now offers to install Claude Code when it detects it's missing. Answer `Y` at the prompt and the launcher runs the official installer. Pre-v1.1.1 the launcher would claim to "fall back to direct Claude execution" and then crash with `bash: claude: command not found` — the fallback was a lie; fixed in v1.1.1.
 
-```bash
-curl -fsSL https://claude.ai/install.sh | bash
-# or, if that fails:
-sudo apt-get install -y nodejs npm
-sudo npm install -g @anthropic-ai/claude-code
+**Manual fix (one-shot, matches what v1.1.1 does automatically):**
+
+```cmd
+wsl -d Ubuntu -u root -- bash -lc "curl -fsSL https://claude.ai/install.sh | bash"
 ```
+
+If the curl installer fails (offline mirror, network block, etc.), fall back to the npm install:
+
+```cmd
+wsl -d Ubuntu -u root -- bash -lc "apt-get install -y nodejs npm && npm install -g @anthropic-ai/claude-code"
+```
+
+Note: `npm install -g @anthropic-ai/claude-code` is the deprecated path per Anthropic's current docs; the launcher and installer both prefer the curl script. The npm route is a fallback for environments where the curl script can't reach `claude.ai`.
+
+After install, verify: `wsl -d Ubuntu -- claude --version`. Then relaunch Kivun Terminal.
 
 ## Symptom: Konsole window never appears (WSLg mode)
 

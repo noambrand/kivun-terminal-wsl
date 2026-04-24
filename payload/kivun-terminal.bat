@@ -176,15 +176,19 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo   Konsole: OK
 
-REM Check if Claude Code is installed
+REM Check if Claude Code is installed (v1.1.1: never fall back to a
+REM shell that just reported claude missing; offer auto-install instead)
 call :LOG "INFO - Checking if Claude Code is installed"
+set "CLAUDE_IN_WSL=0"
 wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "ERROR - Claude Code not found in Ubuntu"
-    echo   Claude Code: NOT FOUND
-    echo   Please install Claude Code: sudo npm install -g @anthropic-ai/claude-code
-    goto :run_direct
-)
+if %ERRORLEVEL% EQU 0 goto :claude_present
+call :LOG "ERROR - Claude Code not found in Ubuntu"
+echo   Claude Code: NOT FOUND in WSL
+call :INSTALL_CLAUDE_WSL
+if "%CLAUDE_IN_WSL%"=="1" goto :claude_present
+goto :no_claude_exit
+:claude_present
+set "CLAUDE_IN_WSL=1"
 call :LOG "SUCCESS - Claude Code is installed"
 echo   Claude: OK
 
@@ -321,7 +325,17 @@ echo Konsole did not start (WSLg may not be available on this PC).
 echo.
 
 :run_direct
-call :LOG "INFO - Falling back to direct Claude execution in terminal"
+call :LOG "INFO - Falling back to direct Claude execution in WSL terminal"
+REM v1.1.1: guard against invoking claude when the presence check
+REM already reported it missing. Previously the launcher would say
+REM "Falling back to direct Claude execution" after ERROR - Claude
+REM Code not found, then run the exact same WSL invocation that just
+REM failed. That "fallback" always crashed with bash: claude: command
+REM not found. Now we refuse to fake it: no Claude in WSL -> clean exit.
+if not "%CLAUDE_IN_WSL%"=="1" (
+    call :LOG "ERROR - Cannot run direct: claude missing in WSL"
+    goto :no_claude_exit
+)
 echo ========================================
 echo   Running Claude directly in terminal
 echo ========================================
@@ -401,6 +415,61 @@ if /i "%LANG:~0,4%"=="jawi"        set "CLAUDE_PROMPT=Always respond in Malay us
 if /i "%LANG:~0,6%"=="turoyo"      set "CLAUDE_PROMPT=Always respond in Turoyo (Neo-Aramaic).%RLM_SUFFIX%" & exit /b
 REM Unknown language — keep the existing CLAUDE_PROMPT (English default).
 exit /b
+
+:INSTALL_CLAUDE_WSL
+REM v1.1.1 - offer to install Claude Code inside WSL Ubuntu.
+REM Sets CLAUDE_IN_WSL=1 on success, leaves it 0 otherwise.
+REM Strategy matches installer/Kivun_Terminal_Setup.nsi: curl installer
+REM primary, nodejs+npm fallback. Runs as root via `-u root` to avoid
+REM sudo-TTY-password hangs (installer has the same pattern).
+set "CLAUDE_IN_WSL=0"
+echo.
+echo Claude Code must be installed inside Ubuntu for Kivun Terminal.
+echo Windows-side Claude Code does NOT work here - Konsole runs in WSL.
+echo.
+set /p YN="Install Claude Code in Ubuntu now? [Y/N] "
+if /i not "%YN%"=="Y" (
+    call :LOG "INFO - User declined Claude auto-install"
+    exit /b
+)
+call :LOG "INFO - User accepted Claude auto-install"
+echo.
+echo Installing Claude Code via official installer (~1-2 min)...
+wsl -d Ubuntu -u root -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""
+if %ERRORLEVEL% NEQ 0 (
+    call :LOG "WARNING - Official installer failed, trying npm fallback"
+    echo Official installer failed, trying npm fallback (~2-3 min)...
+    wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
+)
+wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
+if %ERRORLEVEL% NEQ 0 (
+    call :LOG "ERROR - Claude auto-install failed"
+    echo Claude install failed. See: wsl -d Ubuntu -- cat /tmp/kivun-claude.log
+    exit /b
+)
+REM Log the installed version so future bug reports include it (spec §6).
+for /f "delims=" %%v in ('wsl -d Ubuntu -- bash -lc "claude --version 2>/dev/null | head -1"') do call :LOG "INFO - Claude version: %%v"
+call :LOG "SUCCESS - Claude Code installed in WSL"
+echo   Claude: OK
+set "CLAUDE_IN_WSL=1"
+exit /b
+
+:no_claude_exit
+REM v1.1.1 - clean exit when Claude is missing and either the install
+REM was declined or it failed. Surface the real manual install command
+REM (curl, matching installer NSI and Anthropic's current install docs),
+REM not the deprecated `npm install -g` that the old error message used.
+echo.
+echo ========================================
+echo   Claude Code is required but not installed in Ubuntu.
+echo   Install manually:
+echo     wsl -d Ubuntu -- bash -lc "curl -fsSL https://claude.ai/install.sh ^| bash"
+echo   Then re-run Kivun Terminal.
+echo   NOTE: Windows-side Claude Code does NOT work here.
+echo ========================================
+call :LOG "EXIT - No Claude in WSL, user must install manually"
+pause
+exit /b 2
 
 :WIN_TO_WSL_PATH
 REM Manual Windows-to-WSL path conversion.
