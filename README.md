@@ -1,4 +1,10 @@
 <p align="center">
+  <a href="#english-"><img src="https://img.shields.io/badge/English-%F0%9F%87%AC%F0%9F%87%A7-blue?style=for-the-badge" alt="English"></a>
+  &nbsp;
+  <a href="#%D7%94%D7%A1%D7%91%D7%A8-%D7%91%D7%A2%D7%91%D7%A8%D7%99%D7%AA-"><img src="https://img.shields.io/badge/%D7%A2%D7%91%D7%A8%D7%99%D7%AA-%F0%9F%87%AE%F0%9F%87%B1-blue?style=for-the-badge" alt="עברית"></a>
+</p>
+
+<p align="center">
   <img src="Kivun_Terminal_Hero.jpeg" width="700" alt="Kivun Terminal - RTL Claude Code on Windows, Linux, macOS">
 </p>
 
@@ -33,6 +39,8 @@
 </p>
 
 ---
+
+## English 🇬🇧
 
 > 💡 **Working in English (LTR) only?** Check out the sister project **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - same launcher concept, faster startup (~2 s), no WSL needed. Kivun Terminal is the right pick when you need RTL/BiDi rendering for Hebrew, Arabic, Persian, etc.
 
@@ -178,6 +186,67 @@ Contributions welcome. Areas where help is especially useful:
 - **Integration testing** - different distros, different DEs, different macOS terminal emulators.
 
 Fork the repo, make your changes, and open a PR.
+
+## 🤝 Related projects in the RTL-for-AI-tools community
+
+Three independent developers each built userland RTL fixes for three different surfaces. The fact that all three of us had to ship our own fix is itself a comment on how overdue the upstream BiDi work is across the AI-tooling stack:
+
+- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** by Lidor Mashiach — browser extension with click-to-select RTL for any website, including LLM chat UIs (Claude.ai, ChatGPT, Gemini, etc.).
+- **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** by Guy Ronnen — VS Code extension covering Claude Code, Cursor, Antigravity, and Gemini Code Assist in the VS Code webview layer.
+- **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (this repo) — terminal-layer fix: a `kivun-claude-bidi` Node wrapper for Claude Code's TUI output, plus a one-click installer for WSL2+Konsole / Linux Konsole / macOS Terminal.
+
+The three surfaces (browser DOM, VS Code webview, terminal) are disjoint — pick the one that matches where you're hitting the BiDi pain.
+
+## הסבר בעברית 🇮🇱
+
+> 💡 **עובדים רק באנגלית (LTR)?** הציצו בפרויקט האח **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - אותו קונספט שיגור, אתחול מהיר יותר (~2 שניות), בלי WSL. קיוון טרמינל מתאים כשצריך תמיכת RTL/BiDi בעברית, ערבית, פרסית וכד'.
+
+### 🎯 מה זה?
+
+קיוון טרמינל היא חבילת התקנה ושיגור עבור Claude Code עם תמיכה מלאה ב-RTL. רץ על Windows (דרך WSL2 + Konsole), Linux ו-macOS. הוא פותר את בעיית הצגת עברית/ערבית/פרסית/אורדו ועוד 7 שפות RTL ב-CLI של Claude Code, שלא נתמכות כראוי כברירת מחדל בטרמינלים מודרניים.
+
+קיוון מתקין את Claude Code, מקנפג את הטרמינל לפרופיל המתאים, ושוטף את הפלט של Claude דרך wrapper ייעודי (`kivun-claude-bidi`) שמטפל בכל בעיות הכיוון של עברית - כולל הבאג המעצבן של ה-bullet line שגרם לכל תגובה ראשונה להופיע מיושרת לשמאל. <!-- REVIEW_HE -->
+
+### ✨ במה זה שונה?
+
+- **לעומת Claude Code ב-Windows Terminal:** ל-Windows Terminal אין מנוע BiDi כלל; כל פלט עברי מוצג LTR וקרוס. קיוון מריץ את הפלט דרך WSL2 + Konsole, שכן יש לה מנוע BiDi מלא.
+- **לעומת WSL2 + Konsole "גולמי":** מאפשר התקנה בקליק אחד, פרופיל Konsole מוכן עם הצבעים הנכונים, סטטוסליין, החלפת שפה ב-Alt+Shift, וה-`kivun-claude-bidi` wrapper שפותר את בעיות ה-BiDi הספציפיות של Claude Code (לדוגמה הבאג של bullet line).
+- **לעומת Claude Code ב-VS Code:** קיוון הוא לטרמינל, לא ל-IDE. אם אתם עובדים בעיקר משורת פקודה - זה מה שאתם רוצים. למי שעובד מ-IDE יש פתרון נפרד של [גיא רונן](https://github.com/GuyRonnen/rtl-for-vs-code-agents) (ראו פרויקטים קשורים למטה).
+
+### 🚀 פיצ'רים
+
+- ✅ הצגה תקינה של עברית/ערבית/פרסית/אורדו ועוד 7 שפות RTL בפלט של Claude Code
+- ✅ תיקון לבאג ה-bullet line הראשונה (`● שלום` היה מופיע משמאל לימין; עכשיו מימין לשמאל) <!-- REVIEW_HE -->
+- ✅ פרופיל Konsole בצבעי Kivun (תכלת בהיר, נעים לעין)
+- ✅ סטטוסליין חי בתחתית המסך (מודל פעיל, אחוז קונטקסט, מגבלות שימוש)
+- ✅ קיצור דרך לשולחן העבודה + תפריט קליק ימני על תיקיות
+- ✅ Folder picker - בחירת תיקיית עבודה לפני ההפעלה
+- ✅ Alt+Shift להחלפה בין עברית לאנגלית בתוך הטרמינל
+- ✅ נתמך על Windows, Linux (apt/dnf/pacman/zypper) ו-macOS
+
+### 📥 התקנה
+
+הוראות ההתקנה מפורטות באנגלית בקטעי **Quick Start** למעלה. הפקודות (`npm install`, נתיבים וכד') זהות בכל השפות ולא תורגמו. בקצרה:
+
+- **Windows:** `wsl --install` חד-פעמי, אז להוריד את `Kivun_Terminal_Setup.exe` מ-[הגרסה האחרונה](https://github.com/noambrand/kivun-terminal-wsl/releases/latest) ולהריץ.
+- **Linux:** `git clone` + `./linux/install.sh`. תומך ב-apt/dnf/pacman/zypper.
+- **macOS:** להוריד את `Kivun_Terminal_Setup_mac.pkg` ולהריץ.
+
+### 🧠 על תמיכת ה-RTL
+
+ה-wrapper `kivun-claude-bidi` הוא מודול Node שמלפף סביב Claude Code. הוא מזהה רצפי טקסט בעברית בפלט ועוטף אותם בסימני BiDi של Unicode (RLE/PDF), כך שהם מוצגים בכיוון הנכון גם בטרמינלים שתמיכת ה-BiDi שלהם חלקית. בנוסף, הוא מחדיר RLM (U+200F) בתחילת כל שורה שהאות החזקה הראשונה שלה היא RTL - מה שמתקן את הבאג ב-Claude Code שבו `● שלום` היה מופיע משמאל לימין במקום מימין לשמאל.
+
+לפירוט מלא של האלגוריתם, ראו [`docs/specs/BIDI_ALGORITHM.md`](docs/specs/BIDI_ALGORITHM.md). למעקב אחרי הבאג ב-upstream של Anthropic, ראו [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881).
+
+### 🤝 פרויקטים קשורים בקהילת RTL-for-AI-tools
+
+שלושה מפתחים בלתי-תלויים בנו פתרונות RTL לשלושה משטחים שונים. העובדה שכולנו נאלצנו לכתוב פתרון userland נפרד היא הערה לעצמה על כמה הסיפור הזה דחוי ב-upstream:
+
+- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** מאת לידור משיח - הרחבת דפדפן עם click-to-select ל-RTL בכל אתר, כולל ממשקי צ'אט של מודלי שפה.
+- **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** מאת גיא רונן - הרחבה ל-VS Code עבור Claude Code, Cursor, Antigravity ו-Gemini Code Assist בשכבת ה-webview.
+- **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (הפרויקט הזה) - תיקון בשכבת הטרמינל.
+
+שלושת המשטחים (DOM של דפדפן, webview של VS Code, טרמינל) נפרדים זה מזה - בחרו את הפתרון שמתאים למקום שבו אתם נתקלים בכאב ה-BiDi.
 
 ## License
 

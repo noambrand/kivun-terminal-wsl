@@ -1,5 +1,16 @@
 'use strict';
 
+// HEAVY §8 NON-GOAL: do not substitute directional characters.
+// Direction comes from BiDi markers (RLE/PDF/RLM) only, never from
+// character substitution. Arrows (→ ← ↑ ↓), box-drawing chars
+// (├ └ │ ─ ┌ ┐ ┘ ┤), and other directionally-asymmetric glyphs pass
+// through unchanged. Browser-layer RTL extensions sometimes swap
+// → ↔ ← in Hebrew paragraphs; that is correct for DOM content but
+// WRONG for terminal output because tree renderers and status
+// indicators in Claude Code rely on the original glyph. If you are
+// reading this and considering adding a substitution table — don't.
+// See docs/specs/BIDI_ALGORITHM.md for the full rationale.
+
 const { StringDecoder } = require('node:string_decoder');
 
 const RLE = '‫';
