@@ -1,0 +1,203 @@
+name: Validate launcher behavior on Windows
+
+# Runs the actual kivun-terminal.bat against a real Windows + WSL Ubuntu
+# environment, then asserts the v1.1.1 bugfix invariants on LAUNCH_LOG.txt.
+#
+# Why this exists: PR #8 fixed the "Claude not found -> launcher claims
+# fallback then crashes" bug, but build-windows.yml only builds the .exe
+# without ever running the .bat. Without this workflow, the v1.1.1
+# guarantees were spec-translated and pattern-matched but never executed
+# end-to-end. The user-reported bug burned someone once already; this
+# workflow makes sure it can't silently regress.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'payload/kivun-terminal.bat'
+      - '.github/workflows/validate-launcher-windows.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'payload/kivun-terminal.bat'
+      - '.github/workflows/validate-launcher-windows.yml'
+
+jobs:
+
+  # -------------------------------------------------------------------------
+  # Job 1 — Static checks on the .bat (~30 sec, no WSL needed).
+  # Catches the obvious class of regressions: a goto/call to a label that
+  # doesn't exist (the kind of bug that ships only because the failing path
+  # is rarely exercised, which is exactly the v1.1.1 bug shape).
+  # -------------------------------------------------------------------------
+  static-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify every label referenced via goto/call exists
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          # Extract all label definitions (lines starting with ":NAME").
+          # Filter out :: comments.
+          mapfile -t labels < <(grep -E '^:[a-zA-Z_][a-zA-Z0-9_]*' "$BAT" | sed 's/^://' | awk '{print $1}')
+          echo "Labels defined:"
+          printf '  %s\n' "${labels[@]}"
+          # Extract all goto/call target labels.
+          mapfile -t refs < <(grep -oiE '(goto|call) :[a-zA-Z_][a-zA-Z0-9_]*' "$BAT" | awk '{print $2}' | sed 's/^://' | sort -u)
+          echo "Labels referenced:"
+          printf '  %s\n' "${refs[@]}"
+          fail=0
+          for ref in "${refs[@]}"; do
+            found=0
+            for lbl in "${labels[@]}"; do
+              if [ "$ref" = "$lbl" ]; then found=1; break; fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "FAIL: label :$ref referenced but not defined in $BAT"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] && echo "PASS: all label refs resolve"
+          exit $fail
+
+      - name: Verify v1.1.1 invariants (CLAUDE_IN_WSL flag + new helpers)
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          # The v1.1.1 fix relies on three things being present and connected.
+          # If any of these go missing, the Claude-not-found-then-crash bug
+          # comes back.
+          grep -q '^:INSTALL_CLAUDE_WSL' "$BAT" \
+            || (echo "FAIL: :INSTALL_CLAUDE_WSL helper missing"; exit 1)
+          grep -q '^:no_claude_exit' "$BAT" \
+            || (echo "FAIL: :no_claude_exit helper missing"; exit 1)
+          grep -q 'CLAUDE_IN_WSL' "$BAT" \
+            || (echo "FAIL: CLAUDE_IN_WSL flag not used (v1.1.1 guard removed?)"; exit 1)
+          # The :run_direct block must check CLAUDE_IN_WSL before invoking claude.
+          # Look for the guard pattern within ~10 lines after :run_direct.
+          awk '/^:run_direct/{in_block=1; lines=0} in_block{print; lines++; if(lines>15) exit}' "$BAT" \
+            | grep -q 'CLAUDE_IN_WSL' \
+            || (echo "FAIL: :run_direct does not check CLAUDE_IN_WSL — the bug is back"; exit 1)
+          # The deprecated install message must be gone.
+          ! grep -q 'sudo npm install -g @anthropic-ai/claude-code' "$BAT" \
+            || (echo "FAIL: deprecated 'sudo npm install -g' message still in .bat"; exit 1)
+          echo "PASS: all v1.1.1 invariants intact"
+
+  # -------------------------------------------------------------------------
+  # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
+  # Scenario: WSL+Ubuntu present, Konsole NOT installed (we deliberately
+  # don't pre-install it), Claude NOT installed. Drives the launcher down
+  # the Konsole-fail -> :run_direct -> :no_claude_exit path. With the
+  # v1.1.1 guard, this MUST exit cleanly without invoking claude.
+  # -------------------------------------------------------------------------
+  test-no-claude-no-konsole:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm WSL is available on the runner
+        shell: pwsh
+        run: |
+          wsl --status
+          wsl --version
+
+      - name: Install Ubuntu in WSL (no-launch)
+        shell: pwsh
+        run: |
+          # windows-latest images pre-install WSL2 features. --no-launch
+          # avoids the interactive user-creation prompt; we use --user root
+          # for everything in CI so a regular user isn't required.
+          wsl --install -d Ubuntu --no-launch
+          # Wait up to 2 min for the distro to be queryable.
+          $start = Get-Date
+          do {
+            Start-Sleep -Seconds 5
+            $list = wsl -l -v 2>&1 | Out-String
+            if ($list -match 'Ubuntu') { break }
+          } while (((Get-Date) - $start).TotalSeconds -lt 120)
+          Write-Host "wsl -l -v output:"
+          Write-Host $list
+          # Confirm bash works (forces distro init).
+          wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
+
+      - name: Confirm Claude is NOT in WSL (CI baseline)
+        shell: pwsh
+        run: |
+          $r = wsl -d Ubuntu --user root -- bash -c "command -v claude || echo NOT_FOUND"
+          Write-Host "claude lookup: $r"
+          if ($r -notmatch 'NOT_FOUND') {
+            throw "Claude unexpectedly already installed in fresh Ubuntu"
+          }
+
+      - name: Run launcher and capture exit code
+        shell: cmd
+        # Feed N to set /p YN= and Enter to satisfy any pause prompts.
+        # NOTE: launcher exit code is 2 on the :no_claude_exit path; we
+        # disable errorlevel propagation here so the step can capture it
+        # for the next step's assertion.
+        continue-on-error: true
+        run: |
+          (echo N&echo.&echo.&echo.) | call payload\kivun-terminal.bat C:\temp
+          echo LAUNCHER_EXITCODE=%ERRORLEVEL%>>"%GITHUB_ENV%"
+
+      - name: Assert v1.1.1 invariants on LAUNCH_LOG.txt
+        shell: pwsh
+        run: |
+          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          if (-not (Test-Path $log)) {
+            throw "FAIL: LAUNCH_LOG.txt was not created at $log"
+          }
+          $content = Get-Content $log -Raw
+          Write-Host "----- LAUNCH_LOG.txt -----"
+          Write-Host $content
+          Write-Host "--------------------------"
+
+          # Invariant 1: launcher must NOT contain the bug signature.
+          # The v1.0.6 -> v1.1.0 bug was: ERROR - Claude Code not found
+          # immediately followed by INFO - Executing: claude. That sequence
+          # in the log means the launcher claimed to fall back and then
+          # tried to run the missing binary. v1.1.1 must never do this.
+          if ($content -match '(?s)ERROR\s*-\s*Claude Code not found.*?INFO\s*-\s*Executing:\s*claude') {
+            throw "FAIL: bug signature present in LAUNCH_LOG (v1.1.1 regression)"
+          }
+          Write-Host "PASS: bug signature absent"
+
+          # Invariant 2: the v1.1.1 :no_claude_exit message must be present.
+          # This is the human-facing confirmation that the new path fired.
+          if ($content -notmatch 'EXIT - No Claude in WSL') {
+            throw "FAIL: expected v1.1.1 ':no_claude_exit' marker missing from log"
+          }
+          Write-Host "PASS: :no_claude_exit was reached"
+
+          # Invariant 3: launcher must have exited with code 2 (the
+          # documented v1.1.1 exit code for absent-Claude + declined-install).
+          if ($env:LAUNCHER_EXITCODE -ne '2') {
+            throw "FAIL: launcher exit code was '$env:LAUNCHER_EXITCODE', expected 2"
+          }
+          Write-Host "PASS: launcher exited with code 2"
+
+      - name: Copy LAUNCH_LOG into workspace for upload
+        if: always()
+        shell: pwsh
+        run: |
+          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          if (Test-Path $src) {
+            Copy-Item $src -Destination "LAUNCH_LOG.txt"
+            Write-Host "Copied $src to workspace"
+          } else {
+            Write-Host "WARNING: $src not present (launcher may have failed before logging)"
+            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
+          }
+
+      - name: Upload LAUNCH_LOG as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAUNCH_LOG-no-claude-decline
+          path: LAUNCH_LOG.txt
+          if-no-files-found: warn
