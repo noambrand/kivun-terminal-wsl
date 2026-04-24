@@ -199,24 +199,24 @@ The three surfaces (browser DOM, VS Code webview, terminal) are disjoint — pic
 
 ## הסבר בעברית 🇮🇱
 
-> 💡 **עובדים רק באנגלית (LTR)?** הציצו בפרויקט האח **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - אותו קונספט שיגור, אתחול מהיר יותר (~2 שניות), בלי WSL. קיוון טרמינל מתאים כשצריך תמיכת RTL/BiDi בעברית, ערבית, פרסית וכד'.
+> 💡 **עובדים רק באנגלית (LTR)?** הציצו בפרויקט האח **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - אותו קונספט שיגור, אתחול מהיר יותר (~2 שניות), בלי WSL. כיוון טרמינל מתאים כשצריך תמיכת RTL/BiDi בעברית, ערבית, פרסית וכד'.
 
 ### 🎯 מה זה?
 
-קיוון טרמינל היא חבילת התקנה ושיגור עבור Claude Code עם תמיכה מלאה ב-RTL. רץ על Windows (דרך WSL2 + Konsole), Linux ו-macOS. הוא פותר את בעיית הצגת עברית/ערבית/פרסית/אורדו ועוד 7 שפות RTL ב-CLI של Claude Code, שלא נתמכות כראוי כברירת מחדל בטרמינלים מודרניים.
+כיוון טרמינל היא חבילת התקנה ושיגור עבור Claude Code עם תמיכה מלאה ב-RTL. רץ על Windows (דרך WSL2 + Konsole), Linux ו-macOS. הוא פותר את בעיית הצגת עברית/ערבית/פרסית/אורדו ועוד 7 שפות RTL ב-CLI של Claude Code, שלא נתמכות כראוי כברירת מחדל בטרמינלים מודרניים.
 
-קיוון מתקין את Claude Code, מקנפג את הטרמינל לפרופיל המתאים, ושוטף את הפלט של Claude דרך wrapper ייעודי (`kivun-claude-bidi`) שמטפל בכל בעיות הכיוון של עברית - כולל הבאג המעצבן של ה-bullet line שגרם לכל תגובה ראשונה להופיע מיושרת לשמאל. <!-- REVIEW_HE -->
+כיוון מתקין את Claude Code, מקנפג את הטרמינל לפרופיל המתאים, ומעביר את הפלט של Claude דרך wrapper ייעודי (`kivun-claude-bidi`) שמטפל בבעיות הכיוון של עברית - כולל הבאג המעצבן שגרם לשורה הראשונה בכל תגובה להופיע מיושרת לשמאל.
 
 ### ✨ במה זה שונה?
 
-- **לעומת Claude Code ב-Windows Terminal:** ל-Windows Terminal אין מנוע BiDi כלל; כל פלט עברי מוצג LTR וקרוס. קיוון מריץ את הפלט דרך WSL2 + Konsole, שכן יש לה מנוע BiDi מלא.
+- **לעומת Claude Code ב-Windows Terminal:** ל-Windows Terminal אין מנוע BiDi כלל; כל פלט עברי מוצג LTR וקרוס. כיוון מריץ את הפלט דרך WSL2 + Konsole, שכן יש לה מנוע BiDi מלא.
 - **לעומת WSL2 + Konsole "גולמי":** מאפשר התקנה בקליק אחד, פרופיל Konsole מוכן עם הצבעים הנכונים, סטטוסליין, החלפת שפה ב-Alt+Shift, וה-`kivun-claude-bidi` wrapper שפותר את בעיות ה-BiDi הספציפיות של Claude Code (לדוגמה הבאג של bullet line).
-- **לעומת Claude Code ב-VS Code:** קיוון הוא לטרמינל, לא ל-IDE. אם אתם עובדים בעיקר משורת פקודה - זה מה שאתם רוצים. למי שעובד מ-IDE יש פתרון נפרד של [גיא רונן](https://github.com/GuyRonnen/rtl-for-vs-code-agents) (ראו פרויקטים קשורים למטה).
+- **לעומת Claude Code ב-VS Code:** כיוון הוא לטרמינל, לא ל-IDE. אם אתם עובדים בעיקר משורת פקודה - זה מה שאתם רוצים. למי שעובד מ-IDE יש פתרון נפרד של [גיא רונן](https://github.com/GuyRonnen/rtl-for-vs-code-agents) (ראו פרויקטים קשורים למטה).
 
 ### 🚀 פיצ'רים
 
 - ✅ הצגה תקינה של עברית/ערבית/פרסית/אורדו ועוד 7 שפות RTL בפלט של Claude Code
-- ✅ תיקון לבאג ה-bullet line הראשונה (`● שלום` היה מופיע משמאל לימין; עכשיו מימין לשמאל) <!-- REVIEW_HE -->
+- ✅ תיקון לבאג של השורה הראשונה (`● שלום` היה מופיע משמאל לימין; עכשיו מימין לשמאל)
 - ✅ פרופיל Konsole בצבעי Kivun (תכלת בהיר, נעים לעין)
 - ✅ סטטוסליין חי בתחתית המסך (מודל פעיל, אחוז קונטקסט, מגבלות שימוש)
 - ✅ קיצור דרך לשולחן העבודה + תפריט קליק ימני על תיקיות
@@ -240,13 +240,13 @@ The three surfaces (browser DOM, VS Code webview, terminal) are disjoint — pic
 
 ### 🤝 פרויקטים קשורים בקהילת RTL-for-AI-tools
 
-שלושה מפתחים בלתי-תלויים בנו פתרונות RTL לשלושה משטחים שונים. העובדה שכולנו נאלצנו לכתוב פתרון userland נפרד היא הערה לעצמה על כמה הסיפור הזה דחוי ב-upstream:
+שלושה מפתחים עצמאיים בנו פתרונות RTL לשלוש סביבות שונות. העובדה שכולנו נאלצנו לכתוב פתרון userland נפרד מעידה לבדה על כמה זמן זה כבר נדחה ב-upstream:
 
 - **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** מאת לידור משיח - הרחבת דפדפן עם click-to-select ל-RTL בכל אתר, כולל ממשקי צ'אט של מודלי שפה.
 - **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** מאת גיא רונן - הרחבה ל-VS Code עבור Claude Code, Cursor, Antigravity ו-Gemini Code Assist בשכבת ה-webview.
 - **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (הפרויקט הזה) - תיקון בשכבת הטרמינל.
 
-שלושת המשטחים (DOM של דפדפן, webview של VS Code, טרמינל) נפרדים זה מזה - בחרו את הפתרון שמתאים למקום שבו אתם נתקלים בכאב ה-BiDi.
+שלוש הסביבות (DOM של דפדפן, webview של VS Code, טרמינל) נפרדות זו מזו - בחרו את הפתרון שמתאים למקום שבו אתם נתקלים בבעיית ה-BiDi.
 
 ## License
 
