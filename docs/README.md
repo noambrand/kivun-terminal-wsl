@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.0
+# Kivun Terminal v1.1.1
 
-[![Version](https://img.shields.io/badge/version-1.1.0-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.1-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -10,7 +10,7 @@
 
 ## How it's different from Launchpad CLI
 
-| | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.0 |
+| | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.1 |
 |---|---|---|
 | **Runtime** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
 | **RTL/BiDi rendering** | LTR only (Windows Terminal has no BiDi engine) | Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
