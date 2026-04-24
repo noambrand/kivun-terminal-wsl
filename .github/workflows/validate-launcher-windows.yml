@@ -269,15 +269,20 @@ jobs:
           # Build stdin: Y to accept install, then a bunch of empty lines
           # to satisfy any subsequent set/p or pause prompts the launcher
           # may emit before we kill it.
+          # MUST be CRLF: cmd's set /p reads stdin a "line" at a time and
+          # bare-LF input gets consumed as a single token, so Set-Content
+          # (which writes LF only on this PS) caused YN to come back as
+          # something other than "Y" and the install prompt was declined
+          # silently. WriteAllText with explicit \r\n matches what job 2
+          # gets from cmd's own echo writer.
           $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
-          @"
-          Y
-
-
-
-
-
-          "@ | Set-Content -Path $inputFile -NoNewline -Encoding ascii
+          [System.IO.File]::WriteAllText(
+            $inputFile,
+            "Y`r`n`r`n`r`n`r`n`r`n",
+            [System.Text.Encoding]::ASCII
+          )
+          Write-Host "Input file bytes:"
+          Format-Hex $inputFile | Out-String | Write-Host
 
           # Start the launcher in the background. We can't just block on it
           # because after install, the launcher tries to exec the claude
