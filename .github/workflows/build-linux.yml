@@ -77,7 +77,58 @@ jobs:
             || (echo "settings.json statusLine command broken"; exit 1)
           ! grep -q 'C:' "$HOME/.local/share/kivun-terminal/settings.json" \
             || (echo "settings.json contains Windows path"; exit 1)
+
+          # ---- BiDi wrapper deploy assertions (added 2026-04-25) ----
+          # v1.1.0+ ships kivun-claude-bidi inside the installer; install.sh
+          # copies it to ~/.local/share and runs `npm install --production`.
+          # CI was building the tarball without ever validating that this
+          # actually worked. Now it does.
+          WRAPPER_DIR="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
+          test -d "$WRAPPER_DIR" \
+            || (echo "WRAPPER: source tree missing at $WRAPPER_DIR"; exit 1)
+          test -x "$WRAPPER_DIR/bin/kivun-claude-bidi" \
+            || (echo "WRAPPER: bin/kivun-claude-bidi missing or not executable"; exit 1)
+          test -f "$WRAPPER_DIR/lib/injector.js" \
+            || (echo "WRAPPER: lib/injector.js missing"; exit 1)
+          test -f "$WRAPPER_DIR/package.json" \
+            || (echo "WRAPPER: package.json missing"; exit 1)
+          test -d "$WRAPPER_DIR/node_modules" \
+            || (echo "WRAPPER: node_modules missing — npm install was skipped or failed"; exit 1)
+          test -f "$WRAPPER_DIR/node_modules/.kivun-install-stamp" \
+            || (echo "WRAPPER: install stamp missing — first-launch logic will reinstall every time"; exit 1)
+          # node-pty is the only runtime dep; if it's not there the wrapper crashes on spawn.
+          test -d "$WRAPPER_DIR/node_modules/node-pty" \
+            || (echo "WRAPPER: node-pty native dep missing"; exit 1)
+          # Linux launcher must seed KIVUN_BIDI_WRAPPER=on in the user config.
+          grep -q '^KIVUN_BIDI_WRAPPER=on' "$HOME/.config/kivun-terminal/config.txt" \
+            || (echo "WRAPPER: KIVUN_BIDI_WRAPPER=on not seeded in config.txt"; exit 1)
+          echo "WRAPPER: deploy verification passed"
+
           echo "Install verification passed"
+
+      - name: Run BiDi wrapper unit tests
+        run: |
+          # Run the wrapper's own test suite against the installed copy.
+          # Catches any node-pty native-build mismatch on this CI runner's
+          # libc/arch combo, plus regression-checks the 36-fixture suite.
+          WRAPPER_DIR="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
+          cd "$WRAPPER_DIR"
+          # Test deps aren't installed by --production; pull them now.
+          npm install --no-audit --no-fund
+          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js
+
+      - name: Smoke-test wrapper end-to-end against fake claude
+        run: |
+          # End-to-end test: the wrapper spawned via node-pty against a
+          # fake-claude that emits the bullet-line bug pattern. Verifies
+          # the actual binary entry-point works, not just the lib/.
+          WRAPPER_DIR="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
+          cd "$WRAPPER_DIR"
+          if [ -x test/smoke.sh ]; then
+            bash test/smoke.sh
+          else
+            echo "smoke.sh not found — skipping (wrapper may be older than v1.1.0)"
+          fi
 
       - name: Build tarball
         run: |
