@@ -154,7 +154,10 @@ jobs:
           call payload\kivun-terminal.bat C:\temp < "%RUNNER_TEMP%\launcher_input.txt"
           set "RC=%ERRORLEVEL%"
           echo Captured launcher exit code: %RC%
-          echo LAUNCHER_EXITCODE=%RC%>>"%GITHUB_ENV%"
+          REM Parens are mandatory: without them, "echo LAUNCHER_EXITCODE=2>>file"
+          REM is parsed by cmd as "echo LAUNCHER_EXITCODE=" + "2>>file" (stderr
+          REM redirect), which silently drops the "2" from the env value.
+          (echo LAUNCHER_EXITCODE=%RC%)>>"%GITHUB_ENV%"
 
       - name: Assert v1.1.1 invariants on LAUNCH_LOG.txt
         shell: pwsh
