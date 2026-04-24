@@ -215,3 +215,162 @@ jobs:
           name: LAUNCH_LOG-no-claude-decline
           path: LAUNCH_LOG.txt
           if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # Job 3 — Validate the AUTO-INSTALL path end-to-end.
+  # Scenario: WSL+Ubuntu present, Konsole absent, Claude absent. Feed Y to
+  # the install prompt. Wait for the launcher to actually install Claude
+  # Code via curl https://claude.ai/install.sh inside Ubuntu, then assert
+  # `claude --version` works inside WSL afterwards.
+  # This is the path that matters most: it answers "will the launcher
+  # actually install Claude for the user, or will the user have to do it
+  # by hand?". If this job is green, the answer is "yes, automatically."
+  # The launcher's process is killed after install confirms (it would
+  # otherwise hang trying to run claude TUI without a real terminal).
+  # -------------------------------------------------------------------------
+  test-no-claude-accept-install:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm WSL is available on the runner
+        shell: pwsh
+        run: |
+          wsl --status
+          wsl --version
+
+      - name: Install Ubuntu in WSL (no-launch)
+        shell: pwsh
+        run: |
+          wsl --install -d Ubuntu --no-launch
+          $start = Get-Date
+          do {
+            Start-Sleep -Seconds 5
+            $list = wsl -l -v 2>&1 | Out-String
+            if ($list -match 'Ubuntu') { break }
+          } while (((Get-Date) - $start).TotalSeconds -lt 120)
+          Write-Host "wsl -l -v output:"
+          Write-Host $list
+          wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
+
+      - name: Confirm Claude is NOT in WSL (CI baseline)
+        shell: pwsh
+        run: |
+          $r = wsl -d Ubuntu --user root -- bash -c "command -v claude || echo NOT_FOUND"
+          Write-Host "claude lookup: $r"
+          if ($r -notmatch 'NOT_FOUND') {
+            throw "Claude unexpectedly already installed in fresh Ubuntu"
+          }
+
+      - name: Run launcher (accept install), wait for SUCCESS, then kill
+        shell: pwsh
+        run: |
+          # Build stdin: Y to accept install, then a bunch of empty lines
+          # to satisfy any subsequent set/p or pause prompts the launcher
+          # may emit before we kill it.
+          $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
+          @"
+          Y
+
+
+
+
+
+          "@ | Set-Content -Path $inputFile -NoNewline -Encoding ascii
+
+          # Start the launcher in the background. We can't just block on it
+          # because after install, the launcher tries to exec the claude
+          # TUI which would hang forever in CI.
+          $proc = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c", "call payload\kivun-terminal.bat C:\temp < `"$inputFile`"" `
+            -PassThru -NoNewWindow -RedirectStandardOutput "launcher_stdout.txt" `
+            -RedirectStandardError "launcher_stderr.txt"
+
+          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          $start = Get-Date
+          $installSucceeded = $false
+          $installFailed = $false
+          while (((Get-Date) - $start).TotalMinutes -lt 15) {
+            if (Test-Path $log) {
+              $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
+              if ($content -match 'SUCCESS - Claude Code installed in WSL') {
+                $installSucceeded = $true
+                break
+              }
+              if ($content -match 'ERROR - Claude auto-install failed') {
+                $installFailed = $true
+                break
+              }
+            }
+            if ($proc.HasExited) { break }
+            Start-Sleep -Seconds 10
+          }
+
+          # Kill the launcher (and any TUI children) so we can move on.
+          if (-not $proc.HasExited) {
+            Write-Host "Launcher still running after install signal; terminating tree."
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+          }
+          # Belt and suspenders: kill stray claude/wsl/bash held by launcher.
+          Get-Process | Where-Object { $_.ProcessName -in 'claude','wsl','bash','node' } |
+            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+
+          if ($installFailed) {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
+            Write-Host "----- WSL install log -----"
+            wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null || echo no-log"
+            throw "FAIL: launcher reported Claude auto-install failed"
+          }
+          if (-not $installSucceeded) {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
+            throw "FAIL: SUCCESS marker did not appear within 15 min"
+          }
+          Write-Host "PASS: launcher logged 'SUCCESS - Claude Code installed in WSL'"
+
+      - name: Assert claude is actually callable inside Ubuntu
+        shell: pwsh
+        run: |
+          # The strongest signal: claude --version returns 0 and prints a
+          # version string. This is the question the user actually cares
+          # about - did the launcher install something the user can use,
+          # or did it just claim to.
+          $ver = wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1" | Out-String
+          $rc = $LASTEXITCODE
+          Write-Host "claude --version output: $ver"
+          Write-Host "claude --version exit code: $rc"
+          if ($rc -ne 0) {
+            throw "FAIL: claude --version exited $rc inside WSL Ubuntu"
+          }
+          if ($ver -match 'not found' -or $ver -match 'No such file') {
+            throw "FAIL: claude --version reports binary missing inside WSL"
+          }
+          Write-Host "PASS: Claude Code is installed in Ubuntu and callable via the launcher's auto-install path"
+
+      - name: Copy LAUNCH_LOG into workspace for upload
+        if: always()
+        shell: pwsh
+        run: |
+          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          if (Test-Path $src) {
+            Copy-Item $src -Destination "LAUNCH_LOG.txt"
+          } else {
+            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
+          }
+          # Also pull the WSL-side install log for postmortem.
+          wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null" `
+            > "WSL_INSTALL_LOG.txt" 2>$null
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAUNCH_LOG-no-claude-accept-install
+          path: |
+            LAUNCH_LOG.txt
+            WSL_INSTALL_LOG.txt
+            launcher_stdout.txt
+            launcher_stderr.txt
+          if-no-files-found: warn
