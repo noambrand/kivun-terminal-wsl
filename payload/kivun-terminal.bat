@@ -157,6 +157,26 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo   Ubuntu: OK
 
+REM Check if Claude Code is installed (v1.1.2: must run BEFORE the
+REM Konsole check. If Konsole apt-install fails, the launcher used to
+REM jump straight to :run_direct and trip the no-claude guard, so the
+REM Claude install offer was silently skipped on flaky-apt machines.
+REM Now Claude is checked first: even if Konsole later fails, the user
+REM still gets offered the auto-install.)
+call :LOG "INFO - Checking if Claude Code is installed"
+set "CLAUDE_IN_WSL=0"
+wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
+if %ERRORLEVEL% EQU 0 goto :claude_present
+call :LOG "ERROR - Claude Code not found in Ubuntu"
+echo   Claude Code: NOT FOUND in WSL
+call :INSTALL_CLAUDE_WSL
+if "%CLAUDE_IN_WSL%"=="1" goto :claude_present
+goto :no_claude_exit
+:claude_present
+set "CLAUDE_IN_WSL=1"
+call :LOG "SUCCESS - Claude Code is installed"
+echo   Claude: OK
+
 REM Check if Konsole is installed
 call :LOG "INFO - Checking if Konsole is installed"
 wsl -d Ubuntu -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
@@ -175,22 +195,6 @@ if %ERRORLEVEL% NEQ 0 (
     call :LOG "SUCCESS - Konsole is installed"
 )
 echo   Konsole: OK
-
-REM Check if Claude Code is installed (v1.1.1: never fall back to a
-REM shell that just reported claude missing; offer auto-install instead)
-call :LOG "INFO - Checking if Claude Code is installed"
-set "CLAUDE_IN_WSL=0"
-wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
-if %ERRORLEVEL% EQU 0 goto :claude_present
-call :LOG "ERROR - Claude Code not found in Ubuntu"
-echo   Claude Code: NOT FOUND in WSL
-call :INSTALL_CLAUDE_WSL
-if "%CLAUDE_IN_WSL%"=="1" goto :claude_present
-goto :no_claude_exit
-:claude_present
-set "CLAUDE_IN_WSL=1"
-call :LOG "SUCCESS - Claude Code is installed"
-echo   Claude: OK
 
 REM Convert paths
 call :LOG "INFO - Converting Windows paths to WSL paths"
