@@ -50,6 +50,25 @@ jobs:
           test -f build/scripts/languages.sh || (echo "languages.sh not staged"; exit 1)
           cat build/scripts/statusline.mjs.sha256
 
+      - name: Verify BiDi wrapper got staged into .pkg scripts/
+        run: |
+          # v1.1.0+ ships the wrapper inside the .pkg. CI wasn't checking
+          # this — the .pkg could have been built without the wrapper and
+          # everything would have looked green.
+          test -d build/scripts/kivun-claude-bidi \
+            || (echo "WRAPPER: source tree not staged into build/scripts/"; exit 1)
+          test -x build/scripts/kivun-claude-bidi/bin/kivun-claude-bidi \
+            || (echo "WRAPPER: bin/kivun-claude-bidi missing or not executable"; exit 1)
+          test -f build/scripts/kivun-claude-bidi/lib/injector.js \
+            || (echo "WRAPPER: lib/injector.js missing"; exit 1)
+          test -f build/scripts/kivun-claude-bidi/package.json \
+            || (echo "WRAPPER: package.json missing"; exit 1)
+          # node_modules must NOT ship in the .pkg — postinstall builds it
+          # on the user's machine for the right arch (Intel vs Apple Silicon).
+          test ! -d build/scripts/kivun-claude-bidi/node_modules \
+            || (echo "WRAPPER: node_modules wrongly shipped in .pkg — must be built on user machine for arch correctness"; exit 1)
+          echo "WRAPPER: .pkg staging verification passed"
+
       - name: Verify .pkg structure
         run: |
           PKG=build/Kivun_Terminal_Setup_mac.pkg
@@ -60,6 +79,26 @@ jobs:
           mkdir -p build/extracted
           pkgutil --expand-full "$PKG" build/extracted-pkg || true
           find build/extracted-pkg -name 'postinstall' -print -exec head -20 {} \; || true
+          # Confirm the expanded pkg actually contains the wrapper source.
+          test -d build/extracted-pkg/Scripts/kivun-claude-bidi \
+            || (echo ".pkg expansion: wrapper source not present in Scripts/"; exit 1)
+          echo "WRAPPER: .pkg expansion confirms wrapper present"
+
+      - name: Run BiDi wrapper unit tests on macOS
+        run: |
+          # We can't realistically run the full postinstall on the macOS
+          # runner (it tries to install Homebrew + Node system-wide and
+          # would either fight the runner's preinstalled tools or take
+          # 10+ min). But we CAN run the wrapper's own test suite against
+          # the source that gets shipped — catches any node-pty native-
+          # build issue on macOS and validates the 36-fixture suite on
+          # this platform too.
+          cd build/scripts/kivun-claude-bidi
+          npm install --no-audit --no-fund
+          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js
+          if [ -x test/smoke.sh ]; then
+            bash test/smoke.sh
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
