@@ -26,14 +26,18 @@ echo Computer: %COMPUTERNAME% >> "%LOG_FILE%"
 echo Working Directory: %CD% >> "%LOG_FILE%"
 echo Script Location: %~dp0 >> "%LOG_FILE%"
 echo ======================================== >> "%LOG_FILE%"
+REM v1.1.2: every wsl probe before set /p YN is fed `< nul` so it can't
+REM swallow user input intended for the Claude install prompt. Without
+REM this, the wsl pipe handshake consumed the "Y" the user typed and
+REM the launcher silently behaved as if the user had declined.
 echo WSL VERSION: >> "%LOG_FILE%"
-wsl --version >> "%LOG_FILE%" 2>&1
+wsl --version < nul >> "%LOG_FILE%" 2>&1
 echo ---------------------------------------- >> "%LOG_FILE%"
 echo WSL STATUS: >> "%LOG_FILE%"
-wsl --status >> "%LOG_FILE%" 2>&1
+wsl --status < nul >> "%LOG_FILE%" 2>&1
 echo ---------------------------------------- >> "%LOG_FILE%"
 echo WSL DISTRIBUTIONS: >> "%LOG_FILE%"
-wsl -l -v >> "%LOG_FILE%" 2>&1
+wsl -l -v < nul >> "%LOG_FILE%" 2>&1
 echo ======================================== >> "%LOG_FILE%"
 echo. >> "%LOG_FILE%"
 
@@ -120,7 +124,7 @@ REM Check WSL
 echo.
 echo Checking WSL...
 call :LOG "INFO - Checking WSL installation"
-wsl --version 2>&1 >> "%LOG_FILE%"
+wsl --version < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "ERROR - WSL not found or not working (error %ERRORLEVEL%)"
     echo ERROR: WSL not found or not working.
@@ -134,14 +138,14 @@ call :LOG "SUCCESS - WSL is installed and working"
 echo   WSL: OK
 
 call :LOG "INFO - Checking Ubuntu distribution"
-wsl -d Ubuntu echo OK 2>&1 >> "%LOG_FILE%"
+wsl -d Ubuntu echo OK < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "WARNING - Ubuntu not responding, attempting WSL restart"
     echo Ubuntu not responding, restarting WSL...
     wsl --shutdown
     call :LOG "INFO - WSL shutdown command issued, waiting 3 seconds"
     timeout /t 3 /nobreak >nul
-    wsl -d Ubuntu echo OK 2>&1 >> "%LOG_FILE%"
+    wsl -d Ubuntu echo OK < nul 2>&1 >> "%LOG_FILE%"
     if %ERRORLEVEL% NEQ 0 (
         call :LOG "ERROR - Ubuntu not available after restart (error %ERRORLEVEL%)"
         echo ERROR: Ubuntu not available.
@@ -156,6 +160,26 @@ if %ERRORLEVEL% NEQ 0 (
     call :LOG "SUCCESS - Ubuntu is running"
 )
 echo   Ubuntu: OK
+
+REM Check if Claude Code is installed (v1.1.2: must run BEFORE the
+REM Konsole check. If Konsole apt-install fails, the launcher used to
+REM jump straight to :run_direct and trip the no-claude guard, so the
+REM Claude install offer was silently skipped on flaky-apt machines.
+REM Now Claude is checked first: even if Konsole later fails, the user
+REM still gets offered the auto-install.)
+call :LOG "INFO - Checking if Claude Code is installed"
+set "CLAUDE_IN_WSL=0"
+wsl -d Ubuntu -- bash -c "command -v claude" < nul 2>&1 >> "%LOG_FILE%"
+if %ERRORLEVEL% EQU 0 goto :claude_present
+call :LOG "ERROR - Claude Code not found in Ubuntu"
+echo   Claude Code: NOT FOUND in WSL
+call :INSTALL_CLAUDE_WSL
+if "%CLAUDE_IN_WSL%"=="1" goto :claude_present
+goto :no_claude_exit
+:claude_present
+set "CLAUDE_IN_WSL=1"
+call :LOG "SUCCESS - Claude Code is installed"
+echo   Claude: OK
 
 REM Check if Konsole is installed
 call :LOG "INFO - Checking if Konsole is installed"
@@ -175,22 +199,6 @@ if %ERRORLEVEL% NEQ 0 (
     call :LOG "SUCCESS - Konsole is installed"
 )
 echo   Konsole: OK
-
-REM Check if Claude Code is installed (v1.1.1: never fall back to a
-REM shell that just reported claude missing; offer auto-install instead)
-call :LOG "INFO - Checking if Claude Code is installed"
-set "CLAUDE_IN_WSL=0"
-wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
-if %ERRORLEVEL% EQU 0 goto :claude_present
-call :LOG "ERROR - Claude Code not found in Ubuntu"
-echo   Claude Code: NOT FOUND in WSL
-call :INSTALL_CLAUDE_WSL
-if "%CLAUDE_IN_WSL%"=="1" goto :claude_present
-goto :no_claude_exit
-:claude_present
-set "CLAUDE_IN_WSL=1"
-call :LOG "SUCCESS - Claude Code is installed"
-echo   Claude: OK
 
 REM Convert paths
 call :LOG "INFO - Converting Windows paths to WSL paths"
@@ -428,30 +436,61 @@ echo Claude Code must be installed inside Ubuntu for Kivun Terminal.
 echo Windows-side Claude Code does NOT work here - Konsole runs in WSL.
 echo.
 set /p YN="Install Claude Code in Ubuntu now? [Y/N] "
-if /i not "%YN%"=="Y" (
-    call :LOG "INFO - User declined Claude auto-install"
-    exit /b
-)
+if /i not "%YN%"=="Y" goto :_decline_install
 call :LOG "INFO - User accepted Claude auto-install"
 echo.
 echo Installing Claude Code via official installer (~1-2 min)...
-wsl -d Ubuntu -u root -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "WARNING - Official installer failed, trying npm fallback"
-    echo Official installer failed, trying npm fallback (~2-3 min)...
-    wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
-)
-wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "ERROR - Claude auto-install failed"
-    echo Claude install failed. See: wsl -d Ubuntu -- cat /tmp/kivun-claude.log
-    exit /b
-)
-REM Log the installed version so future bug reports include it (spec §6).
-for /f "delims=" %%v in ('wsl -d Ubuntu -- bash -lc "claude --version 2>/dev/null | head -1"') do call :LOG "INFO - Claude version: %%v"
+REM v1.1.2: this helper used to use `if %ERRORLEVEL% NEQ 0 (...)` parens
+REM blocks. cmd's parser inside parens treats redirection operators
+REM (>>, 2>&1) and && more aggressively than at top level - even when
+REM they are inside a "..."-quoted argument to wsl/bash - producing
+REM "... was unexpected at this time." and an empty install. All control
+REM flow here is now goto-based, with each wsl invocation at top level
+REM where its quoted argument passes through to bash verbatim.
+REM Fixed temp filename (was $(mktemp ...)) for the same reason: the
+REM inner ( and ) inside a cmd-quoted bash command were being matched
+REM against the surrounding cmd parens block and breaking parsing.
+REM Install runs as the WSL DEFAULT USER, NOT -u root. The Anthropic
+REM curl installer drops claude into ~/.local/bin. With -u root that
+REM resolves to /root/.local/bin which the regular user (= every other
+REM wsl invocation in this launcher) can't see. CI proved this: the
+REM install logged "Claude Code successfully installed" but the verify
+REM step couldn't find it.
+wsl -d Ubuntu -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh > /tmp/kivun-claude.log 2>&1 && bash /tmp/claude-installer.sh >> /tmp/kivun-claude.log 2>&1; rm -f /tmp/claude-installer.sh" < nul
+if %ERRORLEVEL% NEQ 0 call :_NPM_FALLBACK
+REM Verify by checking the three known install locations directly.
+REM Earlier attempts used `PATH=$HOME/.local/bin:$PATH command -v claude`
+REM which seemed cleaner, but on Windows-WSL the inherited $PATH contains
+REM Windows paths like `/mnt/c/Program Files (x86)/sbt/bin` with literal
+REM `(` and `)`. Bash word-splits the unquoted assignment value, hits
+REM the `(` as a subshell-open token, and dies with a syntax error.
+REM Listing absolute paths sidesteps PATH entirely.
+wsl -d Ubuntu -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
+if %ERRORLEVEL% NEQ 0 goto :_install_failed
+REM Log the installed version so future bug reports include it.
+REM Same constraint: do not lean on $PATH expansion. Try the user-local
+REM install first; on failure fall back to whatever PATH lookup yields.
+wsl -d Ubuntu -- bash -lc "$HOME/.local/bin/claude --version 2>/dev/null || claude --version 2>/dev/null" < nul > "%TEMP%\kivun-claude-version.txt" 2>&1
+for /f "delims=" %%v in ('type "%TEMP%\kivun-claude-version.txt" 2^>nul') do call :LOG "INFO - Claude version: %%v"
+del "%TEMP%\kivun-claude-version.txt" 2>nul
 call :LOG "SUCCESS - Claude Code installed in WSL"
 echo   Claude: OK
 set "CLAUDE_IN_WSL=1"
+exit /b
+
+:_decline_install
+call :LOG "INFO - User declined Claude auto-install"
+exit /b
+
+:_NPM_FALLBACK
+call :LOG "WARNING - Official installer failed, trying npm fallback"
+echo Official installer failed, trying npm fallback (~2-3 min)...
+wsl -d Ubuntu -u root -- bash -c "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
+exit /b
+
+:_install_failed
+call :LOG "ERROR - Claude auto-install failed"
+echo Claude install failed. See: wsl -d Ubuntu -- cat /tmp/kivun-claude.log
 exit /b
 
 :no_claude_exit
