@@ -338,11 +338,14 @@ jobs:
       - name: Assert claude is actually callable inside Ubuntu
         shell: pwsh
         run: |
-          # The strongest signal: claude --version returns 0 and prints a
-          # version string. This is the question the user actually cares
-          # about - did the launcher install something the user can use,
-          # or did it just claim to.
-          $ver = wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1" | Out-String
+          # The strongest signal: claude --version returns 0 and prints
+          # a version string. Use the absolute path to the user-local
+          # install (where the launcher's curl-based installer puts
+          # claude). Cannot rely on PATH here for the same reason the
+          # launcher cannot: $PATH inherited from windows-latest contains
+          # /mnt/c/Program Files (x86)/... entries with literal `(` and
+          # `)` that bash word-splits and chokes on.
+          $ver = wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1 || /usr/local/bin/claude --version 2>&1" | Out-String
           $rc = $LASTEXITCODE
           Write-Host "claude --version output: $ver"
           Write-Host "claude --version exit code: $rc"

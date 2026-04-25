@@ -458,16 +458,21 @@ REM install logged "Claude Code successfully installed" but the verify
 REM step couldn't find it.
 wsl -d Ubuntu -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh > /tmp/kivun-claude.log 2>&1 && bash /tmp/claude-installer.sh >> /tmp/kivun-claude.log 2>&1; rm -f /tmp/claude-installer.sh" < nul
 if %ERRORLEVEL% NEQ 0 call :_NPM_FALLBACK
-REM Verify with bash -lc + explicit PATH so ~/.local/bin is visible.
-REM bash -c (non-login, non-interactive) does not source .profile or
-REM .bashrc, and the Anthropic installer warns explicitly that
-REM ~/.local/bin is not on PATH yet. PATH-prefix also leaves
-REM /usr/local/bin (npm fallback location) reachable since the default
-REM PATH already includes it.
-wsl -d Ubuntu -- bash -lc "PATH=$HOME/.local/bin:$PATH; command -v claude" < nul 2>&1 >> "%LOG_FILE%"
+REM Verify by checking the three known install locations directly.
+REM Earlier attempts used `PATH=$HOME/.local/bin:$PATH command -v claude`
+REM which seemed cleaner, but on Windows-WSL the inherited $PATH contains
+REM Windows paths like `/mnt/c/Program Files (x86)/sbt/bin` with literal
+REM `(` and `)`. Bash word-splits the unquoted assignment value, hits
+REM the `(` as a subshell-open token, and dies with a syntax error.
+REM Listing absolute paths sidesteps PATH entirely.
+wsl -d Ubuntu -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 goto :_install_failed
 REM Log the installed version so future bug reports include it.
-for /f "delims=" %%v in ('wsl -d Ubuntu -- bash -lc "PATH=$HOME/.local/bin:$PATH^; claude --version 2^>/dev/null ^| head -1"') do call :LOG "INFO - Claude version: %%v"
+REM Same constraint: do not lean on $PATH expansion. Try the user-local
+REM install first; on failure fall back to whatever PATH lookup yields.
+wsl -d Ubuntu -- bash -lc "$HOME/.local/bin/claude --version 2>/dev/null || claude --version 2>/dev/null" < nul > "%TEMP%\kivun-claude-version.txt" 2>&1
+for /f "delims=" %%v in ('type "%TEMP%\kivun-claude-version.txt" 2^>nul') do call :LOG "INFO - Claude version: %%v"
+del "%TEMP%\kivun-claude-version.txt" 2>nul
 call :LOG "SUCCESS - Claude Code installed in WSL"
 echo   Claude: OK
 set "CLAUDE_IN_WSL=1"
