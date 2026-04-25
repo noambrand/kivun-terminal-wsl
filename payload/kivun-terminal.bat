@@ -443,7 +443,12 @@ if /i not "%YN%"=="Y" (
 call :LOG "INFO - User accepted Claude auto-install"
 echo.
 echo Installing Claude Code via official installer (~1-2 min)...
-wsl -d Ubuntu -u root -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""
+REM v1.1.2: do NOT escape inner double-quotes with \". cmd does not
+REM process backslash escapes, so bash receives literal `\"` and curl
+REM gets a filename arg starting with " - which it rejects with
+REM "option -o: is badly used here". mktemp generates a safe filename
+REM (no spaces / shell metas), so no quoting is needed in bash either.
+wsl -d Ubuntu -u root -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o $T https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s $T ] && bash $T >> /tmp/kivun-claude.log 2>&1; rm -f $T"
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "WARNING - Official installer failed, trying npm fallback"
     echo Official installer failed, trying npm fallback (~2-3 min)...
