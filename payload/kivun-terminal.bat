@@ -450,12 +450,24 @@ REM where its quoted argument passes through to bash verbatim.
 REM Fixed temp filename (was $(mktemp ...)) for the same reason: the
 REM inner ( and ) inside a cmd-quoted bash command were being matched
 REM against the surrounding cmd parens block and breaking parsing.
-wsl -d Ubuntu -u root -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh > /tmp/kivun-claude.log 2>&1 && bash /tmp/claude-installer.sh >> /tmp/kivun-claude.log 2>&1; rm -f /tmp/claude-installer.sh"
+REM Install runs as the WSL DEFAULT USER, NOT -u root. The Anthropic
+REM curl installer drops claude into ~/.local/bin. With -u root that
+REM resolves to /root/.local/bin which the regular user (= every other
+REM wsl invocation in this launcher) can't see. CI proved this: the
+REM install logged "Claude Code successfully installed" but the verify
+REM step couldn't find it.
+wsl -d Ubuntu -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh > /tmp/kivun-claude.log 2>&1 && bash /tmp/claude-installer.sh >> /tmp/kivun-claude.log 2>&1; rm -f /tmp/claude-installer.sh" < nul
 if %ERRORLEVEL% NEQ 0 call :_NPM_FALLBACK
-wsl -d Ubuntu -- bash -c "command -v claude" < nul 2>&1 >> "%LOG_FILE%"
+REM Verify with bash -lc + explicit PATH so ~/.local/bin is visible.
+REM bash -c (non-login, non-interactive) does not source .profile or
+REM .bashrc, and the Anthropic installer warns explicitly that
+REM ~/.local/bin is not on PATH yet. PATH-prefix also leaves
+REM /usr/local/bin (npm fallback location) reachable since the default
+REM PATH already includes it.
+wsl -d Ubuntu -- bash -lc "PATH=$HOME/.local/bin:$PATH; command -v claude" < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% NEQ 0 goto :_install_failed
 REM Log the installed version so future bug reports include it.
-for /f "delims=" %%v in ('wsl -d Ubuntu -- bash -lc "claude --version 2^>/dev/null ^| head -1"') do call :LOG "INFO - Claude version: %%v"
+for /f "delims=" %%v in ('wsl -d Ubuntu -- bash -lc "PATH=$HOME/.local/bin:$PATH^; claude --version 2^>/dev/null ^| head -1"') do call :LOG "INFO - Claude version: %%v"
 call :LOG "SUCCESS - Claude Code installed in WSL"
 echo   Claude: OK
 set "CLAUDE_IN_WSL=1"
