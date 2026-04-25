@@ -436,35 +436,44 @@ echo Claude Code must be installed inside Ubuntu for Kivun Terminal.
 echo Windows-side Claude Code does NOT work here - Konsole runs in WSL.
 echo.
 set /p YN="Install Claude Code in Ubuntu now? [Y/N] "
-if /i not "%YN%"=="Y" (
-    call :LOG "INFO - User declined Claude auto-install"
-    exit /b
-)
+if /i not "%YN%"=="Y" goto :_decline_install
 call :LOG "INFO - User accepted Claude auto-install"
 echo.
 echo Installing Claude Code via official installer (~1-2 min)...
-REM v1.1.2: do NOT escape inner double-quotes with \". cmd does not
-REM process backslash escapes, so bash receives literal `\"` and curl
-REM gets a filename arg starting with " - which it rejects with
-REM "option -o: is badly used here". mktemp generates a safe filename
-REM (no spaces / shell metas), so no quoting is needed in bash either.
-wsl -d Ubuntu -u root -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o $T https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s $T ] && bash $T >> /tmp/kivun-claude.log 2>&1; rm -f $T"
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "WARNING - Official installer failed, trying npm fallback"
-    echo Official installer failed, trying npm fallback (~2-3 min)...
-    wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
-)
-wsl -d Ubuntu -- bash -c "command -v claude" 2>&1 >> "%LOG_FILE%"
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "ERROR - Claude auto-install failed"
-    echo Claude install failed. See: wsl -d Ubuntu -- cat /tmp/kivun-claude.log
-    exit /b
-)
-REM Log the installed version so future bug reports include it (spec §6).
-for /f "delims=" %%v in ('wsl -d Ubuntu -- bash -lc "claude --version 2>/dev/null | head -1"') do call :LOG "INFO - Claude version: %%v"
+REM v1.1.2: this helper used to use `if %ERRORLEVEL% NEQ 0 (...)` parens
+REM blocks. cmd's parser inside parens treats redirection operators
+REM (>>, 2>&1) and && more aggressively than at top level - even when
+REM they are inside a "..."-quoted argument to wsl/bash - producing
+REM "... was unexpected at this time." and an empty install. All control
+REM flow here is now goto-based, with each wsl invocation at top level
+REM where its quoted argument passes through to bash verbatim.
+REM Fixed temp filename (was $(mktemp ...)) for the same reason: the
+REM inner ( and ) inside a cmd-quoted bash command were being matched
+REM against the surrounding cmd parens block and breaking parsing.
+wsl -d Ubuntu -u root -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh > /tmp/kivun-claude.log 2>&1 && bash /tmp/claude-installer.sh >> /tmp/kivun-claude.log 2>&1; rm -f /tmp/claude-installer.sh"
+if %ERRORLEVEL% NEQ 0 call :_NPM_FALLBACK
+wsl -d Ubuntu -- bash -c "command -v claude" < nul 2>&1 >> "%LOG_FILE%"
+if %ERRORLEVEL% NEQ 0 goto :_install_failed
+REM Log the installed version so future bug reports include it.
+for /f "delims=" %%v in ('wsl -d Ubuntu -- bash -lc "claude --version 2^>/dev/null ^| head -1"') do call :LOG "INFO - Claude version: %%v"
 call :LOG "SUCCESS - Claude Code installed in WSL"
 echo   Claude: OK
 set "CLAUDE_IN_WSL=1"
+exit /b
+
+:_decline_install
+call :LOG "INFO - User declined Claude auto-install"
+exit /b
+
+:_NPM_FALLBACK
+call :LOG "WARNING - Official installer failed, trying npm fallback"
+echo Official installer failed, trying npm fallback (~2-3 min)...
+wsl -d Ubuntu -u root -- bash -c "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
+exit /b
+
+:_install_failed
+call :LOG "ERROR - Claude auto-install failed"
+echo Claude install failed. See: wsl -d Ubuntu -- cat /tmp/kivun-claude.log
 exit /b
 
 :no_claude_exit
