@@ -137,18 +137,16 @@ jobs:
 
       - name: Run launcher and capture exit code
         shell: cmd
-        # Feed N to set /p YN= and Enter to satisfy any pause prompts.
-        # NOTE: launcher exit code is 2 on the :no_claude_exit path; we
-        # disable errorlevel propagation here so the step can capture it
-        # for the next step's assertion.
-        # We use a stdin-redirect from a file rather than piping echo into
-        # call: piping into a .bat creates a subshell whose exit code does
-        # not always propagate back to %ERRORLEVEL% on the next line, which
-        # is exactly the bug that cost us the previous CI run.
+        # v1.1.3: install no longer prompts by default (AUTO_INSTALL_CLAUDE
+        # defaults to "yes"). To exercise the no-Claude-exit path the
+        # launcher needs config.txt with AUTO_INSTALL_CLAUDE=no, otherwise
+        # it would auto-install instead of exiting.
+        # The blank-line stdin remains as belt-and-suspenders for any
+        # future pause prompts.
         continue-on-error: true
         run: |
-          (echo N) > "%RUNNER_TEMP%\launcher_input.txt"
-          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
+          (echo.) > "%RUNNER_TEMP%\launcher_input.txt"
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           call payload\kivun-terminal.bat C:\temp < "%RUNNER_TEMP%\launcher_input.txt"
@@ -334,6 +332,21 @@ jobs:
             throw "FAIL: SUCCESS marker did not appear within 15 min"
           }
           Write-Host "PASS: launcher logged 'SUCCESS - Claude Code installed in WSL'"
+
+      - name: Assert no [Y/N] prompt appeared (v1.1.3 default-yes UX)
+        shell: pwsh
+        run: |
+          # The point of v1.1.3 is that a fresh user does NOT have to
+          # type Y to get Claude installed. If this assertion ever
+          # starts failing, somebody re-introduced the prompt as the
+          # default and undid the UX fix.
+          $stdout = Get-Content "launcher_stdout.txt" -Raw -ErrorAction SilentlyContinue
+          if ($stdout -match 'Install Claude Code in Ubuntu now') {
+            Write-Host "----- launcher_stdout.txt -----"
+            Write-Host $stdout
+            throw "FAIL: launcher prompted [Y/N] - v1.1.3 default-yes regressed"
+          }
+          Write-Host "PASS: no [Y/N] prompt shown to user"
 
       - name: Assert claude is actually callable inside Ubuntu
         shell: pwsh

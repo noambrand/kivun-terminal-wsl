@@ -66,6 +66,11 @@ set PRIMARY_LANGUAGE=hebrew
 set USE_VCXSRV=false
 set TEXT_DIRECTION=rtl
 set FOLDER_PICKER=false
+REM v1.1.3: AUTO_INSTALL_CLAUDE controls the Claude-missing flow.
+REM   yes (default) - install automatically, no prompt
+REM   ask           - prompt [Y/N] like v1.1.1/v1.1.2
+REM   no            - skip install, exit with manual instructions
+set AUTO_INSTALL_CLAUDE=yes
 if exist "%~dp0config.txt" (
     REM SECURITY: quote the SET target. Unquoted `set X=%%b` lets CMD
     REM parse the value — a config line `RESPONSE_LANGUAGE=english& calc.exe`
@@ -73,11 +78,12 @@ if exist "%~dp0config.txt" (
     REM `set "X=%%b"` treats the contents as literal (& | ^ < > are
     REM all safe inside the quotes).
     for /f "tokens=1,2 delims==" %%a in ('type "%~dp0config.txt" 2^>nul ^| findstr /v "^#"') do (
-        if "%%a"=="RESPONSE_LANGUAGE" set "RESPONSE_LANGUAGE=%%b"
-        if "%%a"=="PRIMARY_LANGUAGE" set "PRIMARY_LANGUAGE=%%b"
-        if "%%a"=="USE_VCXSRV"       set "USE_VCXSRV=%%b"
-        if "%%a"=="TEXT_DIRECTION"   set "TEXT_DIRECTION=%%b"
-        if "%%a"=="FOLDER_PICKER"    set "FOLDER_PICKER=%%b"
+        if "%%a"=="RESPONSE_LANGUAGE"     set "RESPONSE_LANGUAGE=%%b"
+        if "%%a"=="PRIMARY_LANGUAGE"      set "PRIMARY_LANGUAGE=%%b"
+        if "%%a"=="USE_VCXSRV"            set "USE_VCXSRV=%%b"
+        if "%%a"=="TEXT_DIRECTION"        set "TEXT_DIRECTION=%%b"
+        if "%%a"=="FOLDER_PICKER"         set "FOLDER_PICKER=%%b"
+        if "%%a"=="AUTO_INSTALL_CLAUDE"   set "AUTO_INSTALL_CLAUDE=%%b"
     )
     call :LOG "SUCCESS - Config loaded: language=%RESPONSE_LANGUAGE%, keyboard=%PRIMARY_LANGUAGE%, vcxsrv=%USE_VCXSRV%, textdir=%TEXT_DIRECTION%, folderpicker=%FOLDER_PICKER%"
 ) else (
@@ -425,20 +431,33 @@ REM Unknown language — keep the existing CLAUDE_PROMPT (English default).
 exit /b
 
 :INSTALL_CLAUDE_WSL
-REM v1.1.1 - offer to install Claude Code inside WSL Ubuntu.
+REM v1.1.3 - install Claude Code inside WSL Ubuntu.
 REM Sets CLAUDE_IN_WSL=1 on success, leaves it 0 otherwise.
 REM Strategy matches installer/Kivun_Terminal_Setup.nsi: curl installer
-REM primary, nodejs+npm fallback. Runs as root via `-u root` to avoid
-REM sudo-TTY-password hangs (installer has the same pattern).
+REM primary, nodejs+npm fallback.
+REM
+REM AUTO_INSTALL_CLAUDE controls whether we prompt:
+REM   yes (default) - install without asking (the launcher's whole job
+REM                   is to run Claude Code, so the consent is implicit
+REM                   in launching the launcher)
+REM   ask           - keep the v1.1.2 [Y/N] prompt
+REM   no            - skip and exit with manual instructions
 set "CLAUDE_IN_WSL=0"
 echo.
-echo Claude Code must be installed inside Ubuntu for Kivun Terminal.
+echo Claude Code is required to run Kivun Terminal.
 echo Windows-side Claude Code does NOT work here - Konsole runs in WSL.
 echo.
+if /i "%AUTO_INSTALL_CLAUDE%"=="no"  goto :_decline_install
+if /i "%AUTO_INSTALL_CLAUDE%"=="ask" goto :_prompt_install
+call :LOG "INFO - Auto-installing Claude (AUTO_INSTALL_CLAUDE=yes)"
+goto :_do_install
+
+:_prompt_install
 set /p YN="Install Claude Code in Ubuntu now? [Y/N] "
 if /i not "%YN%"=="Y" goto :_decline_install
 call :LOG "INFO - User accepted Claude auto-install"
-echo.
+
+:_do_install
 echo Installing Claude Code via official installer (~1-2 min)...
 REM v1.1.2: this helper used to use `if %ERRORLEVEL% NEQ 0 (...)` parens
 REM blocks. cmd's parser inside parens treats redirection operators
