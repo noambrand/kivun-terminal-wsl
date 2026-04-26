@@ -1,8 +1,4 @@
-<p align="center">
-  <a href="#english"><img src="https://flagcdn.com/20x15/gb.png" alt="GB" width="20" height="15">&nbsp;<strong>English</strong></a>
-  &nbsp;|&nbsp;
-  <a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15">&nbsp;<strong>עברית</strong></a>
-</p>
+<p align="center"><img src="https://flagcdn.com/20x15/gb.png" alt="GB" width="20" height="15"> <a href="#english"><b>English</b></a> &nbsp;|&nbsp; <img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15"> <a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a></p>
 
 <p align="center">
   <img src="Kivun_Terminal_Hero.jpeg" width="700" alt="Kivun Terminal - RTL Claude Code on Windows, Linux, macOS">
