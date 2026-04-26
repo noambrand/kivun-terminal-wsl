@@ -3,6 +3,27 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.9] - 2026-04-27
+
+Defensive guardrail with built-in measurement: the wrapper now strips explicit Unicode directional controls from Claude's upstream stream so the wrapper is the only source of directionality information reaching Konsole. Default mode is `auto` — strip silently, but log the first detection per session to a side file so we can tell whether stream pollution is actually happening in real installs (vs. all rendering bugs being Konsole's fault).
+
+### Added
+
+- **`KIVUN_BIDI_STRIP_INCOMING` config option** (default `auto`) — strips embedding controls (`U+202A` LRE, `U+202B` RLE, `U+202C` PDF, `U+202D` LRO, `U+202E` RLO) and isolate controls (`U+2066` LRI, `U+2067` RLI, `U+2068` FSI, `U+2069` PDI) from Claude's stream before the wrapper processes it. Preserves `U+200E` LRM and `U+200F` RLM since the wrapper itself injects RLM at line-start. Modes:
+  - `off` — passthrough; controls reach the terminal as-is
+  - `auto` — strip + count + log a single line on first detection (default)
+  - `on` — strip + count + log every chunk where stripping happened (verbose; useful when investigating a specific render bug)
+- **Side diagnostic log at `~/.local/state/kivun-terminal/bidi-strip.log`** — overridable via `KIVUN_BIDI_LOG_FILE`, follows XDG state-dir convention. Lets us answer "is Claude actually polluting the stream?" from real-user installs without a packet capture. Silent by default — only writes when something is actually stripped.
+- **Regression test suite** (`kivun-claude-bidi/test/strip-incoming.test.js`, 12 tests) covering all three modes, every char in both stripped ranges, LRM/RLM preservation, cumulative cross-chunk counting, log-write semantics, and non-interference with the v1.1.8 strip-bullet pipeline.
+
+### Why this is `auto` not `on` by default
+
+If most observed Claude output contains zero directional controls, the strip is a no-op in practice — the value of leaving it on is the side log. The framing here is "guardrail with measurement, not a fix": before adding more wrapper heuristics for mixed-content positioning, we want evidence about whether the upstream stream is even contributing to the problem. After a few weeks of real-world use, the log file content tells us either "yes, refine the wrapper" or "no, blame Konsole and stop tweaking the wrapper."
+
+### Closed without merging
+
+- **PR #47 — `experiment/rli-pdi-isolates`** (RLI/PDI isolate wrapping for mixed-content LTR-run positioning). Hypothesis was that wrapping Claude's English/code runs in `U+2067` RLI / `U+2069` PDI would give Konsole's BiDi engine enough hint to position them correctly inside Hebrew paragraphs. User testing on Konsole 23.x showed the isolates regressed the v1.1.8 strip-bullet behavior (Hebrew bullet lines went back to LTR). Conclusion: Konsole 23.x's BiDi engine cannot correctly handle the isolate marks; mixed-content LTR-run positioning remains a known limitation pending Konsole 24.04+ from a future Ubuntu LTS.
+
 ## [1.1.8] - 2026-04-26
 
 Workaround for the Konsole 23.x bullet-LTR rendering bug. Hebrew bullet lines from Claude (lines starting with `●`) were rendering with the bullet stuck on the LEFT side of the screen on Ubuntu 24.04 LTS, even though the wrapper correctly injected RLM at line-start. Empirical investigation traced this to Konsole 23.x's BiDi engine classifying the leading `●` as a direction-anchoring neutral and refusing to flip the line RTL.

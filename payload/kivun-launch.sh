@@ -408,6 +408,21 @@ fi
 export KIVUN_BIDI_STRIP_BULLET
 log "INFO - KIVUN_BIDI_STRIP_BULLET=$KIVUN_BIDI_STRIP_BULLET"
 
+# Strip-incoming bidi controls. Default "auto" — wrapper strips silently
+# but logs a single line to ~/.local/state/kivun-terminal/bidi-strip.log
+# the first time it sees an embedding/isolate control char in the upstream
+# stream. Lets us answer "is Claude actually emitting these?" from real-
+# user data without spamming. See KIVUN_BIDI_STRIP_INCOMING in injector.js
+# for the full mode breakdown (off/auto/on).
+KIVUN_BIDI_STRIP_INCOMING="auto"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_STRIP_INCOMING[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_STRIP_INCOMING[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_STRIP_INCOMING="$val"
+fi
+export KIVUN_BIDI_STRIP_INCOMING
+log "INFO - KIVUN_BIDI_STRIP_INCOMING=$KIVUN_BIDI_STRIP_INCOMING"
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates

@@ -12,6 +12,9 @@
 // See docs/specs/BIDI_ALGORITHM.md for the full rationale.
 
 const { StringDecoder } = require('node:string_decoder');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
 
 const RLE = '‫';
 const PDF = '‬';
@@ -33,6 +36,54 @@ const RLM = '‏';
 // surprised.
 const STRIP_BULLET = process.env.KIVUN_BIDI_STRIP_BULLET === 'on';
 const BULLET_STRIP_RE = /[●•·∗•●]\s*/g;
+
+// Strip-incoming bidi controls from the upstream stream so the wrapper has
+// sole authority over directionality. Stripped: U+202A–U+202E (embedding
+// controls LRE/RLE/PDF/LRO/RLO) and U+2066–U+2069 (isolate controls
+// LRI/RLI/FSI/PDI). Preserved: U+200E (LRM) and U+200F (RLM) — the wrapper
+// itself injects RLM and treats LRM as a useful neutral override.
+//
+// Modes (KIVUN_BIDI_STRIP_INCOMING):
+//   off  — passthrough, no counting, no logging
+//   auto — strip + count + log a single line on first detection (default)
+//   on   — strip + count + log every chunk where stripping happened
+//
+// Rationale: Konsole 23.x's BiDi engine has known mis-positioning bugs for
+// mixed RTL/LTR content. If Claude (or its child processes) emit explicit
+// bidi controls, those compound with the wrapper's RLM injection and make
+// rendering nondeterministic. Stripping them isolates the wrapper as the
+// only directionality source. Even when the strip count is 0 the feature
+// pays its way as a diagnostic — the side log answers "is my stream
+// polluted?" without needing a packet capture.
+//
+// Side log: $KIVUN_BIDI_LOG_FILE if set, else
+// $XDG_STATE_HOME/kivun-terminal/bidi-strip.log (XDG default
+// ~/.local/state/kivun-terminal/bidi-strip.log). Test override via
+// KIVUN_BIDI_LOG_FILE keeps unit tests off the user's real log.
+const STRIP_INCOMING_MODE = (process.env.KIVUN_BIDI_STRIP_INCOMING || 'auto').toLowerCase();
+// Char class covers U+202A LRE, U+202B RLE, U+202C PDF, U+202D LRO, U+202E RLO,
+// U+2066 LRI, U+2067 RLI, U+2068 FSI, U+2069 PDI. Does NOT touch U+200E LRM
+// or U+200F RLM (we keep those — RLM is what the wrapper itself injects).
+const STRIP_INCOMING_RE = /[‪-‮⁦-⁩]/g;
+
+// Cached at module load — tests that flip env vars then invalidate the
+// require cache get a fresh STRIP_LOG_FILE per load, which is what the
+// strip-incoming.test.js loader pattern relies on.
+const STRIP_LOG_FILE = (function _resolveStripLogPath() {
+  if (process.env.KIVUN_BIDI_LOG_FILE) return process.env.KIVUN_BIDI_LOG_FILE;
+  const stateRoot = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+  return path.join(stateRoot, 'kivun-terminal', 'bidi-strip.log');
+})();
+
+function _logBidiStrip(message) {
+  if (STRIP_INCOMING_MODE === 'off') return;
+  try {
+    fs.mkdirSync(path.dirname(STRIP_LOG_FILE), { recursive: true });
+    fs.appendFileSync(STRIP_LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
+  } catch (_) {
+    // Logging is best-effort; never let a write failure crash the wrapper.
+  }
+}
 
 const HEBREW_BLOCK_START = 0x0590;
 const HEBREW_BLOCK_END = 0x05FF;
@@ -104,26 +155,56 @@ class Injector {
     this._lsInOsc = false;
     this._lsOscSawEsc = false;
     this._lsAfterEsc = false;
+    // strip-incoming counters. Public field (`stripIncomingCount`) so unit
+    // tests can assert on it directly without parsing the side log.
+    this.stripIncomingCount = 0;
+    this._stripLoggedFirst = false;
+  }
+
+  // Best-effort strip + accounting on raw upstream text. Runs before any
+  // state-machine processing so the line-start buffer / RLE-PDF bracketing
+  // never sees the stripped chars at all. See block comment near
+  // STRIP_INCOMING_MODE for rationale and modes.
+  _stripIncoming(text) {
+    if (STRIP_INCOMING_MODE === 'off' || text.length === 0) return text;
+    const before = text.length;
+    const out = text.replace(STRIP_INCOMING_RE, '');
+    const removed = before - out.length;
+    if (removed > 0) {
+      this.stripIncomingCount += removed;
+      if (!this._stripLoggedFirst) {
+        _logBidiStrip(`first detection — stripped ${removed} bidi control char(s) (cumulative ${this.stripIncomingCount}); set KIVUN_BIDI_STRIP_INCOMING=off in config.txt to passthrough`);
+        this._stripLoggedFirst = true;
+      } else if (STRIP_INCOMING_MODE === 'on') {
+        _logBidiStrip(`stripped ${removed} bidi control char(s) (cumulative ${this.stripIncomingCount})`);
+      }
+    }
+    return out;
   }
 
   write(chunk) {
-    const text = typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
+    const raw = typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
+    const text = this._stripIncoming(raw);
     let out = this._process(text);
     out += this._flushAtBoundary(false);
     return out;
   }
 
   end(chunk) {
-    let text = '';
+    let raw = '';
     if (chunk !== undefined && chunk !== null) {
-      text += typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
+      raw += typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
     }
-    text += this.decoder.end();
+    raw += this.decoder.end();
+    const text = this._stripIncoming(raw);
     let out = this._process(text);
     if (this.lineStartBuffer.length > 0) {
       out += this._flushLineStartBuffer(false);
     }
     out += this._flushAtBoundary(true);
+    if (this.stripIncomingCount > 0 && STRIP_INCOMING_MODE !== 'off') {
+      _logBidiStrip(`session end — total ${this.stripIncomingCount} bidi control char(s) stripped this session`);
+    }
     return out;
   }
 
