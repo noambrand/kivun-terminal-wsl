@@ -660,8 +660,16 @@ jobs:
           Get-Content $tmpScript | ForEach-Object { Write-Host $_ }
           Write-Host "------------------------------"
 
-          # Translate the Windows path to its /mnt/c/... WSL form.
-          $wslPath = (wsl wslpath -u "$tmpScript").Trim()
+          # Translate the Windows path to its /mnt/<drive>/... WSL form.
+          # Doing this in PS instead of via `wsl wslpath -u` because the
+          # PS->wsl.exe arg boundary strips backslashes from path args
+          # ("D:\a\_temp\..." arrived inside WSL as "D:a_temp..." with
+          # all separators eaten), which made wslpath silently return
+          # null and the .Trim() call below blew up with
+          # "You cannot call a method on a null-valued expression".
+          $drive  = $tmpScript.Substring(0, 1).ToLower()
+          $rest   = $tmpScript.Substring(2) -replace '\\', '/'
+          $wslPath = "/mnt/$drive$rest"
           Write-Host "Exec: wsl bash $wslPath"
           wsl -d Ubuntu --user root -- bash $wslPath
           if ($LASTEXITCODE -ne 0) { throw "stub setup script failed inside WSL" }
