@@ -109,6 +109,27 @@ TEXT_DIRECTION=rtl
 KIVUN_BIDI_WRAPPER=on
 
 # =================================================================
+# STRIP BULLET on Hebrew lines (Konsole 23.x bullet-line workaround)
+# =================================================================
+# When set to "on", the BiDi wrapper removes the leading bullet (●)
+# from any line whose first strong char is Hebrew. The bullet alone
+# is what was making Konsole 23.x leave Hebrew bullet-lines stuck on
+# the LEFT side of the screen: the BiDi engine treats ● as a
+# direction-anchoring neutral and won't flip the line RTL. Without
+# the bullet, the line's first visible char is Hebrew, BiDi flips
+# the line RTL automatically, and the Hebrew renders right-aligned.
+#
+# Trade-off: you lose the visible bullet marker on Hebrew bullet
+# lines (the indentation stays). Most users find this preferable to
+# the broken left-alignment. English lines are not affected.
+#
+# Default: on (user-confirmed fix in v1.1.8 for the Konsole 23.x
+# bullet-LTR bug). Set to "off" if you're on Konsole 24.04+ and want
+# the visible bullet markers back; that version renders correctly
+# without the workaround.
+KIVUN_BIDI_STRIP_BULLET=on
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information

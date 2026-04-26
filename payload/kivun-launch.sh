@@ -392,6 +392,22 @@ if [ -f "$SCRIPT_DIR/config.txt" ]; then
     [ -n "$val" ] && KIVUN_BIDI_WRAPPER="$val"
 fi
 
+# Bullet-strip on Hebrew lines. ON by default after a v1.1.8 user-confirmed
+# fix: Konsole 23.x (Ubuntu 24.04 default) classifies the leading ● as
+# LTR-anchoring and refuses to flip the line RTL even with RLM at start.
+# Stripping the bullet means the first visible char is Hebrew and BiDi
+# flips the line RTL automatically. Set to "off" in config.txt to keep
+# bullet markers visible (alignment will revert to broken on Konsole 23.x;
+# Konsole 24.04+ is unaffected and may not need this).
+KIVUN_BIDI_STRIP_BULLET="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_STRIP_BULLET[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_STRIP_BULLET[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_STRIP_BULLET="$val"
+fi
+export KIVUN_BIDI_STRIP_BULLET
+log "INFO - KIVUN_BIDI_STRIP_BULLET=$KIVUN_BIDI_STRIP_BULLET"
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates
