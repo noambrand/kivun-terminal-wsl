@@ -689,6 +689,12 @@ jobs:
             }
           }
           Write-Host "Setup OK: claude only at /opt/kivun-test, none of the standard slots."
+          # The negative-check loop above intentionally invokes commands
+          # that exit 1 (test -x on missing files). PowerShell propagates
+          # the LAST $LASTEXITCODE as the step's exit code, so without
+          # this the step would fail despite reaching "Setup OK".
+          $global:LASTEXITCODE = 0
+          exit 0
 
       - name: Run launcher with AUTO_INSTALL_CLAUDE=no
         shell: pwsh
