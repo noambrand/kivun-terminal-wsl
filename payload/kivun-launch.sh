@@ -515,9 +515,13 @@ chmod +x "$LAUNCH_TMP"
 log "SUCCESS - Launch script created: $LAUNCH_TMP (CLAUDE_PROMPT length: ${#CLAUDE_PROMPT})"
 
 log "INFO - Launching Konsole with KivunTerminal profile"
-log "INFO - Command: konsole --profile KivunTerminal -e $LAUNCH_TMP"
+log "INFO - Command: setsid konsole --profile KivunTerminal -e $LAUNCH_TMP"
 
-konsole --profile KivunTerminal -e "$LAUNCH_TMP" >> "$LOG_FILE" 2>&1 &
+# setsid detaches Konsole into a new session so it survives the parent
+# bash dying (e.g. user closes the cmd.exe window or the wsl bridge
+# exits). Without this, closing the launcher's console window sent
+# SIGHUP to Konsole and killed the live Claude session along with it.
+setsid konsole --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
 KPID=$!
 
 if [ $KPID -gt 0 ]; then
@@ -598,6 +602,28 @@ if command -v xdotool >/dev/null 2>&1; then
   if [ -n "$WID" ]; then
     log "SUCCESS - Found Konsole window (ID: $WID)"
     xdotool set_window --name "Kivun Terminal" "$WID" 2>/dev/null
+
+    # Override the X server's default window icon (VcXsrv shows its own
+    # X if the client doesn't set _NET_WM_ICON; Konsole sets only an
+    # empty NAME). Best-effort: silently skip if python deps or icon
+    # file are missing — the launcher already works without it.
+    ICON_DIR="$(dirname "$0")"
+    ICON_PNG="${ICON_DIR}/kivun-icon.png"
+    ICON_PY="${ICON_DIR}/kivun-set-icon.py"
+    if [ -f "$ICON_PNG" ] && [ -f "$ICON_PY" ] && command -v python3 >/dev/null 2>&1; then
+      if python3 -c "import Xlib, PIL" 2>/dev/null; then
+        if python3 "$ICON_PY" "$WID" "$ICON_PNG" >> "$LOG_FILE" 2>&1; then
+          log "SUCCESS - Window icon set from $ICON_PNG"
+        else
+          log "WARNING - Setting window icon failed (see log above)"
+        fi
+      else
+        log "INFO - Skipping icon override (python3-xlib + python3-pil not installed)"
+      fi
+    else
+      log "INFO - Skipping icon override (icon assets not deployed)"
+    fi
+
     if [ -n "$TARGET_W" ]; then
       # Unmaximize first so size/move take effect reliably
       wmctrl -i -r "$WID" -b remove,maximized_vert,maximized_horz 2>/dev/null
