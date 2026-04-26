@@ -11,7 +11,10 @@
 
 Go to the [releases page](https://github.com/noambrand/kivun-terminal-wsl/releases/latest) and download `Kivun_Terminal_Setup.exe`.
 
-The installer is currently **unsigned**. Windows SmartScreen may warn you - click *More info* → *Run anyway*.
+The installer is currently **unsigned**. You may hit one of two Windows protections:
+
+- **Smart App Control (SAC)** on Windows 11: dialog says *"Smart App Control blocked an app that may be unsafe"* with only an **Ok** button - no override. SAC refuses unsigned apps entirely. To install, open **Start** → search **Smart App Control** → switch it **Off**. SAC cannot be turned back on without reinstalling Windows, so leave it off only if you're comfortable running other unsigned apps.
+- **SmartScreen** (the milder warning): says *"Windows protected your PC"*. Click **More info** → **Run anyway**.
 
 ## Step 2 - Prerequisite: WSL2
 
@@ -33,7 +36,7 @@ Once WSL2 is set up, you do **not** need admin rights again.
 
 Double-click `Kivun_Terminal_Setup.exe`. The installer runs as your normal user and writes only to your profile (`%LOCALAPPDATA%\Kivun-WSL`).
 
-Note: until the installer is code-signed, Windows SmartScreen may show "Windows protected your PC". Click *More info* → *Run anyway*.
+Note: until the installer is code-signed, Windows SmartScreen may show "Windows protected your PC". Click *More info* → *Run anyway*. On Windows 11 with **Smart App Control** turned on, the installer is blocked outright - see Step 1 for how to turn SAC off.
 
 The wizard steps:
 

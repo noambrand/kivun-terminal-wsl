@@ -67,6 +67,11 @@
 3. Double-click to run - no admin rights needed once WSL is up.
 4. Double-click the **Kivun Terminal** desktop shortcut, or right-click any folder → **Open with Kivun Terminal**.
 
+> **Windows 11 - Smart App Control may block the installer.** If you see *"Smart App Control blocked an app that may be unsafe"* (clicking *Ok* dismisses it without an *override* option), the installer is unsigned and SAC won't allow unknown apps at all. To install: open **Start** → search **Smart App Control** → set it to **Off**. SAC cannot be re-enabled without reinstalling Windows, so leave it Off only if you're comfortable running other unsigned apps. See [SmartScreen warning](#windows-smartscreen) below for the milder warning you'll get with SAC off.
+
+<a id="windows-smartscreen"></a>
+> **Windows SmartScreen warning** (different from SAC): with SAC off, you may still see *"Windows protected your PC"*. Click **More info** → **Run anyway**. The installer is unsigned today; the warning will fade once enough downloads accumulate Microsoft's reputation signal.
+
 ### Linux
 
 ```bash
@@ -235,6 +240,8 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 - **Windows:** `wsl --install` חד-פעמי, אז להוריד את `Kivun_Terminal_Setup.exe` מ-[הגרסה האחרונה](https://github.com/noambrand/kivun-terminal-wsl/releases/latest) ולהריץ.
 - **Linux:** `git clone` + `./linux/install.sh`. תומך ב-apt/dnf/pacman/zypper.
 - **macOS:** להוריד את `Kivun_Terminal_Setup_mac.pkg` ולהריץ.
+
+> **Windows 11 - Smart App Control חוסם את ההתקנה.** אם רואים *"Smart App Control blocked an app that may be unsafe"* בלי כפתור עקיפה - SAC לא מאפשר אפליקציות לא חתומות בכלל. כדי להתקין: פותחים **Start** → מחפשים **Smart App Control** → מעבירים ל-**Off**. אי אפשר להפעיל מחדש את SAC בלי התקנה מחדש של Windows, אז להשאיר Off רק אם זה בסדר עבורכם להריץ אפליקציות לא חתומות אחרות. אחרי שמכבים את SAC, ייתכן שעדיין תופיע אזהרת SmartScreen *"Windows protected your PC"* - לוחצים **More info** ואז **Run anyway**.
 
 ### 🧠 על תמיכת ה-RTL
 

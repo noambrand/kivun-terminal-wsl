@@ -1,11 +1,11 @@
-; Kivun Terminal v1.1.3 - Professional Installer
+; Kivun Terminal v1.1.4 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.1.3"
+!define PRODUCT_VERSION "1.1.4"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -83,6 +83,7 @@ Section "Core Files" SEC_CORE
 
   File "..\payload\kivun-terminal.bat"
   File "..\payload\kivun-launch.sh"
+  File "..\payload\kivun-direct.sh"
   File "..\payload\kivun.xlaunch"
   File "..\payload\statusline.mjs"
   File "..\payload\configure-statusline.js"
@@ -393,6 +394,7 @@ Section "Uninstall"
   ; Remove installed files
   Delete "$INSTDIR\kivun-terminal.bat"
   Delete "$INSTDIR\kivun-launch.sh"
+  Delete "$INSTDIR\kivun-direct.sh"
   Delete "$INSTDIR\config.txt"
   Delete "$INSTDIR\kivun.xlaunch"
   Delete "$INSTDIR\VERSION"
