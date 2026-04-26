@@ -102,25 +102,45 @@ renders LTR (the line *starts* with `V` which is LTR-strong) and the Hebrew gets
 <p dir="rtl"><strong>VS Code</strong> הוא IDE טוב, אבל...</p>
 ```
 
-### 8. Use real flag images, not regional-indicator emojis (🇬🇧 / 🇮🇱)
+### 8. Country flags: use a `<table>`, not a `<p>` or a markdown list
 
-The two-character regional-indicator pairs (`🇬🇧` = U+1F1EC U+1F1E7, `🇮🇱` = U+1F1EE U+1F1F1) render as actual flags on Mac, Linux, iOS, and Android — but **Windows renders them as the literal letter pair** ("GB", "IL"). Microsoft's default emoji font has no flag glyphs, by design. Most readers of an open-source GitHub README are on Windows. Don't use these emojis where readers expect a flag.
+This one took five PRs to get right. The bug we kept hitting:
 
-Use a flag-image CDN instead. We use [flagcdn.com](https://flagcdn.com), which serves SVG/PNG flags by ISO country code:
+- Regional-indicator emojis (`🇬🇧 🇮🇱`) render as the literal letter pairs "GB"/"IL" on **Windows** — Microsoft's emoji font has no flag glyphs, by design. Most GitHub readers are on Windows. Don't use these emojis where readers expect flags.
+- So we switched to PNG flags from [`flagcdn.com`](https://flagcdn.com) - real images that render the same on every OS. **But:** GitHub's renderer auto-injects `style="...display: block"` on every `<img>` inside markdown content. That `display: block` makes the flag stack on its own line above any sibling text or link, no matter how the markup is structured. Width, height, `align="absmiddle"`, `valign`, `<picture>` wrappers, image-outside-the-anchor — none of it overrides the injected `display: block`, because GitHub's HTML sanitizer drops your `style` attribute and the CSS class selector wins.
+- Gemoji shortcodes (`:uk:`, `:israel:`) **partially** work — GitHub renders them as raw unicode chars in the API output (no `<g-emoji>` wrapper), and on the actual page Twemoji applies, but only sometimes and not reliably across viewers. Also, only specific aliases work: `:uk:`, `:gb:`, `:flag_gb:` are valid; `:israel:`, `:flag_il:` valid; `:flag-il:` (hyphen) is **not** valid.
+- `shields.io` badges with `?logo=linkedin` (and similar) are **broken** — the LinkedIn icon was removed from shields.io's named-logos list. The icon never embeds in the SVG. Drop the `?logo=` param and use a clean text badge.
+
+The only thing that actually puts flag image + text on a single line:
 
 ```html
-<!-- In a heading or paragraph -->
-## English <img src="https://flagcdn.com/24x18/gb.png" alt="GB flag" width="24" height="18" align="absmiddle">
-
-<!-- In a centered language pill at the top of the README -->
-<p align="center">
-  <a href="#english"><img src="https://flagcdn.com/24x18/gb.png" alt="GB flag" width="24" height="18" align="absmiddle"> <strong>English</strong></a>
-</p>
+<table align="center" border="0" cellspacing="0" cellpadding="6"><tr>
+<td valign="middle"><img src="https://flagcdn.com/20x15/gb.png" alt="GB" width="20" height="15"></td>
+<td valign="middle"><a href="#english"><b>English</b></a></td>
+<td valign="middle"><img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15"></td>
+<td valign="middle"><a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a></td>
+</tr></table>
 ```
 
-GitHub strips inline `<img>` from anchor slugs, so a heading like `## English <img ...>` produces the slug `#english` (no trailing dash). Same heading with the emoji `## English 🇬🇧` would produce `#english-` (trailing dash from the stripped emoji-as-separator). If you migrate from emoji to image, update the anchor links in the same change.
+Each `<td>` bounds the `display: block` to the cell's natural width; the table row forces horizontal layout. Trade-off: GitHub's CSS adds visible 1px borders on every `<th>`/`<td>` in markdown tables, and you cannot suppress them — `style="border:none"` is stripped. You will see grey cell borders. There is no way around this with content-only markup; the alternative (no table) is the flag-stacked-above-text problem.
 
-The same applies to `:uk:` / `:israel:` shortcodes — GitHub renders those via Twemoji, but only inside `<p>` and list contexts, not always inside headings, and the reader's experience still depends on the renderer.
+GitHub strips inline `<img>` from anchor slugs, so `## English 🇬🇧` produces the slug `english-` (trailing dash from the stripped emoji), and `## English <img ...>` produces `english`. Update anchor links in the same change as you change heading flags.
+
+### 9. The shields.io named-logo set is not stable
+
+`?logo=NAME` on shields.io looks up `NAME` in their internal named-logos list. That list is not the same as simple-icons.org's full set, and shields.io periodically removes logos (notably `linkedin` as of mid-2026). When a logo is missing, shields.io silently returns the badge without it - no error, no warning, just no icon. Verify by curling the badge SVG and checking for `<image>`:
+
+```bash
+curl -s "https://img.shields.io/badge/X-Y-blue?logo=NAME" | grep -c '<image'
+# 1 = logo embedded; 0 = NAME not in shields.io's named-logos list
+```
+
+If the logo is missing, options:
+1. Drop the `?logo=` param and use a clean text badge.
+2. Use a different badge generator (`custom-icon-badges.demolab.com` covers some that shields.io dropped, but its icon names are also non-portable).
+3. Use a separate `<img>` with the icon next to the badge.
+
+Inline `<svg>` is **not** an option — GitHub's sanitizer strips `<svg>` from markdown content entirely.
 
 ## What we tested but did NOT use
 
@@ -128,6 +148,10 @@ The same applies to `:uk:` / `:israel:` shortcodes — GitHub renders those via 
 - **`text-align: right` via inline `style=""`** — GitHub's sanitizer drops `style` attributes on most elements.
 - **CSS isolation directives in code blocks** — irrelevant; we wanted *display* RTL, not character-level isolation.
 - **Unicode RLM (U+200F) at line starts** — works but invisible in source, so it confused future-us reading the diff. We use it programmatically inside the `kivun-claude-bidi` wrapper (terminal output) but not in human-edited Markdown.
+- **Inline `<svg>` for flag icons** — stripped by GitHub's sanitizer.
+- **`<picture>` wrapper to override img display** — the inner `<img>` still gets `display: block` from GitHub's CSS injection.
+- **`align="absmiddle"` / `valign="middle"` on `<img>`** — deprecated HTML4 attributes, stripped by GitHub.
+- **`style="border:none"` on `<table>`/`<td>`** — GitHub strips `style` from table elements; cell borders persist.
 
 ## Quick checklist when adding Hebrew to a README
 
@@ -138,7 +162,8 @@ The same applies to `:uk:` / `:israel:` shortcodes — GitHub renders those via 
 5. Code, paths, commands left in English? ✅
 6. Em-dashes replaced with hyphens? ✅
 7. Lines that opened with English content reordered or wrapped in `<p dir="rtl">`? ✅
-8. Country flags rendered via `<img>` from a flag CDN, not via regional-indicator emojis (Windows shows those as letter pairs)? ✅
+8. Country flags rendered via PNG `<img>` inside a `<table>` (not via regional-indicator emojis, not in a `<p>` — Windows shows emojis as letter pairs, and `<p>`-based layout stacks the flag above text)? ✅
+9. shields.io `?logo=` params verified by curling the SVG and checking for `<image>` (the named-logo list is not stable; if missing, drop the `?logo=`)? ✅
 
 If a section still renders LTR after all of the above, the next debugging step is "view the rendered HTML on github.com, find the element with the wrong direction, see what wrapper is needed." It is almost always a markdown-to-HTML construct that didn't inherit the parent direction.
 
