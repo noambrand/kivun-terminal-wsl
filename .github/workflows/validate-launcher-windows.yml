@@ -609,51 +609,62 @@ jobs:
           # simulates the nvm/pnpm/yarn pattern of "PATH gets set up
           # by rc files, not by the system default".
           #
-          # IMPORTANT: each step is its own single-line `bash -c` call.
-          # The earlier multi-line `bash -c @"..."@` here-string approach
-          # broke because PowerShell preserved the script indent (so the
-          # bash heredoc closer had leading whitespace and never matched)
-          # AND PowerShell injected CRLF line endings (so bash saw
-          # `set -e\r` and failed). Single-line invocations sidestep both.
-          wsl -d Ubuntu --user root -- bash -c "mkdir -p /opt/kivun-test"
-          if ($LASTEXITCODE -ne 0) { throw "mkdir /opt/kivun-test failed" }
+          # ABANDONED: inline `wsl bash -c "..."` quoting.
+          # Multiple CI rounds proved that `$PATH` could not be passed
+          # through PowerShell -> wsl.exe -> bash unexpanded by ANY
+          # combination of PS escapes and bash quote nesting. Even with
+          # PS double-quote outer + bash single-quote inner, bash STILL
+          # expanded $PATH at echo time, dropping the runner's literal
+          # PATH (full of `(x86)` parens) into .profile and breaking
+          # every subsequent `bash -lc` with "syntax error near `('".
+          #
+          # Approach that actually works: write a real bash script to
+          # disk on the Windows side (with LF line endings, no PS
+          # interpolation), then exec it inside WSL. Inside the script,
+          # bash quoting works exactly like it does on any Linux machine
+          # because there's no Win32-cmdline middleware mangling args.
+          $setupScript = @'
+          #!/bin/bash
+          set -e
+          mkdir -p /opt/kivun-test
+          cat > /opt/kivun-test/claude <<'STUB'
+          #!/bin/bash
+          echo "kivun-test claude stub v1.1.6 (non-standard PATH)"
+          exit 0
+          STUB
+          chmod +x /opt/kivun-test/claude
+          # Bash single quotes around the whole export -- $PATH stays
+          # literal on disk and expands at source time, not now.
+          grep -q 'kivun-test' /root/.bashrc 2>/dev/null \
+            || echo 'export PATH=/opt/kivun-test:$PATH' >> /root/.bashrc
+          grep -q 'kivun-test' /root/.profile 2>/dev/null \
+            || echo 'export PATH=/opt/kivun-test:$PATH' >> /root/.profile
+          # Verify the login-shell lookup the launcher will perform.
+          bash -lc 'command -v claude'
+          '@ -replace "`r`n", "`n"
 
-          # Write the stub via printf (avoids heredoc, embeds \n explicitly).
-          # The quoting story: PowerShell's outer "..." passes the inner
-          # printf format string to wsl. \n must be a single backslash-n
-          # because bash itself does the escape interpretation.
-          wsl -d Ubuntu --user root -- bash -c "printf '#!/bin/bash\necho kivun-test-stub\nexit 0\n' > /opt/kivun-test/claude"
-          if ($LASTEXITCODE -ne 0) { throw "writing stub failed" }
+          # The PowerShell here-string above preserves the leading 10-space
+          # indent on every line. Strip it so bash sees flush-left content
+          # (heredoc closer 'STUB' MUST start at column 0 to terminate).
+          $setupScript = ($setupScript -split "`n" | ForEach-Object {
+            if ($_ -match '^          (.*)$') { $matches[1] } else { $_ }
+          }) -join "`n"
 
-          wsl -d Ubuntu --user root -- bash -c "chmod +x /opt/kivun-test/claude"
-          if ($LASTEXITCODE -ne 0) { throw "chmod stub failed" }
+          $tmpScript = "$env:RUNNER_TEMP\kivun-stub-setup.sh"
+          [System.IO.File]::WriteAllText(
+            $tmpScript,
+            $setupScript,
+            (New-Object System.Text.UTF8Encoding $false)
+          )
+          Write-Host "----- setup.sh contents -----"
+          Get-Content $tmpScript | ForEach-Object { Write-Host $_ }
+          Write-Host "------------------------------"
 
-          # Append PATH export to .bashrc and .profile.
-          # Quoting story (took two CI rounds to get right):
-          #  - PS double-quote outer + ``$`` escape: stops PowerShell from
-          #    interpolating $PATH on the host side (would resolve to a
-          #    Windows variable that is empty or wrong).
-          #  - bash SINGLE-quote inner: stops bash inside WSL from
-          #    expanding $PATH at echo time. The previous round used
-          #    bash double-quote + `\$PATH`, but the backslash got
-          #    stripped between PS arg-marshalling and wsl.exe, so bash
-          #    saw `$PATH` and wrote the runner's literal PATH (with
-          #    `/mnt/c/Program Files (x86)/...`) into .profile, which
-          #    then broke every subsequent `bash -lc` with
-          #    "syntax error near unexpected token `('".
-          # Both quote layers must protect $ from THEIR layer's expansion.
-          wsl -d Ubuntu --user root -- bash -c "echo 'export PATH=/opt/kivun-test:`$PATH' >> /root/.bashrc"
-          if ($LASTEXITCODE -ne 0) { throw "bashrc append failed" }
-          wsl -d Ubuntu --user root -- bash -c "echo 'export PATH=/opt/kivun-test:`$PATH' >> /root/.profile"
-          if ($LASTEXITCODE -ne 0) { throw "profile append failed" }
-
-          # Verify a login shell sees it (smoke check that the .profile
-          # append worked -- this is the lookup the launcher will perform).
-          $verify = wsl -d Ubuntu --user root -- bash -lc "command -v claude"
-          Write-Host "login-shell sees claude at: $verify"
-          if ($LASTEXITCODE -ne 0 -or -not $verify) {
-            throw "login-shell command -v claude failed -- .profile append did not take"
-          }
+          # Translate the Windows path to its /mnt/c/... WSL form.
+          $wslPath = (wsl wslpath -u "$tmpScript").Trim()
+          Write-Host "Exec: wsl bash $wslPath"
+          wsl -d Ubuntu --user root -- bash $wslPath
+          if ($LASTEXITCODE -ne 0) { throw "stub setup script failed inside WSL" }
 
           # Negative check: standard absolute slots must NOT have claude,
           # otherwise the v1.1.6 discovery branch wouldn't fire and the
