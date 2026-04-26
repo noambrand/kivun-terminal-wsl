@@ -230,6 +230,25 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo   Konsole: OK
 
+REM Ensure python3-xlib + python3-pil are present so kivun-launch.sh
+REM can override the Konsole window icon (see kivun-set-icon.py). This
+REM is optional -- the launcher logs and skips if missing -- but the
+REM cost of pre-installing is low and gives every user the branded
+REM icon out of the box. Use --user root to avoid sudo password prompts.
+call :LOG "INFO - Checking python3-xlib + python3-pil for icon override"
+wsl -d Ubuntu -- bash -c "python3 -c 'import Xlib, PIL' 2>/dev/null" >> "%LOG_FILE%" 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    call :LOG "INFO - Installing python3-xlib + python3-pil"
+    wsl -d Ubuntu --user root -- apt-get install -y python3-xlib python3-pil >> "%LOG_FILE%" 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        call :LOG "WARNING - python deps install failed; window will keep default X icon"
+    ) else (
+        call :LOG "SUCCESS - python deps installed"
+    )
+) else (
+    call :LOG "SUCCESS - python deps already present"
+)
+
 REM Convert paths
 call :LOG "INFO - Converting Windows paths to WSL paths"
 for /f "delims=" %%i in ('wsl wslpath "%WORK_DIR%" 2^>nul') do set "WSL_PATH=%%i"
@@ -256,9 +275,10 @@ echo.
 echo Path: %WSL_PATH%
 
 REM Fix line endings in launch script (Windows creates CRLF, bash needs LF)
-call :LOG "INFO - Fixing line endings in kivun-launch.sh + kivun-direct.sh"
+call :LOG "INFO - Fixing line endings in kivun-launch.sh + kivun-direct.sh + kivun-set-icon.py"
 wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-launch.sh" 2>&1 >> "%LOG_FILE%"
 wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-direct.sh" 2>&1 >> "%LOG_FILE%"
+wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-set-icon.py" 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Line endings fixed"
 ) else (

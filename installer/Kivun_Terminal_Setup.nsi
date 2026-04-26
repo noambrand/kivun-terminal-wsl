@@ -88,6 +88,11 @@ Section "Core Files" SEC_CORE
   File "..\payload\statusline.mjs"
   File "..\payload\configure-statusline.js"
   File "..\payload\folder-picker.wsf"
+  ; Window-icon override for VcXsrv (which ignores Konsole's empty icon
+  ; and shows its own X). kivun-set-icon.py reads kivun-icon.png and
+  ; writes _NET_WM_ICON via python-xlib. See payload/kivun-set-icon.py.
+  File "..\payload\kivun-set-icon.py"
+  File "..\payload\kivun-icon.png"
   File "kivun_icon.ico"
   File "..\VERSION"
   File "..\docs\README.md"
@@ -395,6 +400,8 @@ Section "Uninstall"
   Delete "$INSTDIR\kivun-terminal.bat"
   Delete "$INSTDIR\kivun-launch.sh"
   Delete "$INSTDIR\kivun-direct.sh"
+  Delete "$INSTDIR\kivun-set-icon.py"
+  Delete "$INSTDIR\kivun-icon.png"
   Delete "$INSTDIR\config.txt"
   Delete "$INSTDIR\kivun.xlaunch"
   Delete "$INSTDIR\VERSION"
