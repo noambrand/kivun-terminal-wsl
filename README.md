@@ -220,8 +220,8 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 ### ✨ במה זה שונה?
 
 - **לעומת Claude Code ב-Windows Terminal:** ל-Windows Terminal אין מנוע BiDi כלל; כל פלט עברי מוצג LTR וקרוס. כיוון מריץ את הפלט דרך WSL2 + Konsole, שכן יש לה מנוע BiDi מלא.
-- **לעומת התקנה ידנית של WSL2 + Konsole:** אפשר כמובן להתקין WSL2 + Konsole בעצמכם ולהריץ שם את Claude Code - אבל אז צריך גם להגדיר פרופיל Konsole עם הצבעים הנכונים, להוסיף סטטוסליין שמראה מודל / קונטקסט / שימוש, להגדיר Alt+Shift להחלפת שפה, ולכתוב wrapper שמטפל בבאגי ה-BiDi של Claude Code (למשל הבאג שבו השורה הראשונה עם `●` מופיעה הפוך). כיוון נותן את כל זה מוכן בקליק אחד.
 - **לעומת Claude Code ב-VS Code:** כיוון הוא לטרמינל, לא ל-IDE. אם אתם עובדים בעיקר משורת פקודה - זה מה שאתם רוצים. למי שעובד מ-IDE יש פתרון נפרד של [גיא רונן](https://github.com/GuyRonnen/rtl-for-vs-code-agents) (ראו פרויקטים קשורים למטה).
+- **לעומת אפליקציות Claude (דסקטופ ו-mobile):** האפליקציות של Claude הן ממשק צ'אט בלבד - הן לא יכולות לקרוא קבצים מהמחשב שלכם, להריץ פקודות, או לערוך קוד בפועל. Claude Code (שכיוון מריץ אותו) הוא assistant שעובד ישירות בקוד שלכם - קורא קבצים, מריץ tests, עושה commits. בחרו באפליקציה לצ'אט מהיר על שאלה בודדת; בחרו ב-Claude Code (ועם תמיכת RTL - בכיוון) לעבודה אמיתית בפרויקט.
 
 ### 🚀 פיצ'רים
 
@@ -248,11 +248,103 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 <strong>Windows 11 - Smart App Control חוסם את ההתקנה.</strong> אם רואים <em>"Smart App Control blocked an app that may be unsafe"</em> בלי כפתור עקיפה - SAC לא מאפשר אפליקציות לא חתומות בכלל. כדי להתקין: פותחים <strong>Start</strong> ← מחפשים <strong>Smart App Control</strong> ← מעבירים ל-<strong>Off</strong>. אי אפשר להפעיל מחדש את SAC בלי התקנה מחדש של Windows, אז להשאיר Off רק אם זה בסדר עבורכם להריץ אפליקציות לא חתומות אחרות. אחרי שמכבים את SAC, ייתכן שעדיין תופיע אזהרת SmartScreen <em>"Windows protected your PC"</em> - לוחצים <strong>More info</strong> ואז <strong>Run anyway</strong>.
 </blockquote>
 
+### 📊 סטטוסליין
+
+סטטוסליין חי בשתי שורות בתחתית כל סשן Claude Code - אותו `statusline.mjs` מותקן בכל ההתקנות (Windows / Linux / macOS) ונרשם אוטומטית ב-`~/.claude/settings.json`:
+
+> **MyProject** | 🟢 Sonnet 4.6 | Context 🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜ 51% | tokens: 284K | 24:13
+>
+> Session 🟨🟨🟨🟨🟨🟨🟨🟨⬜⬜ 77% resets in 4h15m &nbsp;|&nbsp; Weekly 🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜ 16% resets in 6d18h
+
+| שדה | מה זה מציג |
+|------|------------|
+| **מודל** | המודל הפעיל של Claude (צבעים: ירוק = Opus, צהוב = Sonnet/Haiku) |
+| **קונטקסט** | אחוז חלון הקונטקסט שנוצל (ירוק/צהוב/אדום) |
+| **טוקנים** | סכום קלט + פלט בסשן הזה |
+| **Session / Weekly** | אחוז מגבלת השימוש עם ספירה לאיפוס |
+
+### 🎨 ערכת נושא לטרמינל
+
+ערכת צבעים בתכלת בהיר של Kivun (`#C8E6FF` ברקע, טקסט כהה, סמן כחול) מותקנת אוטומטית ומופעלת כברירת מחדל:
+
+| פלטפורמה | מה מותקן | קובץ |
+|---|---|---|
+| Windows (WSL+Konsole) | `KivunTerminal.profile` + `ColorSchemeNoam.colorscheme` | `~/.local/share/konsole/` (בתוך WSL) |
+| Linux (Konsole) | אותו פרופיל וערכת צבעים | `~/.local/share/konsole/` |
+| macOS (Terminal.app) | רקע / סמן / צבעי טקסט מוגדרים דרך osascript בהפעלה | מוחל בזמן ריצה |
+
+לחזור לברירת המחדל של הטרמינל: להגדיר `TERMINAL_COLOR=default` בקובץ ה-config.
+
 ### 🧠 על תמיכת ה-RTL
 
 ה-wrapper `kivun-claude-bidi` הוא מודול Node שמלפף סביב Claude Code. הוא מזהה רצפי טקסט בעברית בפלט ועוטף אותם בסימני BiDi של Unicode (RLE/PDF), כך שהם מוצגים בכיוון הנכון גם בטרמינלים שתמיכת ה-BiDi שלהם חלקית. בנוסף, הוא מחדיר RLM (U+200F) בתחילת כל שורה שהאות החזקה הראשונה שלה היא RTL - מה שמתקן את הבאג ב-Claude Code שבו `● שלום` היה מופיע משמאל לימין במקום מימין לשמאל.
 
 לפירוט מלא של האלגוריתם, ראו [`docs/specs/BIDI_ALGORITHM.md`](docs/specs/BIDI_ALGORITHM.md). למעקב אחרי הבאג ב-upstream של Anthropic, ראו [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881). אם אתם רוצים לתרום תיעוד עברי לריפו הזה, יש מדריך מעשי ב-[`docs/HEBREW_RTL_GITHUB.md`](docs/HEBREW_RTL_GITHUB.md) על איך לכתוב עברית שתעבוד נכון ב-GitHub.
+
+### 🏗️ ארכיטקטורה
+
+```mermaid
+graph TD
+    A[Installer .exe / .pkg / install.sh] --> B{Dependency Check}
+    B -->|Missing| C[Install Konsole/Terminal + Node.js + Git]
+    B -->|Present| D[Skip]
+    C --> E[Install Claude Code via curl claude.ai/install.sh]
+    D --> E
+    E --> F[Deploy kivun-claude-bidi wrapper + npm install]
+    F --> G[Register Konsole profile / WT theme / Terminal.app config]
+    G --> H[Create Desktop Shortcut + Right-Click Integration]
+
+    subgraph Runtime
+        I[Launcher] --> J[Read config: KIVUN_BIDI_WRAPPER, RESPONSE_LANGUAGE, ...]
+        J --> K{Wrapper enabled?}
+        K -->|Yes| L[Spawn kivun-claude-bidi → claude]
+        K -->|No| M[Spawn claude directly]
+        L --> N[Konsole / Terminal.app / iTerm2]
+        M --> N
+    end
+```
+
+### 🧰 ערכת הכלים
+
+| רכיב | טכנולוגיה | מטרה |
+|------|-----------|------|
+| התקנה ל-Windows | NSIS | התקנה למשתמש בלבד עם בוטסטראפ של WSL/Ubuntu/Konsole |
+| התקנה ל-Linux | Bash + apt/dnf/pacman/zypper | התקנת חבילות מודעת-distro + פריסה לבית המשתמש |
+| התקנה ל-macOS | pkgbuild | `.pkg` עם postinstall דרך Homebrew |
+| BiDi wrapper | Node.js + node-pty | מעביר פלט Claude דרך מכונת מצבים של Unicode RLE/PDF/RLM |
+| פרופיל Konsole | KDE Konsole `.profile` + `.colorscheme` | ערכת Kivun בתכלת + `BidiEnabled=true` |
+| מפת שפות | `payload/languages.sh` משותף | מפת `--append-system-prompt` ל-23 שפות, נטענת על ידי כל המשגרים |
+| CI/CD | GitHub Actions | בנייה אוטומטית של `.exe` ל-Windows + `.pkg` ל-macOS + `.tar.gz` ל-Linux בכל tag |
+
+### ⚙️ קונפיגורציה
+
+קובצי קונפיג לפי פלטפורמה (אותה סכמה ב-3):
+
+| פלטפורמה | נתיב |
+|---|---|
+| Windows | `%LOCALAPPDATA%\Kivun-WSL\config.txt` |
+| Linux | `~/.config/Kivun-Terminal/config.txt` |
+| macOS | `~/Library/Application Support/Kivun-Terminal/config.txt` |
+
+```ini
+RESPONSE_LANGUAGE=hebrew         # 23+ שפות נתמכות
+TEXT_DIRECTION=rtl               # rtl או ltr
+KIVUN_BIDI_WRAPPER=on            # on (ברירת מחדל) או off
+AUTO_INSTALL_CLAUDE=yes          # yes (ברירת מחדל) / ask / no
+CLAUDE_FLAGS=                    # למשל --continue
+```
+
+ראו [`docs/CHANGELOG.md`](docs/CHANGELOG.md) לרשימה המלאה של השפות הנתמכות וכל מפתחות ה-config.
+
+### 🤝 תרומה לפרויקט
+
+תרומות מתקבלות בברכה. תחומים שעזרה בהם במיוחד שימושית:
+
+- **מתג מקלדת ל-Wayland** - `setxkbmap` עובד רק ב-X11; Wayland צריך החלפת layout ספציפית לסביבת השולחן.
+- **כיסוי שפות RTL נוספות** - N'Ko, Adlam, Mandaic ועוד מספר שפות נופלות כרגע ל-fallback של מפת ה-xkb של עברית.
+- **בדיקות אינטגרציה** - distro-ים שונים, סביבות שולחן עבודה שונות, אמולטורי טרמינל שונים ב-macOS.
+
+עשו fork לריפו, בצעו את השינויים, ופתחו PR.
 
 ### 🤝 פרויקטים קשורים בקהילת RTL-for-AI-tools
 
@@ -280,7 +372,7 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
   <strong>Made by <a href="https://github.com/noambrand">Noam Brand</a></strong>
   <br><br>
   <a href="https://github.com/noambrand"><img src="https://img.shields.io/badge/GitHub-noambrand-181717?logo=github" alt="GitHub"></a>
-  <a href="https://www.linkedin.com/in/noambrand/"><img src="https://img.shields.io/badge/LinkedIn-noambrand-0A66C2?logo=linkedin&logoColor=white" alt="LinkedIn"></a>
+  <a href="https://www.linkedin.com/in/noambrand/"><img src="https://img.shields.io/badge/LinkedIn-noambrand-0A66C2" alt="LinkedIn"></a>
   <a href="https://www.facebook.com/noambbb/"><img src="https://img.shields.io/badge/Facebook-noambbb-1877F2?logo=facebook&logoColor=white" alt="Facebook"></a>
   <a href="mailto:noambbb@gmail.com"><img src="https://img.shields.io/badge/Email-noambbb%40gmail.com-EA4335?logo=gmail&logoColor=white" alt="Email"></a>
 </p>
