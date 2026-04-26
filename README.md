@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Kivun_Terminal_Hero.jpeg" width="700" alt="Kivun Terminal - RTL Claude Code on Windows, Linux, macOS">
+  <img src="Kivun_Terminal_Hero.png" width="700" alt="Kivun Terminal - RTL Claude Code on Windows, Linux, macOS">
 </p>
 
 <p align="center">
