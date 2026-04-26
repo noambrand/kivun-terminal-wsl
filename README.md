@@ -1,9 +1,9 @@
-<table align="center" border="0" cellspacing="0" cellpadding="6"><tr>
-<td valign="middle"><img src="https://flagcdn.com/20x15/gb.png" alt="GB" width="20" height="15"></td>
-<td valign="middle"><a href="#english"><b>English</b></a></td>
-<td valign="middle"><b>|</b></td>
-<td valign="middle"><img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15"></td>
-<td valign="middle"><a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a></td>
+<table align="center" border="0" cellspacing="0" cellpadding="6" style="border:none"><tr style="border:none">
+<td valign="middle" style="border:none"><img src="https://flagcdn.com/20x15/gb.png" alt="GB" width="20" height="15"></td>
+<td valign="middle" style="border:none"><a href="#english"><b>English</b></a></td>
+<td valign="middle" style="border:none"><b>|</b></td>
+<td valign="middle" style="border:none"><img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15"></td>
+<td valign="middle" style="border:none"><a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a></td>
 </tr></table>
 
 <p align="center">
@@ -221,7 +221,7 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 ### ✨ במה זה שונה?
 
 - **לעומת Claude Code ב-Windows Terminal:** ל-Windows Terminal אין מנוע BiDi כלל; כל פלט עברי מוצג LTR וקרוס. כיוון מריץ את הפלט דרך WSL2 + Konsole, שכן יש לה מנוע BiDi מלא.
-- **לעומת WSL2 + Konsole "גולמי":** מאפשר התקנה בקליק אחד, פרופיל Konsole מוכן עם הצבעים הנכונים, סטטוסליין, החלפת שפה ב-Alt+Shift, וה-`kivun-claude-bidi` wrapper שפותר את בעיות ה-BiDi הספציפיות של Claude Code (לדוגמה הבאג של bullet line).
+- **לעומת התקנה ידנית של WSL2 + Konsole:** אפשר כמובן להתקין WSL2 + Konsole בעצמכם ולהריץ שם את Claude Code - אבל אז צריך גם להגדיר פרופיל Konsole עם הצבעים הנכונים, להוסיף סטטוסליין שמראה מודל / קונטקסט / שימוש, להגדיר Alt+Shift להחלפת שפה, ולכתוב wrapper שמטפל בבאגי ה-BiDi של Claude Code (למשל הבאג שבו השורה הראשונה עם `●` מופיעה הפוך). כיוון נותן את כל זה מוכן בקליק אחד.
 - **לעומת Claude Code ב-VS Code:** כיוון הוא לטרמינל, לא ל-IDE. אם אתם עובדים בעיקר משורת פקודה - זה מה שאתם רוצים. למי שעובד מ-IDE יש פתרון נפרד של [גיא רונן](https://github.com/GuyRonnen/rtl-for-vs-code-agents) (ראו פרויקטים קשורים למטה).
 
 ### 🚀 פיצ'רים
