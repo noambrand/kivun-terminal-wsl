@@ -3,6 +3,64 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.7] - 2026-04-26
+
+Two related Konsole/VcXsrv UX fixes plus the bilingual hero and statusline polish that hitchhiked on the cut.
+
+### Fixed
+
+- **Closing the launcher cmd window no longer kills the live Claude session.** Previous launch was `konsole ... &`, which made Konsole a child of the wsl-spawned bash; closing the small cmd.exe launcher window SIGHUP'd Konsole and tore down whatever Claude session was in flight. Konsole is now wrapped in `setsid` so it detaches from the launcher process group and survives the cmd.exe close.
+
+### Added
+
+- **Branded window icon over VcXsrv.** Konsole sets only an empty `_NET_WM_ICON_NAME`, so VcXsrv was falling back to its own X glyph in the taskbar. After the WID is known, `payload/kivun-launch.sh` now invokes the new `payload/kivun-set-icon.py` to write a real `_NET_WM_ICON` via python-xlib (4 sizes 16/32/48/64, ARGB pixels, source PNG background removed via corner floodfill). Best-effort: skips silently if `python3-xlib` / `python3-pil` / the source PNG are missing. The Windows installer (`installer/Kivun_Terminal_Setup.nsi`) now auto-installs `python3-xlib` and `python3-pil` so this path works out of the box.
+- **Bilingual He/En README hero** ([PR #38](https://github.com/noambrand/kivun-terminal-wsl/pull/38)) — the top-of-page hero now sells features in both languages instead of just brand.
+
+### Changed
+
+- **Statusline padding bumped to `padding=1`** ([PR #42](https://github.com/noambrand/kivun-terminal-wsl/pull/42)) so the status line breathes a bit more inside Konsole.
+
+## [1.1.6] - 2026-04-26
+
+Active path discovery for `claude`. After absolute slots miss, the launcher and the wrapper now ask the login shell where Claude lives instead of giving up — so users with `nvm`, `pnpm`, `yarn-global`, `snap`, or corporate-managed installs are not forced to set `KIVUN_CLAUDE_BIN`.
+
+### Fixed
+
+- **`bash -lc "command -v claude"` fallback in launcher and wrapper** ([PR #37](https://github.com/noambrand/kivun-terminal-wsl/pull/37)). After v1.1.5 narrowed the presence check to a deterministic absolute-path chain (`~/.local/bin/claude` → `/usr/local/bin/claude` → `/usr/bin/claude`), users with non-standard installs hit a "claude not found" / re-install loop because their actual binary lived under `~/.nvm/...` or `~/.local/share/pnpm/` etc. Both `payload/kivun-terminal.bat` (Windows) and `kivun-claude-bidi/lib/resolve-claude-bin.js` (wrapper resolver) now run `bash -lc "command -v claude"` as a final discovery step before declaring Claude missing.
+- **Bash launcher reads `VERSION` dynamically** ([PR #35](https://github.com/noambrand/kivun-terminal-wsl/pull/35)) so the launch log no longer prints a stale `v1.0.6` tag after upgrades.
+
+### Changed
+
+- **`docs/VCXSRV_TROUBLESHOOTING.md`** clarifies that VcXsrv-unreachable is usually fine on modern Windows 11 — WSLg covers the same surface ([PR #36](https://github.com/noambrand/kivun-terminal-wsl/pull/36)).
+
+## [1.1.5] - 2026-04-26
+
+Stop reinstalling Claude on every launch.
+
+### Fixed
+
+- **Presence check no longer triggers a fresh `curl ... | bash` install on every launch** ([PR #34](https://github.com/noambrand/kivun-terminal-wsl/pull/34)). The old check was `bash -c "command -v claude"` — a non-login bash that does not source `~/.profile`, so `~/.local/bin` (where the official `claude.ai/install.sh` curl installer drops the binary) was not on `PATH`. Result: Claude was always reported "missing" and the v1.1.1 auto-install path fired again on every launch. Replaced with an absolute-path `test -x` chain over `~/.local/bin/claude`, `/usr/local/bin/claude`, `/usr/bin/claude`. Same fix applied in the wrapper resolver `kivun-claude-bidi/lib/resolve-claude-bin.js` so the wrapper agrees with the launcher about whether Claude exists.
+
+### Changed
+
+- **Hebrew README polish (multiple iterations).** PRs #18–#33 covered RTL on the Smart App Control note, arrow direction in RTL contexts, the new `docs/HEBREW_RTL_GITHUB.md` contributor guide, flag-image rendering on Windows GitHub, language-pill table layout, Hebrew section parity with English, working LinkedIn badge, and the corrected Claude Desktop comparison.
+
+## [1.1.4] - 2026-04-26
+
+### Fixed
+
+- **Konsole user detection + `:run_direct` claude PATH** ([PR #17](https://github.com/noambrand/kivun-terminal-wsl/pull/17)).
+
+## [1.1.3] - 2026-04-25
+
+### Changed
+
+- **Launcher installs Claude without asking `[Y/N]`** ([PR #16](https://github.com/noambrand/kivun-terminal-wsl/pull/16)). The v1.1.1 auto-install prompt was friction users were always going to answer `Y` to; collapsed to an automatic install with the same loud logging.
+
+## [1.1.2] - 2026-04-25
+
+Maintenance release between v1.1.1 and v1.1.3 (no user-facing PR notes attached to the GitHub release).
+
 ## [1.1.1] - 2026-04-25
 
 ### Fixed
@@ -247,4 +305,12 @@ Kivun Terminal is carved out of the `chat/` folder in the ClaudeCode Launchpad C
 - Konsole statusline (Sonnet/Opus badge, context %, session usage) - present in Launchpad CLI v2.4.x but not yet ported to this WSL variant. Planned for v1.1.
 - macOS and native Linux builds are out of scope for v1.0.6. Planned for v1.1 (macOS via `pkgbuild` and GitHub Actions `macos-latest` runner).
 
+[1.1.7]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.7
+[1.1.6]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.6
+[1.1.5]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.5
+[1.1.4]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.4
+[1.1.3]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.3
+[1.1.2]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.2
+[1.1.1]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.1
+[1.1.0]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.1.0
 [1.0.6]: https://github.com/noambrand/kivun-terminal-wsl/releases/tag/v1.0.6
