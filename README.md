@@ -1,7 +1,7 @@
 <p align="center">
   <a href="#english-"><img src="https://img.shields.io/badge/English-%F0%9F%87%AC%F0%9F%87%A7-blue?style=for-the-badge" alt="English"></a>
   &nbsp;
-  <a href="#%D7%94%D7%A1%D7%91%D7%A8-%D7%91%D7%A2%D7%91%D7%A8%D7%99%D7%AA-"><img src="https://img.shields.io/badge/%D7%A2%D7%91%D7%A8%D7%99%D7%AA-%F0%9F%87%AE%F0%9F%87%B1-blue?style=for-the-badge" alt="עברית"></a>
+  <a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA-"><img src="https://img.shields.io/badge/%D7%A2%D7%91%D7%A8%D7%99%D7%AA-%F0%9F%87%AE%F0%9F%87%B1-blue?style=for-the-badge" alt="עברית"></a>
 </p>
 
 <p align="center">
@@ -206,7 +206,7 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 
 <div dir="rtl">
 
-## הסבר בעברית 🇮🇱
+## עברית 🇮🇱
 
 > 💡 **עובדים רק באנגלית (LTR)?** הציצו בפרויקט האח **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - אותו קונספט שיגור, אתחול מהיר יותר (~2 שניות), בלי WSL. כיוון טרמינל מתאים כשצריך תמיכת RTL/BiDi בעברית, ערבית, פרסית וכד'.
 
