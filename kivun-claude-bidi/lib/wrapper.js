@@ -7,12 +7,7 @@
 
 const pty = require('node-pty');
 const { Injector } = require('./injector');
-
-const DEFAULT_CLAUDE_BIN = 'claude';
-
-function resolveClaudeBin(env) {
-  return env.KIVUN_CLAUDE_BIN || DEFAULT_CLAUDE_BIN;
-}
+const { resolveClaudeBin } = require('./resolve-claude-bin');
 
 function currentSize(stdout) {
   return {
