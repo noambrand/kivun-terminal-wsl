@@ -182,10 +182,25 @@ REM ~/.local/bin -- the directory where Anthropic's curl installer
 REM drops the binary. So an existing claude install was invisible to
 REM this check, and the launcher reinstalled Claude on every launch
 REM (user report: "it keeps installing the terminal, that's a bit dumb").
-REM Same `test -x` chain as line 499; see comment there for why we
-REM avoid PATH manipulation.
+REM
+REM v1.1.6: try the standard absolute slots first (fast, deterministic),
+REM then fall back to a LOGIN shell PATH lookup that asks bash where
+REM claude actually is. This catches nvm / pnpm / yarn-global / snap /
+REM corp installs whose paths are added to PATH only by .bashrc /
+REM .profile, without requiring the user to set a config var. The
+REM resolver in kivun-claude-bidi/lib/resolve-claude-bin.js does the
+REM same thing on the wrapper side -- both paths agree about what
+REM "installed" means.
 wsl -d Ubuntu -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 goto :claude_present
+REM Standard slots empty -- ask a login shell to actively discover.
+REM bash -lc sources .profile/.bashrc so nvm/pnpm/yarn paths are
+REM visible. The 5-second timeout is a guard against hung rc files.
+wsl -d Ubuntu -- bash -lc "command -v claude" < nul 2>&1 >> "%LOG_FILE%"
+if %ERRORLEVEL% EQU 0 (
+    call :LOG "INFO - Claude found via login-shell PATH (non-standard install location)"
+    goto :claude_present
+)
 call :LOG "ERROR - Claude Code not found in Ubuntu"
 echo   Claude Code: NOT FOUND in WSL
 call :INSTALL_CLAUDE_WSL

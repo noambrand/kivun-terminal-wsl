@@ -563,3 +563,219 @@ jobs:
           name: LAUNCH_LOG-existing-claude-no-reinstall
           path: LAUNCH_LOG.txt
           if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # Job 5 — v1.1.6 active-discovery: launcher must find a claude install
+  # at a NON-STANDARD path (e.g. simulating nvm/pnpm/yarn-global).
+  # We pre-install claude at /opt/kivun-test/claude (NOT in any of the
+  # absolute slots ~/.local/bin, /usr/local/bin, /usr/bin) and add that
+  # dir to the WSL user's .bashrc so a login shell sees it. The v1.1.6
+  # `bash -lc "command -v claude"` fallback must discover it; if the
+  # launcher only checks the standard slots (the v1.1.5 behavior), it
+  # will reinstall instead of skipping. With AUTO_INSTALL_CLAUDE=no a
+  # regression turns into a loud :no_claude_exit.
+  # -------------------------------------------------------------------------
+  test-claude-discovery-from-bashrc:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm WSL is available
+        shell: pwsh
+        run: |
+          wsl --status
+          wsl --version
+
+      - name: Install Ubuntu in WSL (no-launch)
+        shell: pwsh
+        run: |
+          wsl --install -d Ubuntu --no-launch
+          $start = Get-Date
+          do {
+            Start-Sleep -Seconds 5
+            $list = wsl -l -v 2>&1 | Out-String
+            if ($list -match 'Ubuntu') { break }
+          } while (((Get-Date) - $start).TotalSeconds -lt 120)
+          Write-Host $list
+          wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
+
+      - name: Install claude at a NON-STANDARD path + add to .bashrc
+        shell: pwsh
+        run: |
+          # Drop a stub `claude` binary in /opt/kivun-test (not in any
+          # standard slot the resolver hard-codes) and put that dir on
+          # PATH via root's .bashrc so a login shell finds it. This
+          # simulates the nvm/pnpm/yarn pattern of "PATH gets set up
+          # by rc files, not by the system default".
+          #
+          # ABANDONED: inline `wsl bash -c "..."` quoting.
+          # Multiple CI rounds proved that `$PATH` could not be passed
+          # through PowerShell -> wsl.exe -> bash unexpanded by ANY
+          # combination of PS escapes and bash quote nesting. Even with
+          # PS double-quote outer + bash single-quote inner, bash STILL
+          # expanded $PATH at echo time, dropping the runner's literal
+          # PATH (full of `(x86)` parens) into .profile and breaking
+          # every subsequent `bash -lc` with "syntax error near `('".
+          #
+          # Approach that actually works: write a real bash script to
+          # disk on the Windows side (with LF line endings, no PS
+          # interpolation), then exec it inside WSL. Inside the script,
+          # bash quoting works exactly like it does on any Linux machine
+          # because there's no Win32-cmdline middleware mangling args.
+          $setupScript = @'
+          #!/bin/bash
+          set -e
+          mkdir -p /opt/kivun-test
+          cat > /opt/kivun-test/claude <<'STUB'
+          #!/bin/bash
+          echo "kivun-test claude stub v1.1.6 (non-standard PATH)"
+          exit 0
+          STUB
+          chmod +x /opt/kivun-test/claude
+          # Bash single quotes around the whole export -- $PATH stays
+          # literal on disk and expands at source time, not now.
+          grep -q 'kivun-test' /root/.bashrc 2>/dev/null \
+            || echo 'export PATH=/opt/kivun-test:$PATH' >> /root/.bashrc
+          grep -q 'kivun-test' /root/.profile 2>/dev/null \
+            || echo 'export PATH=/opt/kivun-test:$PATH' >> /root/.profile
+          # Verify the login-shell lookup the launcher will perform.
+          bash -lc 'command -v claude'
+          '@ -replace "`r`n", "`n"
+
+          # The PowerShell here-string above preserves the leading 10-space
+          # indent on every line. Strip it so bash sees flush-left content
+          # (heredoc closer 'STUB' MUST start at column 0 to terminate).
+          $setupScript = ($setupScript -split "`n" | ForEach-Object {
+            if ($_ -match '^          (.*)$') { $matches[1] } else { $_ }
+          }) -join "`n"
+
+          $tmpScript = "$env:RUNNER_TEMP\kivun-stub-setup.sh"
+          [System.IO.File]::WriteAllText(
+            $tmpScript,
+            $setupScript,
+            (New-Object System.Text.UTF8Encoding $false)
+          )
+          Write-Host "----- setup.sh contents -----"
+          Get-Content $tmpScript | ForEach-Object { Write-Host $_ }
+          Write-Host "------------------------------"
+
+          # Translate the Windows path to its /mnt/<drive>/... WSL form.
+          # Doing this in PS instead of via `wsl wslpath -u` because the
+          # PS->wsl.exe arg boundary strips backslashes from path args
+          # ("D:\a\_temp\..." arrived inside WSL as "D:a_temp..." with
+          # all separators eaten), which made wslpath silently return
+          # null and the .Trim() call below blew up with
+          # "You cannot call a method on a null-valued expression".
+          $drive  = $tmpScript.Substring(0, 1).ToLower()
+          $rest   = $tmpScript.Substring(2) -replace '\\', '/'
+          $wslPath = "/mnt/$drive$rest"
+          Write-Host "Exec: wsl bash $wslPath"
+          wsl -d Ubuntu --user root -- bash $wslPath
+          if ($LASTEXITCODE -ne 0) { throw "stub setup script failed inside WSL" }
+
+          # Negative check: standard absolute slots must NOT have claude,
+          # otherwise the v1.1.6 discovery branch wouldn't fire and the
+          # test wouldn't actually be testing what we think.
+          $slots = @(
+            "test -x /root/.local/bin/claude",
+            "test -x /usr/local/bin/claude",
+            "test -x /usr/bin/claude"
+          )
+          foreach ($slot in $slots) {
+            wsl -d Ubuntu --user root -- bash -c $slot
+            if ($LASTEXITCODE -eq 0) {
+              throw "Test setup invalid: $slot succeeded but should be empty"
+            }
+          }
+          Write-Host "Setup OK: claude only at /opt/kivun-test, none of the standard slots."
+          # The negative-check loop above intentionally invokes commands
+          # that exit 1 (test -x on missing files). PowerShell propagates
+          # the LAST $LASTEXITCODE as the step's exit code, so without
+          # this the step would fail despite reaching "Setup OK".
+          $global:LASTEXITCODE = 0
+          exit 0
+
+      - name: Run launcher with AUTO_INSTALL_CLAUDE=no
+        shell: pwsh
+        run: |
+          (echo AUTO_INSTALL_CLAUDE=no) | Out-File -FilePath "payload\config.txt" -Encoding ASCII
+          $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
+          [System.IO.File]::WriteAllText($inputFile, "`r`n`r`n`r`n", [System.Text.Encoding]::ASCII)
+
+          $proc = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c", "call payload\kivun-terminal.bat C:\temp < `"$inputFile`"" `
+            -PassThru -NoNewWindow -RedirectStandardOutput "launcher_stdout.txt" `
+            -RedirectStandardError "launcher_stderr.txt"
+
+          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          $start = Get-Date
+          $sawPresent = $false
+          $sawNoClaude = $false
+          while (((Get-Date) - $start).TotalMinutes -lt 5) {
+            if (Test-Path $log) {
+              $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
+              if ($content -match 'SUCCESS - Claude Code is installed') {
+                $sawPresent = $true
+                break
+              }
+              if ($content -match 'EXIT - No Claude in WSL') {
+                $sawNoClaude = $true
+                break
+              }
+            }
+            if ($proc.HasExited) { break }
+            Start-Sleep -Seconds 5
+          }
+
+          if (-not $proc.HasExited) {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+          }
+          Get-Process | Where-Object { $_.ProcessName -in 'claude','wsl','bash','node' } |
+            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+
+          if ($sawNoClaude) {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Get-Content $log -Raw | Write-Host
+            throw "FAIL: launcher hit :no_claude_exit despite claude being on PATH via .bashrc (v1.1.6 active-discovery regression)"
+          }
+          if (-not $sawPresent) {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
+            throw "FAIL: launcher never reached :claude_present"
+          }
+          Write-Host "PASS: launcher discovered claude at non-standard path via login-shell lookup"
+
+      - name: Assert the discovery branch (not the standard-slot branch) fired
+        shell: pwsh
+        run: |
+          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          $content = Get-Content $log -Raw
+          # The v1.1.6 marker for the new login-shell fallback. If we
+          # ever see SUCCESS without this line, that means the standard
+          # slots somehow had claude and our test setup is broken.
+          if ($content -notmatch 'Claude found via login-shell PATH') {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Write-Host $content
+            throw "FAIL: discovery branch did not fire -- standard slots had claude (test setup invalid)"
+          }
+          Write-Host "PASS: v1.1.6 discovery branch fired as expected"
+
+      - name: Copy LAUNCH_LOG into workspace for upload
+        if: always()
+        shell: pwsh
+        run: |
+          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          if (Test-Path $src) {
+            Copy-Item $src -Destination "LAUNCH_LOG.txt"
+          } else {
+            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
+          }
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAUNCH_LOG-claude-discovery-from-bashrc
+          path: LAUNCH_LOG.txt
+          if-no-files-found: warn
