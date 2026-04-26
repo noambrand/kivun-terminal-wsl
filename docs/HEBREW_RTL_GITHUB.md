@@ -102,6 +102,26 @@ renders LTR (the line *starts* with `V` which is LTR-strong) and the Hebrew gets
 <p dir="rtl"><strong>VS Code</strong> הוא IDE טוב, אבל...</p>
 ```
 
+### 8. Use real flag images, not regional-indicator emojis (🇬🇧 / 🇮🇱)
+
+The two-character regional-indicator pairs (`🇬🇧` = U+1F1EC U+1F1E7, `🇮🇱` = U+1F1EE U+1F1F1) render as actual flags on Mac, Linux, iOS, and Android — but **Windows renders them as the literal letter pair** ("GB", "IL"). Microsoft's default emoji font has no flag glyphs, by design. Most readers of an open-source GitHub README are on Windows. Don't use these emojis where readers expect a flag.
+
+Use a flag-image CDN instead. We use [flagcdn.com](https://flagcdn.com), which serves SVG/PNG flags by ISO country code:
+
+```html
+<!-- In a heading or paragraph -->
+## English <img src="https://flagcdn.com/24x18/gb.png" alt="GB flag" width="24" height="18" align="absmiddle">
+
+<!-- In a centered language pill at the top of the README -->
+<p align="center">
+  <a href="#english"><img src="https://flagcdn.com/24x18/gb.png" alt="GB flag" width="24" height="18" align="absmiddle"> <strong>English</strong></a>
+</p>
+```
+
+GitHub strips inline `<img>` from anchor slugs, so a heading like `## English <img ...>` produces the slug `#english` (no trailing dash). Same heading with the emoji `## English 🇬🇧` would produce `#english-` (trailing dash from the stripped emoji-as-separator). If you migrate from emoji to image, update the anchor links in the same change.
+
+The same applies to `:uk:` / `:israel:` shortcodes — GitHub renders those via Twemoji, but only inside `<p>` and list contexts, not always inside headings, and the reader's experience still depends on the renderer.
+
 ## What we tested but did NOT use
 
 - **`<bdi>`** — works in real browsers but GitHub's CSP/sanitizer strips it from rendered Markdown.
@@ -118,6 +138,7 @@ renders LTR (the line *starts* with `V` which is LTR-strong) and the Hebrew gets
 5. Code, paths, commands left in English? ✅
 6. Em-dashes replaced with hyphens? ✅
 7. Lines that opened with English content reordered or wrapped in `<p dir="rtl">`? ✅
+8. Country flags rendered via `<img>` from a flag CDN, not via regional-indicator emojis (Windows shows those as letter pairs)? ✅
 
 If a section still renders LTR after all of the above, the next debugging step is "view the rendered HTML on github.com, find the element with the wrong direction, see what wrapper is needed." It is almost always a markdown-to-HTML construct that didn't inherit the parent direction.
 
