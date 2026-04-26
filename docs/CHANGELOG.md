@@ -3,6 +3,19 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.8] - 2026-04-26
+
+Workaround for the Konsole 23.x bullet-LTR rendering bug. Hebrew bullet lines from Claude (lines starting with `●`) were rendering with the bullet stuck on the LEFT side of the screen on Ubuntu 24.04 LTS, even though the wrapper correctly injected RLM at line-start. Empirical investigation traced this to Konsole 23.x's BiDi engine classifying the leading `●` as a direction-anchoring neutral and refusing to flip the line RTL.
+
+### Added
+
+- **`KIVUN_BIDI_STRIP_BULLET` config option** (default `on` in v1.1.8) — strips the leading `●` from any line whose first strong char is Hebrew. With no neutral preceding the Hebrew, Konsole's "first non-whitespace char wins" picks Hebrew and renders the line right-aligned. Trade-off: visible `●` disappears on Hebrew bullet lines (indentation stays). English bullet lines unaffected. Set to `off` in `config.txt` if you're on Konsole 24.04+ and want bullets back.
+- **Regression test suite** (`kivun-claude-bidi/test/strip-bullet.test.js`, 7 tests) pinning the strip behavior across env values and edge cases.
+
+### Known limitation
+
+Mixed RTL/LTR content positioning on Konsole 23.x doesn't always follow Unicode UAX #9 — LTR runs (English, numbers) inside RTL paragraphs may appear in unexpected visual positions (e.g., `React 19` lands at column 1 from the right instead of column 4). This is a Konsole BiDi engine issue; an experimental `KIVUN_BIDI_USE_ISOLATES=on` option is on the `experiment/rli-pdi-isolates` branch ([PR #47](https://github.com/noambrand/kivun-terminal-wsl/pull/47)) as a possible workaround. Expected to fully resolve when Ubuntu ships Konsole 24.04+ in apt.
+
 ## [1.1.7] - 2026-04-26
 
 Two related Konsole/VcXsrv UX fixes plus the bilingual hero and statusline polish that hitchhiked on the cut.
