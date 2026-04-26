@@ -237,9 +237,11 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 
 הוראות ההתקנה מפורטות באנגלית בקטעי **Quick Start** למעלה. הפקודות (`npm install`, נתיבים וכד') זהות בכל השפות ולא תורגמו. בקצרה:
 
-- **Windows:** `wsl --install` חד-פעמי, אז להוריד את `Kivun_Terminal_Setup.exe` מ-[הגרסה האחרונה](https://github.com/noambrand/kivun-terminal-wsl/releases/latest) ולהריץ.
-- **Linux:** `git clone` + `./linux/install.sh`. תומך ב-apt/dnf/pacman/zypper.
-- **macOS:** להוריד את `Kivun_Terminal_Setup_mac.pkg` ולהריץ.
+<ul dir="rtl" align="right">
+<li><strong>Windows:</strong> <code>wsl --install</code> חד-פעמי, אז להוריד את <code>Kivun_Terminal_Setup.exe</code> מ-<a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest">הגרסה האחרונה</a> ולהריץ.</li>
+<li><strong>Linux:</strong> <code>git clone</code> + <code>./linux/install.sh</code>. תומך ב-apt/dnf/pacman/zypper.</li>
+<li><strong>macOS:</strong> להוריד את <code>Kivun_Terminal_Setup_mac.pkg</code> ולהריץ.</li>
+</ul>
 
 <blockquote dir="rtl" align="right">
 <strong>Windows 11 - Smart App Control חוסם את ההתקנה.</strong> אם רואים <em>"Smart App Control blocked an app that may be unsafe"</em> בלי כפתור עקיפה - SAC לא מאפשר אפליקציות לא חתומות בכלל. כדי להתקין: פותחים <strong>Start</strong> → מחפשים <strong>Smart App Control</strong> → מעבירים ל-<strong>Off</strong>. אי אפשר להפעיל מחדש את SAC בלי התקנה מחדש של Windows, אז להשאיר Off רק אם זה בסדר עבורכם להריץ אפליקציות לא חתומות אחרות. אחרי שמכבים את SAC, ייתכן שעדיין תופיע אזהרת SmartScreen <em>"Windows protected your PC"</em> - לוחצים <strong>More info</strong> ואז <strong>Run anyway</strong>.
@@ -255,11 +257,13 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 
 חמישה מפתחים עצמאיים בנו פתרונות RTL לחמש סביבות שונות. העובדה שכולנו נאלצנו לכתוב פתרון userland נפרד מעידה לבדה על כמה זמן זה כבר נדחה ב-upstream:
 
-- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** מאת לידור משיח - הרחבת דפדפן גנרית עם click-to-select ל-RTL בכל אתר, כולל ממשקי צ'אט של מודלי שפה.
-- **[Claude.ai RTL Support (הרחבת Chrome)](https://chromewebstore.google.com/detail/claude-ai-rtl-support/lkopcjdmfmffphbomfhecalbojiaeape)** - הרחבה ל-Chrome ייעודית ל-Claude.ai. קלה יותר מהגנרית אם אתם צריכים RTL רק על ממשק הווב של Claude.
-- **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** מאת גיא רונן - הרחבה ל-VS Code עבור Claude Code, Cursor, Antigravity ו-Gemini Code Assist בשכבת ה-webview.
-- **[Claude-for-word-RTL-fix](https://github.com/asaf-aizone/Claude-for-word-RTL-fix)** מאת אסף אייזון - תיקון RTL לעברית/ערבית עבור תוסף Claude ל-Microsoft Word (Desktop).
-- **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (הפרויקט הזה) - תיקון בשכבת הטרמינל.
+<ul dir="rtl" align="right">
+<li><strong><a href="https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension">Adaptive-RTL-Extension</a></strong> מאת לידור משיח - הרחבת דפדפן גנרית עם click-to-select ל-RTL בכל אתר, כולל ממשקי צ'אט של מודלי שפה.</li>
+<li><strong><a href="https://chromewebstore.google.com/detail/claude-ai-rtl-support/lkopcjdmfmffphbomfhecalbojiaeape">Claude.ai RTL Support (הרחבת Chrome)</a></strong> - הרחבה ל-Chrome ייעודית ל-Claude.ai. קלה יותר מהגנרית אם אתם צריכים RTL רק על ממשק הווב של Claude.</li>
+<li><strong><a href="https://github.com/GuyRonnen/rtl-for-vs-code-agents">rtl-for-vs-code-agents</a></strong> מאת גיא רונן - הרחבה ל-VS Code עבור Claude Code, Cursor, Antigravity ו-Gemini Code Assist בשכבת ה-webview.</li>
+<li><strong><a href="https://github.com/asaf-aizone/Claude-for-word-RTL-fix">Claude-for-word-RTL-fix</a></strong> מאת אסף אייזון - תיקון RTL לעברית/ערבית עבור תוסף Claude ל-Microsoft Word (Desktop).</li>
+<li><strong><a href="https://github.com/noambrand/kivun-terminal-wsl">kivun-terminal-wsl</a></strong> (הפרויקט הזה) - תיקון בשכבת הטרמינל.</li>
+</ul>
 
 חמש הסביבות (DOM של דפדפן גנרי, ממשק הווב של Claude.ai, webview של VS Code, Microsoft Word, טרמינל) נפרדות זו מזו - בחרו את הפתרון שמתאים למקום שבו אתם נתקלים בבעיית ה-BiDi.
 
