@@ -348,6 +348,24 @@ jobs:
           }
           Write-Host "PASS: no [Y/N] prompt shown to user"
 
+      - name: Assert :run_direct fallback can find claude (v1.1.4)
+        shell: pwsh
+        run: |
+          # In CI Konsole apt-install always fails (no GUI), so the
+          # launcher hits :run_direct after the curl install succeeds.
+          # If kivun-direct.sh cannot resolve claude (the v1.1.3 PATH
+          # bug a real user hit), bash prints "claude: command not
+          # found" before claude itself ever runs. v1.1.4 calls claude
+          # via absolute path inside kivun-direct.sh, so this string
+          # must never appear.
+          $stdout = Get-Content "launcher_stdout.txt" -Raw -ErrorAction SilentlyContinue
+          if ($stdout -match 'claude: command not found') {
+            Write-Host "----- launcher_stdout.txt -----"
+            Write-Host $stdout
+            throw "FAIL: :run_direct could not locate claude binary (v1.1.4 regression)"
+          }
+          Write-Host "PASS: :run_direct resolved claude (no 'command not found')"
+
       - name: Assert claude is actually callable inside Ubuntu
         shell: pwsh
         run: |

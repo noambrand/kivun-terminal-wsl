@@ -232,8 +232,9 @@ echo.
 echo Path: %WSL_PATH%
 
 REM Fix line endings in launch script (Windows creates CRLF, bash needs LF)
-call :LOG "INFO - Fixing line endings in kivun-launch.sh"
+call :LOG "INFO - Fixing line endings in kivun-launch.sh + kivun-direct.sh"
 wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-launch.sh" 2>&1 >> "%LOG_FILE%"
+wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-direct.sh" 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Line endings fixed"
 ) else (
@@ -275,6 +276,12 @@ REM which breaks Konsole's display when the default WSL user differs
 REM from the one WSLg was initialized with. We run as that user instead.
 set "WSLG_USER="
 for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- stat -c "%%U" /mnt/wslg/runtime-dir 2^>nul') do set "WSLG_USER=%%U"
+REM v1.1.4: stat -c "%U" returns the literal string "UNKNOWN" when the
+REM directory's UID has no /etc/passwd entry (e.g. fresh WSL distros
+REM created via cloud images). Passing that to `wsl --user UNKNOWN`
+REM makes wsl reject the launch with error 1 and Konsole never starts.
+REM Treat UNKNOWN exactly like "not detected".
+if /i "%WSLG_USER%"=="UNKNOWN" set "WSLG_USER="
 if defined WSLG_USER (
     call :LOG "INFO - WSLg runtime dir owner: %WSLG_USER% - will run as this user"
     set "WSL_USER_FLAG=--user %WSLG_USER%"
@@ -355,12 +362,17 @@ echo   Running Claude directly in terminal
 echo ========================================
 echo.
 call :LOG "INFO - Executing: claude --append-system-prompt [prompt]"
-REM SECURITY: pass WSL_PATH and CLAUDE_PROMPT through the environment,
-REM not inlined into the shell command string. A folder named
-REM `a';rm -rf ~;'` would break out of the single-quoted `cd '%WSL_PATH%'`
-REM form and execute rm. `env VAR=... bash -c 'cd "$VAR"'` keeps the
-REM value as a single variable read at runtime, no re-parsing by shell.
-wsl -d Ubuntu env KIVUN_DIR="%WSL_PATH%" KIVUN_PROMPT="%CLAUDE_PROMPT%" bash -l -c "cd \"$KIVUN_DIR\" 2>/dev/null || cd ~; claude --append-system-prompt \"$KIVUN_PROMPT\""
+REM v1.1.4: previously this line embedded the entire bash command in a
+REM cmd-quoted string with `\"$KIVUN_DIR\"` style escaping. cmd does
+REM NOT process backslash escapes, so the inner `"` toggled cmd's
+REM quote state and broke parsing - same class of bug we hit five
+REM times in INSTALL_CLAUDE_WSL. Plus the bare `claude` here relied
+REM on PATH lookup, but ~/.local/bin (where the curl installer puts
+REM claude) is not on the default PATH for non-interactive bash -l -c,
+REM so the fallback failed even when claude WAS installed.
+REM The kivun-direct.sh script does the cd and the absolute-path
+REM lookup in pure bash where quoting actually works.
+wsl -d Ubuntu bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%"
 call :LOG "COMPLETE - Claude session ended"
 echo.
 echo ========================================
