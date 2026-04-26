@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kivun Terminal v1.0.6 - Bash Launcher (WSL side)
+# Kivun Terminal - Bash Launcher (WSL side)
 # Handles Konsole profile, colors, RTL/BiDi, title, maximize.
 # Called by kivun-terminal.bat with:
 #   bash kivun-launch.sh <wsl_path> <claude_prompt> <primary_language> <use_vcxsrv> <log_file> <text_dir> [primary_monitor]
@@ -16,11 +16,23 @@ LOG_FILE="${5:-/tmp/kivun-bash-launch.log}"
 TEXT_DIR="${6:-rtl}"
 PRIMARY_MON="${7:-}"
 
+# v1.1.5: read product version from the VERSION file the .bat ships next
+# to this script. Single source of truth -- previously the bash log
+# header had a hardcoded "v1.0.6" string that drifted four releases out
+# of date and caused a user to ask "is this really 1.0.6?". $0 may be
+# absolute (when the .bat invokes us with "%INST_WSL%kivun-launch.sh")
+# or via PATH; resolve it before reading the sibling VERSION file.
+SCRIPT_DIR_FOR_VERSION="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo /tmp)"
+PRODUCT_VERSION="unknown"
+if [ -r "$SCRIPT_DIR_FOR_VERSION/VERSION" ]; then
+    PRODUCT_VERSION="$(tr -d '\r\n' < "$SCRIPT_DIR_FOR_VERSION/VERSION")"
+fi
+
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null
 
 {
     echo "========================================"
-    echo "KIVUN BASH LAUNCHER LOG (v1.0.6)"
+    echo "KIVUN BASH LAUNCHER LOG (v$PRODUCT_VERSION)"
     echo "========================================"
     echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "User: $USER"
@@ -34,7 +46,7 @@ log() {
     echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-log "START - Bash launcher started (Kivun Terminal v1.0.6)"
+log "START - Bash launcher started (Kivun Terminal v$PRODUCT_VERSION)"
 log "INFO - Parameters received:"
 log "  WSL_PATH=$WSL_PATH"
 log "  PRIMARY_LANG=$PRIMARY_LANG"
