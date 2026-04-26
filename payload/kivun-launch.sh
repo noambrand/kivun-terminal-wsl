@@ -408,6 +408,22 @@ fi
 export KIVUN_BIDI_STRIP_BULLET
 log "INFO - KIVUN_BIDI_STRIP_BULLET=$KIVUN_BIDI_STRIP_BULLET"
 
+# Optional: switch the wrapper from BiDi EMBEDS (RLE/PDF) to BiDi
+# ISOLATES (RLI/PDI). Off by default. Try setting to "on" if you see
+# LTR runs (English/numbers) appearing in unexpected visual positions
+# inside otherwise-Hebrew lines (e.g., "React 19" landing at the right
+# edge instead of in the middle). Konsole 23.x's BiDi engine sometimes
+# leaks direction context across embeds; isolates form a stronger
+# boundary that may render mixed-content layouts correctly.
+KIVUN_BIDI_USE_ISOLATES="off"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_USE_ISOLATES[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_USE_ISOLATES[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_USE_ISOLATES="$val"
+fi
+export KIVUN_BIDI_USE_ISOLATES
+log "INFO - KIVUN_BIDI_USE_ISOLATES=$KIVUN_BIDI_USE_ISOLATES"
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates

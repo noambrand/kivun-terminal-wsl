@@ -13,8 +13,20 @@
 
 const { StringDecoder } = require('node:string_decoder');
 
-const RLE = '‫';
-const PDF = '‬';
+// EMBEDS (default): RLE U+202B, PDF U+202C — historical v1.1.x choice.
+// ISOLATES (opt-in): RLI U+2067, PDI U+2069 — stronger directional
+// boundary that some buggy BiDi engines (notably Konsole 23.x) may
+// handle better for MIXED-CONTENT positioning. Konsole 23.x sometimes
+// mispositions LTR runs inside RTL paragraphs (e.g., "React 19" lands
+// at the right edge instead of in the middle). Isolates may help by
+// preventing Hebrew runs from leaking direction context into adjacent
+// LTR runs.
+//
+// Opt-in via KIVUN_BIDI_USE_ISOLATES=on. Default off keeps v1.1.x
+// embed behavior so existing 14 unit fixtures and CI pass.
+const USE_ISOLATES = process.env.KIVUN_BIDI_USE_ISOLATES === 'on';
+const RLE = USE_ISOLATES ? '⁧' : '‫';  // RLI vs RLE
+const PDF = USE_ISOLATES ? '⁩' : '‬';  // PDI vs PDF
 // RLM injected at line-start when the line's first strong char is RTL.
 // Empirically verified via docs/research/paragraph-direction-test.sh that
 // Konsole honors RLM at position 0 for paragraph-direction detection; other

@@ -130,6 +130,24 @@ KIVUN_BIDI_WRAPPER=on
 KIVUN_BIDI_STRIP_BULLET=on
 
 # =================================================================
+# USE ISOLATES (experimental, Konsole 23.x mixed-content workaround)
+# =================================================================
+# When set to "on", the BiDi wrapper switches from BiDi EMBEDS
+# (RLE/PDF, U+202B/U+202C — the v1.1.x default) to BiDi ISOLATES
+# (RLI/PDI, U+2067/U+2069). Isolates form a stronger directional
+# boundary than embeds and may help on Konsole 23.x setups where
+# LTR runs (English/numbers) inside otherwise-Hebrew lines render
+# in unexpected positions (e.g., "React 19" lands at the right edge
+# instead of in the middle of the line).
+#
+# Try this if you see mixed RTL/LTR positioning glitches even after
+# KIVUN_BIDI_STRIP_BULLET=on fixed your bullet alignment. Konsole
+# 24.04+ should not need it.
+#
+# Default: off (preserves the v1.1.0-v1.1.8 embed behavior)
+KIVUN_BIDI_USE_ISOLATES=off
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information
