@@ -241,7 +241,9 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 - **Linux:** `git clone` + `./linux/install.sh`. תומך ב-apt/dnf/pacman/zypper.
 - **macOS:** להוריד את `Kivun_Terminal_Setup_mac.pkg` ולהריץ.
 
-> **Windows 11 - Smart App Control חוסם את ההתקנה.** אם רואים *"Smart App Control blocked an app that may be unsafe"* בלי כפתור עקיפה - SAC לא מאפשר אפליקציות לא חתומות בכלל. כדי להתקין: פותחים **Start** → מחפשים **Smart App Control** → מעבירים ל-**Off**. אי אפשר להפעיל מחדש את SAC בלי התקנה מחדש של Windows, אז להשאיר Off רק אם זה בסדר עבורכם להריץ אפליקציות לא חתומות אחרות. אחרי שמכבים את SAC, ייתכן שעדיין תופיע אזהרת SmartScreen *"Windows protected your PC"* - לוחצים **More info** ואז **Run anyway**.
+<blockquote dir="rtl" align="right">
+<strong>Windows 11 - Smart App Control חוסם את ההתקנה.</strong> אם רואים <em>"Smart App Control blocked an app that may be unsafe"</em> בלי כפתור עקיפה - SAC לא מאפשר אפליקציות לא חתומות בכלל. כדי להתקין: פותחים <strong>Start</strong> → מחפשים <strong>Smart App Control</strong> → מעבירים ל-<strong>Off</strong>. אי אפשר להפעיל מחדש את SAC בלי התקנה מחדש של Windows, אז להשאיר Off רק אם זה בסדר עבורכם להריץ אפליקציות לא חתומות אחרות. אחרי שמכבים את SAC, ייתכן שעדיין תופיע אזהרת SmartScreen <em>"Windows protected your PC"</em> - לוחצים <strong>More info</strong> ואז <strong>Run anyway</strong>.
+</blockquote>
 
 ### 🧠 על תמיכת ה-RTL
 
