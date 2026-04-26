@@ -22,6 +22,18 @@ const PDF = '‬';
 // This is what fixes the Claude Code `● שלום` first-line LTR bug.
 const RLM = '‏';
 
+// Strip leading bullet markers (●) on Hebrew lines. Konsole 23.x's BiDi
+// "first non-whitespace char" heuristic classifies neutrals like ● as
+// LTR-anchoring, which keeps the line LTR even with RLM at start. Just
+// removing the bullet means the first visible char is Hebrew → BiDi
+// flips the line to RTL automatically without any tricks.
+//
+// Opt-in via KIVUN_BIDI_STRIP_BULLET=on. Default off so v1.1.0–v1.1.7
+// fixtures stay green and users who depend on bullet visibility aren't
+// surprised.
+const STRIP_BULLET = process.env.KIVUN_BIDI_STRIP_BULLET === 'on';
+const BULLET_STRIP_RE = /[●•·∗•●]\s*/g;
+
 const HEBREW_BLOCK_START = 0x0590;
 const HEBREW_BLOCK_END = 0x05FF;
 const HEBREW_PRES_START = 0xFB1D;
@@ -193,8 +205,12 @@ class Injector {
     this._lsInOsc = false;
     this._lsOscSawEsc = false;
     this._lsAfterEsc = false;
+    let buffered_processed = buffered;
+    if (injectRlm && STRIP_BULLET) {
+      buffered_processed = buffered_processed.replace(BULLET_STRIP_RE, '');
+    }
     let out = injectRlm ? RLM : '';
-    for (const ch of buffered) {
+    for (const ch of buffered_processed) {
       out += this._stepAfterLineStart(ch.codePointAt(0), ch);
     }
     return out;
