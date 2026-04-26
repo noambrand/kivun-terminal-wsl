@@ -42,6 +42,7 @@ Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt`:
 | `TEXT_DIRECTION` | `rtl` or `ltr` input alignment | `rtl` |
 | `USE_VCXSRV` | `true` to use VcXsrv X server (needed for Alt+Shift on most setups) | `true` |
 | `KIVUN_BIDI_WRAPPER` | `on` injects RLE/PDF brackets around Hebrew runs (the BiDi fix); `off` falls back to plain Claude | `on` |
+| `KIVUN_BIDI_STRIP_BULLET` | `on` strips the leading `●` from Hebrew bullet lines (workaround for Konsole 23.x where the bullet anchors lines LTR); usually only needed on Ubuntu 24.04. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#symptom-hebrew-bullet-lines-render-with-the-bullet-on-the-left-instead-of-the-right) | `off` |
 
 See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) when something breaks.
 
