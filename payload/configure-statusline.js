@@ -22,9 +22,15 @@ try {
     settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
 } catch(e) {}
 
-// Set statusLine config matching the minimal working schema: {type, command}.
-// Claude Code's zod schema allows optional `padding` but the confirmed-working
-// Windows settings file omits it, so we omit too.
+// Set statusLine config: {type, command, padding}.
+//
+// padding=1 reserves a second line of vertical space at the bottom of
+// every Claude Code session, so statusline.mjs (which writes two lines:
+// project/model/context on top, session/weekly usage bars below) can
+// actually render both. Without this, Claude Code 2.x clips to a single
+// line and silently drops the second `process.stdout.write` from the
+// status command. The earlier note "the confirmed-working Windows
+// settings file omits it" turned out to be wrong on Claude Code 2.1+.
 //
 // SECURITY: a path containing `"` or `\` would break the old string-concat
 // form `'node "' + p + '"'` and inject arbitrary shell into the command
@@ -36,7 +42,8 @@ try {
 const normalizedPath = statuslinePath.replace(/\\/g, '/');
 settings.statusLine = {
     type: 'command',
-    command: 'node ' + JSON.stringify(normalizedPath)
+    command: 'node ' + JSON.stringify(normalizedPath),
+    padding: 1
 };
 
 // Write back
