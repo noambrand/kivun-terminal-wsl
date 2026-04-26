@@ -608,24 +608,44 @@ jobs:
           # PATH via root's .bashrc so a login shell finds it. This
           # simulates the nvm/pnpm/yarn pattern of "PATH gets set up
           # by rc files, not by the system default".
-          wsl -d Ubuntu --user root -- bash -c @"
-            set -e
-            mkdir -p /opt/kivun-test
-            cat > /opt/kivun-test/claude <<'STUB'
-            #!/bin/bash
-            echo 'kivun-test claude stub v1.1.6 (non-standard PATH)'
-            exit 0
-            STUB
-            chmod +x /opt/kivun-test/claude
-            # bashrc append (idempotent)
-            grep -q 'kivun-test' /root/.bashrc 2>/dev/null || echo 'export PATH=/opt/kivun-test:\$PATH' >> /root/.bashrc
-            # Also append to .profile for `bash -lc` (Ubuntu's bash
-            # in login mode reads .profile or .bash_profile).
-            grep -q 'kivun-test' /root/.profile 2>/dev/null || echo 'export PATH=/opt/kivun-test:\$PATH' >> /root/.profile
-            # Verify a login shell sees it
-            bash -lc 'command -v claude'
-          "@
-          if ($LASTEXITCODE -ne 0) { throw "Stub claude setup failed in WSL" }
+          #
+          # IMPORTANT: each step is its own single-line `bash -c` call.
+          # The earlier multi-line `bash -c @"..."@` here-string approach
+          # broke because PowerShell preserved the script indent (so the
+          # bash heredoc closer had leading whitespace and never matched)
+          # AND PowerShell injected CRLF line endings (so bash saw
+          # `set -e\r` and failed). Single-line invocations sidestep both.
+          wsl -d Ubuntu --user root -- bash -c "mkdir -p /opt/kivun-test"
+          if ($LASTEXITCODE -ne 0) { throw "mkdir /opt/kivun-test failed" }
+
+          # Write the stub via printf (avoids heredoc, embeds \n explicitly).
+          # The quoting story: PowerShell's outer "..." passes the inner
+          # printf format string to wsl. \n must be a single backslash-n
+          # because bash itself does the escape interpretation.
+          wsl -d Ubuntu --user root -- bash -c "printf '#!/bin/bash\necho kivun-test-stub\nexit 0\n' > /opt/kivun-test/claude"
+          if ($LASTEXITCODE -ne 0) { throw "writing stub failed" }
+
+          wsl -d Ubuntu --user root -- bash -c "chmod +x /opt/kivun-test/claude"
+          if ($LASTEXITCODE -ne 0) { throw "chmod stub failed" }
+
+          # Append PATH export to .bashrc and .profile. PowerShell single-
+          # quotes pass everything through literally (no PS interpolation).
+          # Bash then sees `\$PATH` inside its double-quoted echo arg and
+          # interprets `\$` as a literal `$`, so the file ends up with
+          # `export PATH=/opt/kivun-test:$PATH` (the variable expands when
+          # the rc file is later sourced -- which is what we want).
+          wsl -d Ubuntu --user root -- bash -c 'echo "export PATH=/opt/kivun-test:\$PATH" >> /root/.bashrc'
+          if ($LASTEXITCODE -ne 0) { throw "bashrc append failed" }
+          wsl -d Ubuntu --user root -- bash -c 'echo "export PATH=/opt/kivun-test:\$PATH" >> /root/.profile'
+          if ($LASTEXITCODE -ne 0) { throw "profile append failed" }
+
+          # Verify a login shell sees it (smoke check that the .profile
+          # append worked -- this is the lookup the launcher will perform).
+          $verify = wsl -d Ubuntu --user root -- bash -lc "command -v claude"
+          Write-Host "login-shell sees claude at: $verify"
+          if ($LASTEXITCODE -ne 0 -or -not $verify) {
+            throw "login-shell command -v claude failed -- .profile append did not take"
+          }
 
           # Negative check: standard absolute slots must NOT have claude,
           # otherwise the v1.1.6 discovery branch wouldn't fire and the
