@@ -413,3 +413,153 @@ jobs:
             launcher_stdout.txt
             launcher_stderr.txt
           if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # Job 4 — v1.1.5 regression: launcher must SEE an existing Claude install.
+  # User report (2026-04-26): on Windows 11, the launcher reinstalled Claude
+  # on EVERY launch ("דבילי") because its presence check used
+  # `bash -c "command -v claude"` -- non-login bash whose PATH does not
+  # include ~/.local/bin where curl install.sh drops the binary. v1.1.5
+  # changes the check to a `test -x` chain over absolute install slots.
+  # This job pre-installs Claude manually, then runs the launcher with
+  # AUTO_INSTALL_CLAUDE=no so a regressed presence check would force the
+  # launcher down :no_claude_exit (exit 2) instead of :claude_present.
+  # The expected v1.1.5 behavior is exit-non-2 because the launcher saw
+  # claude was already installed.
+  # -------------------------------------------------------------------------
+  test-existing-claude-no-reinstall:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm WSL is available on the runner
+        shell: pwsh
+        run: |
+          wsl --status
+          wsl --version
+
+      - name: Install Ubuntu in WSL (no-launch)
+        shell: pwsh
+        run: |
+          wsl --install -d Ubuntu --no-launch
+          $start = Get-Date
+          do {
+            Start-Sleep -Seconds 5
+            $list = wsl -l -v 2>&1 | Out-String
+            if ($list -match 'Ubuntu') { break }
+          } while (((Get-Date) - $start).TotalSeconds -lt 120)
+          Write-Host $list
+          wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
+
+      - name: Pre-install Claude in Ubuntu (simulating a returning user)
+        shell: pwsh
+        run: |
+          # Drop claude into the same slot the launcher's curl installer
+          # uses (~/.local/bin) so we exercise the exact path the bug
+          # missed. Using the official installer keeps the test honest:
+          # if Anthropic ever moves the install location, this job will
+          # break and force the resolver to be updated alongside.
+          wsl -d Ubuntu --user root -- bash -c `
+            "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
+          $rc = $LASTEXITCODE
+          if ($rc -ne 0) { throw "Pre-install of Claude in WSL failed (exit $rc)" }
+          # Sanity check via absolute path -- same way the v1.1.5 launcher
+          # check works, so we know what the launcher will see.
+          $ver = wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1" | Out-String
+          Write-Host "Pre-installed claude: $ver"
+          if ($LASTEXITCODE -ne 0) { throw "Pre-installed claude not callable" }
+
+      - name: Run launcher, wait for claude-present marker, kill
+        shell: pwsh
+        # If the v1.1.5 presence check works, the launcher sees claude
+        # already there, skips the install branch, then heads into the
+        # Konsole stage. In CI Konsole launch fails (no GUI), the
+        # launcher falls into :run_direct and tries to spawn the claude
+        # TUI, which would hang. So we run it in the background, watch
+        # LAUNCH_LOG.txt for the claude-present marker, then kill.
+        run: |
+          # AUTO_INSTALL_CLAUDE=no makes a regression LOUD: if the check
+          # ever falsely reports "not found" again, the launcher exits 2
+          # via :no_claude_exit instead of silently reinstalling.
+          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
+          $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
+          [System.IO.File]::WriteAllText($inputFile, "`r`n`r`n`r`n", [System.Text.Encoding]::ASCII)
+
+          $proc = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c", "call payload\kivun-terminal.bat C:\temp < `"$inputFile`"" `
+            -PassThru -NoNewWindow -RedirectStandardOutput "launcher_stdout.txt" `
+            -RedirectStandardError "launcher_stderr.txt"
+
+          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          $start = Get-Date
+          $sawPresent = $false
+          $sawNoClaude = $false
+          while (((Get-Date) - $start).TotalMinutes -lt 5) {
+            if (Test-Path $log) {
+              $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
+              if ($content -match 'SUCCESS - Claude Code is installed') {
+                $sawPresent = $true
+                break
+              }
+              if ($content -match 'EXIT - No Claude in WSL') {
+                $sawNoClaude = $true
+                break
+              }
+            }
+            if ($proc.HasExited) { break }
+            Start-Sleep -Seconds 5
+          }
+
+          if (-not $proc.HasExited) {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+          }
+          Get-Process | Where-Object { $_.ProcessName -in 'claude','wsl','bash','node' } |
+            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+
+          if ($sawNoClaude) {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Get-Content $log -Raw | Write-Host
+            throw "FAIL: launcher hit :no_claude_exit even though Claude IS installed (v1.1.5 presence-check regression)"
+          }
+          if (-not $sawPresent) {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
+            throw "FAIL: launcher never reached :claude_present within 5 min"
+          }
+          Write-Host "PASS: launcher saw existing Claude install via the v1.1.5 absolute-path check"
+
+      - name: Assert install branch was skipped (the actual bug)
+        shell: pwsh
+        run: |
+          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          $content = Get-Content $log -Raw
+
+          # Auto-install log line is the cheapest sentinel for the bug --
+          # it appears whether AUTO_INSTALL_CLAUDE is yes or no, whenever
+          # the presence check decided claude was missing.
+          if ($content -match 'Auto-installing Claude|Installing Claude Code via official installer|User declined Claude auto-install|ERROR - Claude Code not found') {
+            Write-Host "----- LAUNCH_LOG.txt -----"
+            Write-Host $content
+            throw "FAIL: launcher entered install branch despite Claude already being installed (the user-reported bug)"
+          }
+          Write-Host "PASS: install branch was skipped — no spurious reinstall"
+
+      - name: Copy LAUNCH_LOG into workspace for upload
+        if: always()
+        shell: pwsh
+        run: |
+          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
+          if (Test-Path $src) {
+            Copy-Item $src -Destination "LAUNCH_LOG.txt"
+          } else {
+            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
+          }
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAUNCH_LOG-existing-claude-no-reinstall
+          path: LAUNCH_LOG.txt
+          if-no-files-found: warn
