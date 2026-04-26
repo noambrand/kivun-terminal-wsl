@@ -51,6 +51,10 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md). Common first checks:
 - `wsl --status` must show WSL2 default.
 - `wsl -d Ubuntu -- command -v claude` must return a path.
 
+## Contributor guides
+
+- [HEBREW_RTL_GITHUB.md](HEBREW_RTL_GITHUB.md) - how to write Hebrew (or any RTL language) in this repo's README and docs without breaking GitHub's rendering.
+
 ## License
 
 MIT - see [LICENSE](../LICENSE).
