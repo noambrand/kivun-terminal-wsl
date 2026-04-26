@@ -1,4 +1,8 @@
-<p align="center"><img src="https://flagcdn.com/20x15/gb.png" alt="GB" width="20" height="15"> <a href="#english"><b>English</b></a> &nbsp;|&nbsp; <img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15"> <a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a></p>
+<div align="center">
+
+:uk:&nbsp;[**English**](#english-)&nbsp;&nbsp;|&nbsp;&nbsp;:flag-il:&nbsp;[**עברית**](#%D7%A2%D7%91%D7%A8%D7%99%D7%AA-flag-il)
+
+</div>
 
 <p align="center">
   <img src="Kivun_Terminal_Hero.jpeg" width="700" alt="Kivun Terminal - RTL Claude Code on Windows, Linux, macOS">
@@ -36,7 +40,7 @@
 
 ---
 
-<h2 id="english">English&nbsp;<img src="https://flagcdn.com/20x15/gb.png" alt="GB" width="20" height="15"></h2>
+## English :uk:
 
 > 💡 **Working in English (LTR) only?** Check out the sister project **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - same launcher concept, faster startup (~2 s), no WSL needed. Kivun Terminal is the right pick when you need RTL/BiDi rendering for Hebrew, Arabic, Persian, etc.
 
@@ -202,7 +206,7 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 
 <div dir="rtl">
 
-<h2 id="עברית">עברית&nbsp;<img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15"></h2>
+## עברית :flag-il:
 
 > 💡 **עובדים רק באנגלית (LTR)?** הציצו בפרויקט האח **[ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal)** - אותו קונספט שיגור, אתחול מהיר יותר (~2 שניות), בלי WSL. כיוון טרמינל מתאים כשצריך תמיכת RTL/BiDi בעברית, ערבית, פרסית וכד'.
 
