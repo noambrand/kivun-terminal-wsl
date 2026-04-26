@@ -158,6 +158,28 @@ How v1.1.0 fixes it: the wrapper injects a zero-width RLM (U+200F, strong-R) at 
 
 Upstream tracker (relevant if you want Anthropic to fix this at the source): [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881).
 
+## Symptom: Hebrew bullet lines render with the bullet on the LEFT instead of the RIGHT
+
+You have `KIVUN_BIDI_WRAPPER=on`, the launch log confirms the wrapper is active, the Hebrew text itself is shaped right-to-left correctly - but lines that start with `● ` followed by Hebrew anchor the bullet to the left edge of the line, with the Hebrew flowing leftward from there. You expected the bullet on the right edge with Hebrew flowing right-to-left into it.
+
+**Cause:** Konsole 23.08 (the default in Ubuntu 24.04) classifies the `●` (U+25CF BLACK CIRCLE) as a *direction-anchoring neutral*. Once it appears at column 0, Konsole locks the line's paragraph direction to LTR and a line-start RLM (U+200F) is no longer enough to flip it - the RLM is treated as a weaker hint than the bullet's anchoring effect. Konsole 24.04 reportedly relaxes this and treats the bullet as a regular neutral (so the line-start RLM fix from v1.1.0 takes effect normally) - if you're on KDE Plasma 6 / Konsole 24.04+ you most likely don't need this workaround.
+
+**Fix:** enable the opt-in bullet-strip workaround. Edit your platform's config:
+
+- **Windows:** `%LOCALAPPDATA%\Kivun-WSL\config.txt`
+- **Linux:** `~/.config/kivun-terminal/config.txt`
+- **macOS:** `~/Library/Application Support/Kivun-Terminal/config.txt`
+
+Set:
+
+```ini
+KIVUN_BIDI_STRIP_BULLET=on
+```
+
+Restart Kivun Terminal. The wrapper will now strip the leading `●` from any line whose first strong char is RTL before passing it to the terminal. Hebrew becomes the first visible char on the line, BiDi flips paragraph direction to RTL automatically, and the line renders right-aligned the way you'd expect.
+
+**Trade-off:** the visible `●` marker disappears on Hebrew bullet lines (the indentation stays, so you still see lines as visually grouped). English bullet lines are not touched - their `●` continues to render normally. If you'd rather keep the bullet visible at the cost of the LTR layout on Konsole 23.x, leave `KIVUN_BIDI_STRIP_BULLET=off` (the default).
+
 ## Symptom: `KIVUN_BIDI_WRAPPER=on` but Hebrew still renders reversed
 
 **Cause:** The BiDi wrapper (`kivun-claude-bidi`) is default-on as of v1.1.0 but requires a one-time first-run `npm install` before it can be used. If something in that flow failed, the launcher falls back to unwrapped `claude` silently from the user's perspective - but the launch log records the reason.

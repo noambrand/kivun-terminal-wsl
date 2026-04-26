@@ -126,8 +126,9 @@ v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's outp
 |---|---|---|
 | **RLE/PDF bracketing** | Wraps every Hebrew run in U+202B / U+202C | Forces RTL direction within each run regardless of terminal BiDi profile |
 | **Line-start RLM injection** | Inserts U+200F at the start of any line whose first strong char is RTL | Fixes Claude's `● שלום` first-line LTR bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
+| **Bullet-strip workaround** (opt-in) | Removes the leading `●` from Hebrew bullet lines so the line's first visible char is RTL | Konsole 23.x (Ubuntu 24.04 default) treats the bullet as a direction-anchoring neutral and refuses to flip the line RTL even with line-start RLM; Konsole 24.04+ should resolve this upstream |
 
-Default-on across all three platforms. Toggle via `KIVUN_BIDI_WRAPPER=on|off` in your config. Test coverage: 18 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
+Default-on across all three platforms. Toggle via `KIVUN_BIDI_WRAPPER=on|off` in your config. Set `KIVUN_BIDI_STRIP_BULLET=on` (default `off`) to enable the bullet-strip workaround if you're on Konsole 23.x and Hebrew bullet lines still render LTR after the line-start RLM fix - trade-off: the visible `●` marker disappears on Hebrew lines (indentation stays). Test coverage: 18 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
 
 ## Architecture
 
@@ -279,6 +280,8 @@ The five surfaces (generic browser DOM, Claude.ai web UI, VS Code webview, Micro
 ### 🧠 על תמיכת ה-RTL
 
 ה-wrapper `kivun-claude-bidi` הוא מודול Node שמלפף סביב Claude Code. הוא מזהה רצפי טקסט בעברית בפלט ועוטף אותם בסימני BiDi של Unicode (RLE/PDF), כך שהם מוצגים בכיוון הנכון גם בטרמינלים שתמיכת ה-BiDi שלהם חלקית. בנוסף, הוא מחדיר RLM (U+200F) בתחילת כל שורה שהאות החזקה הראשונה שלה היא RTL - מה שמתקן את הבאג ב-Claude Code שבו `● שלום` היה מופיע משמאל לימין במקום מימין לשמאל.
+
+**אופציונלי - עוקף לבעיית ה-bullet ב-Konsole 23.x:** אם אתם על Konsole 23.x (ברירת המחדל ב-Ubuntu 24.04) ושורות bullet בעברית עדיין מופיעות LTR גם אחרי תיקון ה-RLM, ניתן להפעיל `KIVUN_BIDI_STRIP_BULLET=on` ב-`config.txt` (ברירת מחדל `off`). זה מסיר את ה-`●` מתחילת שורות עבריות, כך שהתו הראשון הוא עברית וה-BiDi מתהפך אוטומטית. המחיר: הסימן `●` נעלם מ-bullet-lines בעברית (רק ההזחה נשארת). Konsole 24.04+ אמור לפתור את זה ב-upstream.
 
 לפירוט מלא של האלגוריתם, ראו [`docs/specs/BIDI_ALGORITHM.md`](docs/specs/BIDI_ALGORITHM.md). למעקב אחרי הבאג ב-upstream של Anthropic, ראו [anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881). אם אתם רוצים לתרום תיעוד עברי לריפו הזה, יש מדריך מעשי ב-[`docs/HEBREW_RTL_GITHUB.md`](docs/HEBREW_RTL_GITHUB.md) על איך לכתוב עברית שתעבוד נכון ב-GitHub.
 
