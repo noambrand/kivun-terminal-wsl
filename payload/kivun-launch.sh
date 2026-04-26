@@ -423,6 +423,20 @@ fi
 export KIVUN_BIDI_STRIP_INCOMING
 log "INFO - KIVUN_BIDI_STRIP_INCOMING=$KIVUN_BIDI_STRIP_INCOMING"
 
+# Raw upstream byte dump. Off by default — debug-only feature for cases
+# where the strip log alone isn't enough to diagnose a render bug. When
+# on, every chunk Claude sends is appended to
+# ~/.local/state/kivun-terminal/bidi-raw-dump.bin BEFORE strip-incoming
+# touches it. File auto-rotates to .old at 5 MiB to bound growth.
+KIVUN_BIDI_DUMP_RAW="off"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_DUMP_RAW[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_DUMP_RAW[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_DUMP_RAW="$val"
+fi
+export KIVUN_BIDI_DUMP_RAW
+log "INFO - KIVUN_BIDI_DUMP_RAW=$KIVUN_BIDI_DUMP_RAW"
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates

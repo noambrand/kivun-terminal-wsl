@@ -85,6 +85,67 @@ function _logBidiStrip(message) {
   }
 }
 
+// Raw upstream byte dump — debugging-only counterpart to strip-incoming.
+// Off by default. When on, the wrapper appends every chunk it receives
+// from Claude to a side file BEFORE the strip pass runs, so a hex/text
+// inspection of the file shows exactly what was on the wire — bidi
+// controls included. Useful for "the strip log says 0 detections but
+// rendering looks bidi-confused" cases, and for proving that stream
+// pollution we suspected really exists (or really doesn't).
+//
+// Modes (KIVUN_BIDI_DUMP_RAW):
+//   off — no dump (default)
+//   on  — append every chunk to the dump file with a timestamp marker
+//
+// Dump file: $KIVUN_BIDI_DUMP_RAW_FILE if set, else
+// $XDG_STATE_HOME/kivun-terminal/bidi-raw-dump.bin (XDG default
+// ~/.local/state/kivun-terminal/bidi-raw-dump.bin). At session start
+// (constructor), if the existing dump file is larger than 5 MiB it gets
+// renamed to .old so the new session always has a known starting point
+// instead of running away in unbounded growth.
+const DUMP_RAW_MODE = (process.env.KIVUN_BIDI_DUMP_RAW || 'off').toLowerCase();
+const DUMP_RAW_FILE = (function _resolveDumpRawPath() {
+  if (process.env.KIVUN_BIDI_DUMP_RAW_FILE) return process.env.KIVUN_BIDI_DUMP_RAW_FILE;
+  const stateRoot = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+  return path.join(stateRoot, 'kivun-terminal', 'bidi-raw-dump.bin');
+})();
+const DUMP_RAW_ROTATE_BYTES = 5 * 1024 * 1024;
+
+function _rotateDumpIfLarge() {
+  if (DUMP_RAW_MODE === 'off') return;
+  try {
+    const st = fs.statSync(DUMP_RAW_FILE);
+    if (st.size > DUMP_RAW_ROTATE_BYTES) {
+      fs.renameSync(DUMP_RAW_FILE, DUMP_RAW_FILE + '.old');
+    }
+  } catch (_) {
+    // File doesn't exist yet — that's fine, nothing to rotate.
+  }
+}
+
+function _appendDumpRaw(chunk) {
+  if (DUMP_RAW_MODE === 'off') return;
+  try {
+    fs.mkdirSync(path.dirname(DUMP_RAW_FILE), { recursive: true });
+    // Buffer chunks pass through as bytes; string chunks get utf8-encoded.
+    // This matches what the wrapper actually saw on the wire.
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf8');
+    fs.appendFileSync(DUMP_RAW_FILE, buf);
+  } catch (_) {
+    // Best-effort; never let dump failure crash the wrapper.
+  }
+}
+
+function _writeDumpMarker(label) {
+  if (DUMP_RAW_MODE === 'off') return;
+  try {
+    fs.mkdirSync(path.dirname(DUMP_RAW_FILE), { recursive: true });
+    fs.appendFileSync(DUMP_RAW_FILE, `\n=== ${label} ${new Date().toISOString()} ===\n`);
+  } catch (_) {
+    // Best-effort.
+  }
+}
+
 const HEBREW_BLOCK_START = 0x0590;
 const HEBREW_BLOCK_END = 0x05FF;
 const HEBREW_PRES_START = 0xFB1D;
@@ -159,6 +220,11 @@ class Injector {
     // tests can assert on it directly without parsing the side log.
     this.stripIncomingCount = 0;
     this._stripLoggedFirst = false;
+    // Per-session raw-dump bookkeeping. Rotate any leftover oversized dump
+    // file from a prior session, then write a session-start marker so each
+    // run is delineated in the file when the user inspects it later.
+    _rotateDumpIfLarge();
+    _writeDumpMarker('session start');
   }
 
   // Best-effort strip + accounting on raw upstream text. Runs before any
@@ -183,6 +249,7 @@ class Injector {
   }
 
   write(chunk) {
+    _appendDumpRaw(chunk);
     const raw = typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
     const text = this._stripIncoming(raw);
     let out = this._process(text);
@@ -191,6 +258,7 @@ class Injector {
   }
 
   end(chunk) {
+    if (chunk !== undefined && chunk !== null) _appendDumpRaw(chunk);
     let raw = '';
     if (chunk !== undefined && chunk !== null) {
       raw += typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
@@ -205,6 +273,7 @@ class Injector {
     if (this.stripIncomingCount > 0 && STRIP_INCOMING_MODE !== 'off') {
       _logBidiStrip(`session end — total ${this.stripIncomingCount} bidi control char(s) stripped this session`);
     }
+    _writeDumpMarker('session end');
     return out;
   }
 

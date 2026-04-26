@@ -3,6 +3,39 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.10] - 2026-04-27
+
+Debug-only diagnostic counterpart to v1.1.9 strip-incoming. Adds a way to capture the raw upstream byte stream to a side file so we can inspect exactly what Claude is emitting, even when the v1.1.9 strip log shows zero detections (or shows a count without enough surrounding context to debug).
+
+### Added
+
+- **`KIVUN_BIDI_DUMP_RAW` config option** (default `off`) — when `on`, the wrapper appends every chunk it receives from Claude to `~/.local/state/kivun-terminal/bidi-raw-dump.bin` BEFORE the strip-incoming pass touches it. Per-session `=== session start TIMESTAMP ===` and `=== session end TIMESTAMP ===` markers delineate runs in the file. File auto-rotates to `.bin.old` when its size crosses 5 MiB at session start, bounding total disk use to roughly 10 MiB regardless of how long it's left on.
+- **`KIVUN_BIDI_DUMP_RAW_FILE` env override** — points the dump at an alternate path. Used by the regression test suite to keep dumps off the user's real `~/.local/state` directory.
+- **Regression test suite** (`kivun-claude-bidi/test/dump-raw.test.js`, 7 tests) covering off/on modes, verbatim pre-strip byte capture, session marker placement, multi-chunk arrival order, the 5 MiB rotation guard, and the no-rotate-below-threshold case.
+
+### Why this is a separate v1.1.10 from v1.1.9
+
+The strip log alone answers "is the upstream stream polluted?" with a count. Sometimes you need more — context around the polluted bytes, exact escape sequences, or proof for a render bug where the count is zero but something is still off. `DUMP_RAW` is intentionally a separate opt-in feature so the disk write isn't paid by every user; the v1.1.9 strip log is enough for the common diagnostic question.
+
+### Inspection cookbook
+
+Once `KIVUN_BIDI_DUMP_RAW=on` and a Kivun session has run, useful one-liners (in WSL):
+
+```bash
+# Full dump in a pager that handles ANSI escapes:
+less -R ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+
+# Just the bidi control chars and 20 chars of context on each side:
+grep -aPo '.{0,20}[\x{202A}-\x{202E}\x{2066}-\x{2069}].{0,20}' \
+    ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+
+# Hex view (RLE = e2 80 ab, PDF = e2 80 ac, etc.):
+xxd ~/.local/state/kivun-terminal/bidi-raw-dump.bin | head -40
+
+# Stream size per session (look for the markers):
+grep -c '=== session ' ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+```
+
 ## [1.1.9] - 2026-04-27
 
 Defensive guardrail with built-in measurement: the wrapper now strips explicit Unicode directional controls from Claude's upstream stream so the wrapper is the only source of directionality information reaching Konsole. Default mode is `auto` — strip silently, but log the first detection per session to a side file so we can tell whether stream pollution is actually happening in real installs (vs. all rendering bugs being Konsole's fault).

@@ -154,6 +154,47 @@ KIVUN_BIDI_STRIP_BULLET=on
 KIVUN_BIDI_STRIP_INCOMING=auto
 
 # =================================================================
+# DUMP RAW upstream bytes for debugging (v1.1.10)
+# =================================================================
+# Off by default. Debug-only — turn this on when you have a render
+# bug you suspect involves stream pollution but the strip log shows
+# zero detections (or you want to see the full byte context around
+# what was stripped).
+#
+# When set to "on", the wrapper appends every chunk Claude sends
+# to a side file BEFORE the strip-incoming pass touches it:
+#
+#     ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+#
+# The file is appended-to across writes and gets a "session start"
+# / "session end" marker line per Kivun launch. To prevent
+# unbounded growth, when an existing dump file is larger than
+# 5 MiB at session start it gets renamed to .bin.old and a fresh
+# .bin file starts. So at any time you have at most the current
+# session's dump plus the previous session's rollover.
+#
+# Performance: writing every chunk to disk adds ~0 ms per chunk
+# in normal use because the file is small and Linux page cache
+# absorbs writes. Don't leave this on indefinitely though — it
+# fills disk over time even with the rotation cap.
+#
+# To inspect what was on the wire (after running a Kivun session
+# with this on):
+#
+#     # full dump (warning: contains ANSI escapes — use less -R):
+#     less -R ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+#
+#     # just the bidi control chars and surrounding context:
+#     grep -aPo '.{0,20}[\x{202A}-\x{202E}\x{2066}-\x{2069}].{0,20}' \
+#         ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+#
+#     # hex view of the bidi bytes (RLE = e2 80 ab, etc.):
+#     xxd ~/.local/state/kivun-terminal/bidi-raw-dump.bin | head -40
+#
+# Default: off
+KIVUN_BIDI_DUMP_RAW=off
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information
