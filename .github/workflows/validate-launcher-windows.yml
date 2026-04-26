@@ -628,15 +628,23 @@ jobs:
           wsl -d Ubuntu --user root -- bash -c "chmod +x /opt/kivun-test/claude"
           if ($LASTEXITCODE -ne 0) { throw "chmod stub failed" }
 
-          # Append PATH export to .bashrc and .profile. PowerShell single-
-          # quotes pass everything through literally (no PS interpolation).
-          # Bash then sees `\$PATH` inside its double-quoted echo arg and
-          # interprets `\$` as a literal `$`, so the file ends up with
-          # `export PATH=/opt/kivun-test:$PATH` (the variable expands when
-          # the rc file is later sourced -- which is what we want).
-          wsl -d Ubuntu --user root -- bash -c 'echo "export PATH=/opt/kivun-test:\$PATH" >> /root/.bashrc'
+          # Append PATH export to .bashrc and .profile.
+          # Quoting story (took two CI rounds to get right):
+          #  - PS double-quote outer + ``$`` escape: stops PowerShell from
+          #    interpolating $PATH on the host side (would resolve to a
+          #    Windows variable that is empty or wrong).
+          #  - bash SINGLE-quote inner: stops bash inside WSL from
+          #    expanding $PATH at echo time. The previous round used
+          #    bash double-quote + `\$PATH`, but the backslash got
+          #    stripped between PS arg-marshalling and wsl.exe, so bash
+          #    saw `$PATH` and wrote the runner's literal PATH (with
+          #    `/mnt/c/Program Files (x86)/...`) into .profile, which
+          #    then broke every subsequent `bash -lc` with
+          #    "syntax error near unexpected token `('".
+          # Both quote layers must protect $ from THEIR layer's expansion.
+          wsl -d Ubuntu --user root -- bash -c "echo 'export PATH=/opt/kivun-test:`$PATH' >> /root/.bashrc"
           if ($LASTEXITCODE -ne 0) { throw "bashrc append failed" }
-          wsl -d Ubuntu --user root -- bash -c 'echo "export PATH=/opt/kivun-test:\$PATH" >> /root/.profile'
+          wsl -d Ubuntu --user root -- bash -c "echo 'export PATH=/opt/kivun-test:`$PATH' >> /root/.profile"
           if ($LASTEXITCODE -ne 0) { throw "profile append failed" }
 
           # Verify a login shell sees it (smoke check that the .profile
