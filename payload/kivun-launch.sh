@@ -187,8 +187,24 @@ if [ "$USE_VCXSRV" = "true" ]; then
     log "SUCCESS - Keyboard layout configured (VcXsrv mode, Alt+Shift enabled)"
     echo "Keyboard mode: VcXsrv (Alt+Shift toggle enabled)"
   else
-    log "WARNING - VcXsrv not reachable, falling back to WSLg"
-    echo "VcXsrv not reachable, using WSLg (keyboard switching limited)"
+    # Falling back to WSLg here is NOT inherently a failure: on modern
+    # Windows 11 + WSL2 (WSLg >= 1.0.65) WSLg handles X11 keyboard +
+    # display fine, including Alt+Shift xkb layout switching. The
+    # message is INFO, not WARNING, because most users on a current
+    # build will have a working terminal even though USE_VCXSRV=true.
+    # The reason VcXsrv is unreachable here is almost always one of:
+    #   1. VcXsrv is not running (the launcher tried to start it but
+    #      it has not opened TCP yet, or the install lacks xlaunch.exe).
+    #   2. VcXsrv is running but Windows Firewall blocks inbound TCP
+    #      6000 from the WSL Hyper-V vEthernet adapter.
+    #   3. VcXsrv is running with -nolisten tcp (rare; most modern
+    #      builds default to listening).
+    # If keyboard switching DOES break for the user, that confirms WSLg
+    # is the actual problem and they need real VcXsrv connectivity --
+    # at which point they should check the firewall + that VcXsrv was
+    # launched with -listen tcp. See docs/VCXSRV_TROUBLESHOOTING.md.
+    log "INFO - VcXsrv configured but unreachable; using WSLg (works for most modern Windows 11 setups)"
+    echo "Display: WSLg (VcXsrv unreachable -- usually fine on Windows 11)"
     export DISPLAY=:0
     log "INFO - DISPLAY reset to :0 for WSLg"
     setxkbmap -layout "${KBD_PRIMARY},us" -option "" -option grp:alt_shift_toggle 2>/dev/null || true
