@@ -130,6 +130,30 @@ KIVUN_BIDI_WRAPPER=on
 KIVUN_BIDI_STRIP_BULLET=on
 
 # =================================================================
+# STRIP INCOMING bidi controls from Claude's stream (v1.1.9)
+# =================================================================
+# Strips explicit Unicode directional controls — LRE/RLE/PDF/LRO/RLO
+# (U+202A-U+202E) and LRI/RLI/FSI/PDI (U+2066-U+2069) — from Claude's
+# output before the wrapper processes it, so the wrapper is the only
+# thing emitting directional markers. LRM (U+200E) and RLM (U+200F)
+# pass through untouched.
+#
+# Modes:
+#   off  - passthrough; Claude's bidi controls reach the terminal as-is
+#   auto - strip and count; log a single line on first detection to
+#          ~/.local/state/kivun-terminal/bidi-strip.log (default)
+#   on   - strip and count; log every chunk where stripping happened
+#          (verbose; useful if you're investigating a specific render bug)
+#
+# Why this is "auto" by default: most observed Claude output contains
+# zero directional controls, so the strip is a no-op in practice. The
+# value of leaving it on is the side log — a single line per session
+# the first time pollution is seen, which lets us tell "Claude polluted
+# the stream" apart from "Konsole rendered it wrong" without a full
+# packet trace.
+KIVUN_BIDI_STRIP_INCOMING=auto
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information
