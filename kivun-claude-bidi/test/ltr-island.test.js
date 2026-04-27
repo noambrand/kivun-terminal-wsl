@@ -1,5 +1,12 @@
 'use strict';
 
+// These fixtures pre-date v1.1.10 FLATTEN_COLORS_RTL and v1.1.11
+// no-RTL-bracket. They assert the legacy combination of behaviors,
+// so opt back to legacy here. New behavior is exercised in
+// flatten-colors-rtl.test.js and no-bracket-rtl-runs.test.js.
+process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL = 'off';
+process.env.KIVUN_BIDI_BRACKET_RTL_RUNS = 'on';
+
 // HEAVY §1a — Mixed-line LTR-island fixtures.
 //
 // Hebrew-dominant lines containing embedded English tokens. These are the
