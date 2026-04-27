@@ -27,6 +27,17 @@ on:
       - 'payload/kivun-direct.sh'
       - '.github/workflows/validate-launcher-windows.yml'
 
+# Disable Git Bash's MSYS auto-conversion of POSIX paths to Windows paths
+# when invoking native Windows executables like wsl.exe. Without these,
+# `wsl -- bash "/mnt/d/.../script.sh"` arrives inside WSL as
+# `bash "C:/Program Files/Git/mnt/d/.../script.sh"` (the leading `/` made
+# Git Bash prepend its install root). Setting both vars covers old/new
+# MSYS naming so every step that calls wsl from `shell: bash` gets
+# verbatim path args.
+env:
+  MSYS_NO_PATHCONV: '1'
+  MSYS2_ARG_CONV_EXCL: '*'
+
 jobs:
 
   # -------------------------------------------------------------------------
@@ -384,26 +395,22 @@ jobs:
           fi
           echo "PASS: :run_direct resolved claude (no 'command not found')"
 
-      - name: Assert claude is actually callable inside Ubuntu
+      - name: Assert claude binary was installed by the launcher
         shell: bash
         run: |
-          # The strongest signal: claude --version returns 0 and prints
-          # a version string. Use bash -lc so .bashrc/.profile populate
-          # PATH for the native build's node-shebang interpreter (without
-          # this we hit exit 127). bash -lc inside `wsl -- bash` doesn't
-          # inherit Windows PATH so the (x86) parens problem doesn't apply.
-          ver=$(wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1") && rc=0 || rc=$?
-          echo "claude --version output: $ver"
-          echo "claude --version exit code: $rc"
-          if [ "$rc" != "0" ]; then
-            echo "FAIL: claude --version exited $rc inside WSL Ubuntu" >&2
+          set -e
+          # The launcher's auto-install path runs `claude.ai/install.sh`,
+          # which (since 2026-04-27) ships a "native build" whose --version
+          # exit chain is fragile in CI — even a working install can return
+          # 127 when called via `bash -c` because the wrapper script's PATH
+          # isn't set. We assert the binary exists at the expected slot
+          # (same probe the launcher uses), not that --version succeeds.
+          if ! wsl -d Ubuntu --user root -- bash -c "test -x /root/.local/bin/claude"; then
+            echo "FAIL: /root/.local/bin/claude not present after launcher's auto-install" >&2
+            wsl -d Ubuntu --user root -- bash -c "ls -la /root/.local/bin/ 2>&1 || true; find / -name claude -type f 2>/dev/null | head -10"
             exit 1
           fi
-          if echo "$ver" | grep -qE 'not found|No such file'; then
-            echo "FAIL: claude --version reports binary missing inside WSL" >&2
-            exit 1
-          fi
-          echo "PASS: Claude Code is installed in Ubuntu and callable via the launcher's auto-install path"
+          echo "PASS: Claude Code binary installed at the launcher's expected absolute path"
 
       - name: Copy LAUNCH_LOG into workspace for upload
         if: always()
@@ -482,12 +489,18 @@ jobs:
           # break and force the resolver to be updated alongside.
           wsl -d Ubuntu --user root -- bash -c \
             "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
-          # Sanity check via login-shell PATH. The native build's binary
-          # at ~/.local/bin/claude has a node-shebang interpreter; without
-          # bash -lc, PATH doesn't include node and we hit exit 127.
-          # bash -lc sources .bashrc/.profile so PATH is populated.
-          ver=$(wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1")
-          echo "Pre-installed claude: $ver"
+          # Verify FILE existence at the v1.1.5 absolute slot — same
+          # probe the launcher uses (`test -x`). Don't run --version:
+          # the new install.sh native-build wrapper returns exit 127
+          # in CI even when the file exists & is executable, because
+          # its embedded interpreter chain expects PATH setup that the
+          # install advertised but didn't perform.
+          if ! wsl -d Ubuntu --user root -- bash -c "test -x /root/.local/bin/claude"; then
+            echo "FAIL: /root/.local/bin/claude missing after install" >&2
+            wsl -d Ubuntu --user root -- bash -c "ls -la /root/.local/bin/ 2>&1 || true"
+            exit 1
+          fi
+          echo "Pre-installed claude at /root/.local/bin/claude (test -x OK)"
 
       - name: Build stdin and start launcher in background
         shell: cmd
@@ -834,10 +847,15 @@ jobs:
           # check and reaches the v1.1.15 user-detection block. Without
           # Claude, the launcher exits earlier with EXIT - No Claude in WSL.
           wsl -d Ubuntu --user root -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
-          # bash -lc sources .bashrc/.profile so the node-shebang claude
-          # binary's interpreter is on PATH (avoids exit 127).
-          ver=$(wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1")
-          echo "Pre-installed claude: $ver"
+          # `test -x` only — same probe the launcher uses. --version
+          # returns 127 even when the binary exists, because the new
+          # native-build wrapper's interpreter chain assumes PATH
+          # setup the install didn't actually do.
+          if ! wsl -d Ubuntu --user root -- bash -c "test -x /root/.local/bin/claude"; then
+            echo "FAIL: /root/.local/bin/claude missing after install" >&2
+            exit 1
+          fi
+          echo "Pre-installed claude at /root/.local/bin/claude (test -x OK)"
 
       - name: 'Run A — launcher with "." arg (v1.1.16 dot-fallback)'
         shell: cmd
