@@ -327,51 +327,46 @@ REM makes wsl reject the launch with error 1 and Konsole never starts.
 REM Treat UNKNOWN exactly like "not detected".
 if /i "%WSLG_USER%"=="UNKNOWN" set "WSLG_USER="
 
-REM v1.1.14: Claude Code refuses --dangerously-skip-permissions when
-REM running as root. Some users have WSLg initialized as root (fresh
-REM Ubuntu where the default user is root, or distro images from cloud-
-REM init). If we let WSLG_USER stay as "root", Konsole launches, the
-REM wrapper deploys to /root/.local/share/, and Claude immediately exits
-REM with "--dangerously-skip-permissions cannot be used with root/sudo
-REM privileges". Instead, look up the conventional first non-root user
-REM (UID 1000) and use that. If no UID-1000 user exists, abort with
-REM clear instructions to create one.
-if /i "%WSLG_USER%"=="root" (
-    call :LOG "WARNING - WSLg owned by root; looking for a non-root user (UID 1000)"
-    set "WSLG_USER="
+REM v1.1.15: never let the launcher run as root. Claude Code refuses
+REM --dangerously-skip-permissions when EUID==0. v1.1.14 only handled
+REM the case where WSLG_USER explicitly equaled "root"; it missed the
+REM case where WSLG_USER detection returns EMPTY and the wsl default
+REM user happens to be root (mipmip's actual scenario). v1.1.15 simpler
+REM and exhaustive: discard any root-or-empty result and fall back to
+REM UID 1000 (the conventional first non-root user). If even that
+REM fails, abort with copy-paste-able instructions for creating a
+REM non-root user. Logic is intentionally flat (no nested if blocks)
+REM so cmd's parse-time vs runtime variable expansion can't introduce
+REM subtle bugs.
+if /i "%WSLG_USER%"=="root" set "WSLG_USER="
+if not defined WSLG_USER (
+    call :LOG "INFO - WSLg owner unusable; querying UID 1000 as non-root fallback"
     for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
-    if defined WSLG_USER (
-        call :LOG "INFO - Found non-root user: %WSLG_USER%"
-    ) else (
-        call :LOG "ERROR - No non-root user (UID 1000) in Ubuntu; cannot run Claude as root"
-        echo.
-        echo ============================================================
-        echo  ERROR: WSL Ubuntu has no non-root user.
-        echo ============================================================
-        echo  Claude Code refuses to run as root for security reasons
-        echo  ^(--dangerously-skip-permissions is incompatible with root^).
-        echo.
-        echo  Fix: create a non-root user inside Ubuntu and set it as
-        echo  the default. From Windows cmd or PowerShell:
-        echo.
-        echo    wsl -d Ubuntu --user root -- adduser yourname
-        echo    wsl -d Ubuntu --user root -- usermod -aG sudo yourname
-        echo    ubuntu config --default-user yourname
-        echo    wsl --terminate Ubuntu
-        echo.
-        echo  Then re-launch Kivun Terminal.
-        echo ============================================================
-        pause
-        exit /b 1
-    )
 )
-if defined WSLG_USER (
-    call :LOG "INFO - WSLg runtime dir owner: %WSLG_USER% - will run as this user"
-    set "WSL_USER_FLAG=--user %WSLG_USER%"
-) else (
-    call :LOG "WARNING - Could not detect WSLg owner, using default user"
-    set "WSL_USER_FLAG="
+if not defined WSLG_USER (
+    call :LOG "ERROR - No non-root user (UID 1000) found in Ubuntu; cannot launch Claude"
+    echo.
+    echo ============================================================
+    echo  ERROR: WSL Ubuntu has no non-root user.
+    echo ============================================================
+    echo  Claude Code refuses to run as root for security reasons
+    echo  ^(--dangerously-skip-permissions is incompatible with root^).
+    echo.
+    echo  Fix: create a non-root user inside Ubuntu and set it as
+    echo  the default. From Windows cmd or PowerShell:
+    echo.
+    echo    wsl -d Ubuntu --user root -- adduser yourname
+    echo    wsl -d Ubuntu --user root -- usermod -aG sudo yourname
+    echo    ubuntu config --default-user yourname
+    echo    wsl --terminate Ubuntu
+    echo.
+    echo  Then re-launch Kivun Terminal.
+    echo ============================================================
+    pause
+    exit /b 1
 )
+call :LOG "INFO - Will run as: %WSLG_USER%"
+set "WSL_USER_FLAG=--user %WSLG_USER%"
 
 REM Get primary monitor size via wmic (PowerShell is blocked by GPO on some
 REM machines). Windows always places the primary monitor at origin (0,0),
@@ -455,7 +450,12 @@ REM claude) is not on the default PATH for non-interactive bash -l -c,
 REM so the fallback failed even when claude WAS installed.
 REM The kivun-direct.sh script does the cd and the absolute-path
 REM lookup in pure bash where quoting actually works.
-wsl -d Ubuntu bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%"
+REM v1.1.15: pass WSL_USER_FLAG to the direct fallback too. v1.1.14 fixed
+REM the Konsole-launch path but missed this one — when Konsole failed and
+REM we fell back to direct execution, we'd still spawn Claude as the wsl
+REM default user (which on root-default-user distros is root, and Claude
+REM refuses). Now both paths use the same resolved non-root user.
+wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%"
 call :LOG "COMPLETE - Claude session ended"
 echo.
 echo ========================================

@@ -3,6 +3,25 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.15] - 2026-04-27
+
+v1.1.14 was incomplete. Same user (`mipmip`) re-ran the launcher after the v1.1.14 update and **the same `--dangerously-skip-permissions cannot be used with root/sudo privileges` error happened again**, this time via the *fallback* path. Two bugs missed in v1.1.14:
+
+1. **The WSLG_USER==root branch only triggered when WSLg ownership detection EXPLICITLY returned the string "root".** On mipmip's machine the detection returned **empty** (`WARNING - Could not detect WSLg owner, using default user` in the log), so the fallback never fired. The wsl invocation then ran with no `--user` flag, defaulting to root, where Claude refused.
+2. **The direct-fallback path (line 458 of `kivun-terminal.bat`) ran `wsl -d Ubuntu bash kivun-direct.sh ...` with no `--user` flag at all** — bypassing whatever WSL_USER_FLAG the WSLg detection had set. So even if the Konsole launch path used a non-root user, the direct fallback when Konsole failed still went to root.
+
+### Fixed
+
+- **`payload/kivun-terminal.bat` v1.1.15**: simpler, exhaustive WSLG_USER detection. Discard any "root" or empty result; query `wsl --user root -- id -un 1000` to find the conventional first non-root user; if that's also empty, abort with the same copy-paste-able instructions for creating a non-root user. The logic is intentionally **flat** (no nested `if (...)` blocks containing `%VAR%` references) so cmd's parse-time vs runtime variable expansion can't introduce bugs the v1.1.14 nested-if version was vulnerable to.
+- **`payload/kivun-terminal.bat` line 458**: direct-fallback path now passes `%WSL_USER_FLAG%` to wsl, mirroring the Konsole launch path. Both paths get the same resolved non-root user.
+- **`payload/kivun-direct.sh` v1.1.15 (defense in depth)**: EUID==0 guard mirroring the one v1.1.14 added to `kivun-launch.sh`. If somehow upstream WSL changes break the .bat detection AND the .bat then routes through the direct fallback, this script still refuses to run Claude as root and prints the fix-instructions.
+
+### Lesson learned (carried into the launcher-bulletproofing memory entry and CLAUDE.md note)
+
+When a launcher fix targets a symptom from a single user report, walk through ALL execution paths that lead to the same symptom — not just the one in the bug report. v1.1.14 fixed the symptom for the Konsole-launch path but missed the direct-fallback path. Both could lead the same user to the same red Claude error. CI tests (`validate-launcher-windows.yml`) only exercise the Konsole-launch path because that's the happy path; the fallback path needs explicit consideration.
+
+Also: cmd's parse-time `%VAR%` expansion inside `if (...) (...)` blocks bites every time. Use flat top-level statements when each step modifies the variable being checked.
+
 ## [1.1.14] - 2026-04-27
 
 User-reported real install failure on a machine where `/mnt/wslg/runtime-dir` was owned by `root` (fresh Ubuntu setup, default WSL user is root, or distro from cloud-init). The launcher faithfully detected the WSLg owner and ran as root, the wrapper deployed to `/root/.local/share/kivun-terminal/...`, and Claude Code immediately exited with `--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons`. From the user's perspective: Kivun opens, prints "Claude exited with code 1", crashes.
