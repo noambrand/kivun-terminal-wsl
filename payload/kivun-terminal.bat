@@ -606,8 +606,80 @@ REM resolves to /root/.local/bin which the regular user (= every other
 REM wsl invocation in this launcher) can't see. CI proved this: the
 REM install logged "Claude Code successfully installed" but the verify
 REM step couldn't find it.
-wsl -d Ubuntu -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh > /tmp/kivun-claude.log 2>&1 && bash /tmp/claude-installer.sh >> /tmp/kivun-claude.log 2>&1; rm -f /tmp/claude-installer.sh" < nul
-if %ERRORLEVEL% NEQ 0 call :_NPM_FALLBACK
+REM
+REM v1.1.19 added `timeout 600` + `| tee /tmp/kivun-claude.log` — install
+REM COMPLETED on disk but tee held the pipe open, wsl.exe never returned.
+REM v1.1.20 dropped the pipe (`> /tmp/kivun-claude.log 2>&1 < /dev/null`)
+REM but wsl.exe STILL hung. CI run 25014868847 proved it: install
+REM completed (binary at /root/.local/bin/claude → versions/2.1.119),
+REM LAUNCH_LOG ended at "Auto-installing Claude" with no INSTALL_RC line,
+REM wsl.exe was still alive 2 min later. Something in claude.ai/install.sh's
+REM "native build" path retains a wsl-side fd or process-group reference
+REM that keeps wsl.exe waiting even after the install's main process exits.
+REM
+REM v1.1.21: stop waiting for wsl.exe. Detach the install entirely:
+REM `( ... ) </dev/null >/dev/null 2>&1 & disown` runs the install in a
+REM backgrounded subshell whose stdin/stdout/stderr are all closed before
+REM `& disown` removes it from the outer bash's job table. The outer
+REM `bash -c` has nothing left to wait for, exits, wsl.exe returns to cmd
+REM in <1s. The subshell continues running detached; when the install
+REM finishes (timeout or natural), it writes its exit code to
+REM /tmp/kivun-install-rc. cmd polls every 5s for that marker file —
+REM there's no synchronous wsl.exe wait anywhere in this path so it
+REM cannot hang regardless of what install.sh forks.
+echo Installing Claude Code in Ubuntu (max 10 min)...
+REM v1.1.23: ship the install runner as a static script + setsid -f to
+REM fully detach. v1.1.21/v1.1.22's inline `( ... ) & disown` returned
+REM 0 from wsl but the detached subshell never ran — WSL's interop relay
+REM kills its cgroup descendants when wsl.exe exits, and `& disown` only
+REM tells the bash job table not to send SIGHUP, it doesn't escape the
+REM cgroup. `setsid -f` forks AND creates a NEW session — the install
+REM becomes a session leader, fully orphaned from wsl.exe's session.
+REM CI run 25015901486 confirmed v1.1.22 with `& disown` left
+REM /root/.local/bin/claude absent (install never executed).
+REM
+REM v1.1.22 also revealed a wsl.exe 2.6.x quirk: `< nul > nul 2>&1`
+REM is rejected with "ERROR: Input redirection is not supported"
+REM (only `< nul >> file 2>&1` works, not `< nul > nul 2>&1`).
+REM v1.1.23 dodges by NOT using `< nul` at all on the new wsl calls —
+REM bash inherits launcher's stdin (launcher_input.txt or cmd console),
+REM but the inner commands (setsid + script, test -f) don't read stdin
+REM so it doesn't matter.
+
+REM Compute install dir's WSL path locally (the global INST_WSL is set
+REM later, after :claude_present). Strip trailing backslash from %~dp0
+REM before wslpath — wslpath returns "." for paths ending in `\`.
+set "_INST_DIR=%~dp0"
+if "%_INST_DIR:~-1%"=="\" set "_INST_DIR=%_INST_DIR:~0,-1%"
+for /f "delims=" %%i in ('wsl wslpath -a "%_INST_DIR%" 2^>nul') do set "_INST_WSL=%%i"
+if "%_INST_WSL%"=="" call :WIN_TO_WSL_PATH "%_INST_DIR%" _INST_WSL
+if not "%_INST_WSL:~-1%"=="/" set "_INST_WSL=%_INST_WSL%/"
+call :LOG "INFO - Install dir WSL path: %_INST_WSL%"
+
+REM v1.1.31: SYNCHRONOUS install via `setsid -w`. v1.1.21–v1.1.30 tried
+REM backgrounded install + cmd-side polling — every cmd-side sleep
+REM mechanism hung in the `start /B`-detached context (timeout, ping,
+REM wsl-sleep, waitfor, even pure-cmd `for /L`).
+REM
+REM v1.1.32: `-w` flag is critical. v1.1.31 used `setsid bash <script>`
+REM (no flags), which by default does NOT wait for the child program —
+REM setsid just creates a new session and exec's, returning immediately.
+REM CI run 25020006926 confirmed: install.sh "returned" exit 0 in
+REM 230ms, but /root/.local/bin/claude was absent (install hadn't
+REM actually run). `-w` (`--wait`) makes setsid wait for the child and
+REM propagate its exit code.
+REM
+REM `setsid -w` runs the install in a new session AND waits for it.
+REM install.sh's forked daemons inherit the new session, so they don't
+REM keep wsl.exe alive after install completes. wsl.exe sees setsid
+REM exit, returns. ERRORLEVEL captures install.sh exit code.
+wsl -d Ubuntu -- setsid -w bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
+set "INSTALL_RC=%ERRORLEVEL%"
+
+:_install_after
+call :LOG "INFO - install.sh returned exit code %INSTALL_RC%"
+if "%INSTALL_RC%"=="124" call :LOG "WARNING - install.sh hit 600s timeout"
+if not "%INSTALL_RC%"=="0" call :_NPM_FALLBACK
 REM Verify by checking the three known install locations directly.
 REM Earlier attempts used `PATH=$HOME/.local/bin:$PATH command -v claude`
 REM which seemed cleaner, but on Windows-WSL the inherited $PATH contains
