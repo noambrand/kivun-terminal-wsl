@@ -3,6 +3,29 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.13] - 2026-04-27
+
+The actual word-order fix. v1.1.10–v1.1.12 chased the wrong cause. After enabling `KIVUN_BIDI_DUMP_RAW=on` and capturing the byte stream Claude actually emits in TUI mode, the root cause turned out to be cursor-forward CSI escapes — `\x1b[1C` instead of literal space characters between every word. 19 KB of one short Hebrew session contained **306 cursor-forward CSIs**. Konsole's BiDi engine treats each `\x1b[NC` as an attribute-region boundary the same way it treats SGR color changes — exactly the splitter that v1.1.10 FLATTEN_COLORS_RTL was supposed to eliminate, but FLATTEN only stripped CSI sequences ending in `m`.
+
+That's why earlier deep-test fixtures rendered correctly but real Claude output kept misposition: the deep tests used plain `printf` with literal spaces. Claude's TUI does not.
+
+### Added
+
+- **CSI cursor-forward replacement on RTL lines** (extends the existing `KIVUN_BIDI_FLATTEN_COLORS_RTL` flag — same semantics, broader coverage). When the line's first strong char is Hebrew and `KIVUN_BIDI_FLATTEN_COLORS_RTL=on` (default), the wrapper now also intercepts CSI sequences ending in `C` and replaces each `\x1b[NC` with N literal space characters. Visually identical (cursor-forward moves over presumed-blank cells; spaces write to those same cells), but no attribute-region boundary so Konsole sees the entire RTL line as a single BiDi run and positions LTR runs (English/code/numbers) at their correct UAX #9 logical positions.
+- **`Injector#cursorForwardReplacedCount` public counter** for tests + diagnostics, in addition to the existing `flattenedSgrCount`.
+- **Regression test suite** (`kivun-claude-bidi/test/cursor-forward-rtl.test.js`, 9 tests) covering single + multi-column cursor-forward, default-no-param `\x1b[C`, no-touch on LTR lines, no-touch on other CSI cursor sequences (up/back/etc.), compound with SGR strip on the same line, and a verbatim-Claude-dump-pattern fixture.
+
+### Why three earlier releases didn't catch this
+
+- v1.1.10 (FLATTEN_COLORS_RTL) only handled CSI ending in `m`. It eliminated visible color codes from Hebrew lines but the cursor-forward CSIs Claude uses for inter-word spacing kept splitting BiDi runs.
+- v1.1.11 (no per-run RLE/PDF on RTL lines) eliminated the wrapper-emitted attribute boundaries. But Claude's own cursor-forwards remained.
+- v1.1.12 (Hebrew prompt formatting hint) tried to fix it by changing what Claude generates. It backfired — the long prompt confused Claude into reordering words. **Reverted: do not use the v1.1.12 prompt change in production. v1.1.13 ships the v1.1.10/v1.1.11 prompt unchanged.** The CHANGELOG keeps the v1.1.12 entry for history but treats that release as withdrawn.
+- We needed `DUMP_RAW=on` (added in v1.1.10) plus a real Hebrew session to see the cursor-forward pattern. Without that diagnostic, we'd have kept guessing.
+
+### Lesson learned (carried into the BiDi limits memory entry)
+
+When a wrapper-rendered terminal output looks wrong even though all visible escapes are stripped, look for *invisible* CSI sequences that act as attribute-region boundaries. Cursor-forward (`...C`), cursor-back (`...D`), set/reset mode (`...h`/`...l`) all qualify. The dump-raw side log answers "what bytes are actually on the wire" — anything that looks like normal text in the dump but is actually an escape sequence is a candidate splitter.
+
 ## [1.1.12] - 2026-04-27
 
 Hebrew system-prompt formatting hint. v1.1.11 closed the wrapper-side investigation: BiDi rendering is now correct for the bytes Claude actually emits. But Claude's mixed Hebrew/English output sometimes had unusual spacing patterns (`עדכוןsrc/components/Header.tsx` glued, `הזה-endpoint` with the demonstrative on the wrong side via hyphen) that look broken even though the wrapper renders them faithfully. Fix at the source: tell Claude how to format Hebrew/English mixed text via `--append-system-prompt`.

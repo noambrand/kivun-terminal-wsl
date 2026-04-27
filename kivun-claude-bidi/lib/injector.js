@@ -82,6 +82,17 @@ const STRIP_INCOMING_MODE = (process.env.KIVUN_BIDI_STRIP_INCOMING || 'auto').to
 //         (default — Hebrew users gain positioning, lose color)
 const FLATTEN_COLORS_MODE = (process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL || 'on').toLowerCase();
 const CP_M = 0x6D;
+const CP_C_UPPER = 0x43;
+// Cursor-forward CSI parser: matches `\x1b[NC` (move cursor N columns
+// forward, default 1). v1.1.13: empirically confirmed via DUMP_RAW that
+// Claude Code's TUI uses cursor-forward instead of literal space chars
+// for inter-word spacing, which splits Konsole's BiDi runs the same way
+// SGR colors do. On RTL lines under FLATTEN_COLORS_RTL=on we substitute
+// each cursor-forward with the equivalent number of space characters --
+// visually identical (cursor-forward moved over presumed-blank cells;
+// spaces write to the same cells), but no attribute-region boundary so
+// the BiDi run survives whole.
+const CSI_CURSOR_FORWARD_RE = /^\x1b\[(\d*)C$/;
 
 // Per-run RLE/PDF bracketing of Hebrew runs INSIDE RTL paragraphs.
 // Default OFF in v1.1.11+. Confirmed via Konsole 23.08.5 A/B test
@@ -269,6 +280,9 @@ class Injector {
     // Public counter — number of SGR sequences this Injector dropped.
     // Useful for tests + diagnostic output.
     this.flattenedSgrCount = 0;
+    // Public counter — number of cursor-forward CSI sequences replaced
+    // with literal spaces on RTL lines (v1.1.13).
+    this.cursorForwardReplacedCount = 0;
     // Per-run bracketing tracking — set when we emit RLE for a run so
     // the matching PDF emit knows whether it should fire. When BRACKET_RTL_RUNS
     // is off and the line is RTL, runIsBracketed stays false through the run
@@ -438,6 +452,20 @@ class Injector {
         if (cp === CP_M && this.lineIsRTL && FLATTEN_COLORS_MODE === 'on') {
           this.flattenedSgrCount += 1;
           return '';
+        }
+        // v1.1.13: cursor-forward replacement on RTL lines. Claude's TUI
+        // uses CSI [NC instead of literal spaces between words; on RTL
+        // lines this splits the BiDi run the same way SGR colors did.
+        // Replace with N space chars so the line is one continuous BiDi
+        // region. Visually identical (cursor moved over blank cells; we
+        // write spaces into those same cells).
+        if (cp === CP_C_UPPER && this.lineIsRTL && FLATTEN_COLORS_MODE === 'on') {
+          const m = seq.match(CSI_CURSOR_FORWARD_RE);
+          if (m) {
+            const n = m[1] === '' ? 1 : parseInt(m[1], 10);
+            this.cursorForwardReplacedCount += 1;
+            return ' '.repeat(n);
+          }
         }
         return seq;
       }
