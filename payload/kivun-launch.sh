@@ -624,23 +624,59 @@ LAUNCHEOF
 chmod +x "$LAUNCH_TMP"
 log "SUCCESS - Launch script created: $LAUNCH_TMP (CLAUDE_PROMPT length: ${#CLAUDE_PROMPT})"
 
-log "INFO - Launching Konsole with KivunTerminal profile"
-log "INFO - Command: setsid konsole --profile KivunTerminal -e $LAUNCH_TMP"
+# v1.1.17: WSLg picks the Windows-side taskbar icon by matching a
+# launched window's WM_CLASS (or Wayland app_id) against installed
+# .desktop files' StartupWMClass entries. Setting _NET_WM_ICON via
+# python-xlib (the v1.1.7 path below) works under VcXsrv but is
+# ignored by WSLg's RDP icon channel — so users on the default
+# (USE_VCXSRV=false) configuration saw a blank title-bar/taskbar icon.
+#
+# Fix: register a kivun-terminal.desktop in ~/.local/share/applications/
+# pointing to our PNG, then launch Konsole with --name kivun-terminal
+# so its WM_CLASS becomes "kivun-terminal". WSLg matches that class
+# against the .desktop StartupWMClass and uses our PNG for the icon.
+ICON_PNG_DEPLOY="$(dirname "$0")/kivun-icon.png"
+if [ -f "$ICON_PNG_DEPLOY" ]; then
+    DESKTOP_DIR="$HOME/.local/share/applications"
+    mkdir -p "$DESKTOP_DIR"
+    cat > "$DESKTOP_DIR/kivun-terminal.desktop" <<DESKEOF
+[Desktop Entry]
+Type=Application
+Name=Kivun Terminal
+Comment=Claude Code with full RTL/BiDi rendering
+Exec=konsole --name kivun-terminal --profile KivunTerminal
+Icon=$ICON_PNG_DEPLOY
+Terminal=false
+Categories=Utility;TerminalEmulator;
+StartupWMClass=kivun-terminal
+DESKEOF
+    # Refresh the desktop-database cache so WSLg's xdg lookup sees
+    # the new entry. Best-effort: the binary may not be installed,
+    # in which case the entry is still discoverable via plain file
+    # scan (slower but works).
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$DESKTOP_DIR" >> "$LOG_FILE" 2>&1
+    fi
+    log "SUCCESS - .desktop registered: $DESKTOP_DIR/kivun-terminal.desktop"
+else
+    log "WARNING - kivun-icon.png missing; cannot register .desktop entry"
+fi
+
+log "INFO - Launching Konsole with KivunTerminal profile (WM_CLASS=kivun-terminal)"
+log "INFO - Command: setsid konsole --name kivun-terminal --profile KivunTerminal -e $LAUNCH_TMP"
 
 # setsid detaches Konsole into a new session so it survives the parent
 # bash dying (e.g. user closes the cmd.exe window or the wsl bridge
 # exits). Without this, closing the launcher's console window sent
 # SIGHUP to Konsole and killed the live Claude session along with it.
 #
-# Note (v1.1.16): we tried --qwindowicon $ICON_PNG here as a workaround
-# for the Konsole title-bar/taskbar icon being blank under WSLg.
-# Confirmed not to help on Konsole 23.08.5 + WSLg 1.0.71 — WSLg's
-# compositor doesn't forward Qt window icons to the Windows taskbar
-# either. Reverted. The python-xlib _NET_WM_ICON path runs after
-# launch (below) and works on native KDE/GNOME but is also silently
-# ignored by WSLg. See docs/TROUBLESHOOTING.md for the WSLg icon
-# limit discussion.
-setsid konsole --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
+# --name kivun-terminal sets WM_CLASS res_name (Qt arg). Combined with
+# the kivun-terminal.desktop file above (StartupWMClass=kivun-terminal),
+# this makes WSLg use kivun-icon.png as the Windows taskbar icon. The
+# python-xlib _NET_WM_ICON path runs further below as a fallback for
+# users still on USE_VCXSRV=true (where _NET_WM_ICON is honored by
+# VcXsrv directly).
+setsid konsole --name kivun-terminal --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
 KPID=$!
 
 if [ $KPID -gt 0 ]; then

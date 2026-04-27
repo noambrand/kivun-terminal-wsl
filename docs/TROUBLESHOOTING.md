@@ -1,4 +1,4 @@
-# Kivun Terminal v1.1.16 - Troubleshooting
+# Kivun Terminal v1.1.17 - Troubleshooting
 
 ## First: collect the logs
 
@@ -182,41 +182,46 @@ Restart Kivun Terminal. The wrapper will now strip the leading `●` from any li
 
 ## Symptom: Konsole window opens with no icon (blank/white) in title bar and Windows taskbar
 
-**Cause:** WSLg architectural limit. Verified April 27, 2026 via `xprop -name "Kivun Terminal" _NET_WM_ICON` on a live Konsole window: our launcher correctly sets `_NET_WM_ICON` with all four icon sizes (16/32/48/64) — the property is on the window — but **WSLg's compositor (Weston → RDP → Windows) does not forward window icons to either the Konsole title bar or the Windows taskbar entry.**
+**Fixed in v1.1.17.** The v1.1.16 docs incorrectly called this a WSLg architectural limit — it isn't. WSLg DOES set the Windows taskbar icon, just via a different mechanism than X11's `_NET_WM_ICON`.
 
-**What we tried (none worked under WSLg):**
-- `python-xlib` writing `_NET_WM_ICON` (the original v1.1.7 path) — property set, ignored by WSLg
-- Konsole's `--qwindowicon <path>` flag (Qt-native icon-set before window creation) — ignored by WSLg
-- (No other knobs available — neither X11 nor Qt have a path that goes through to WSLg's RDP-side icon rendering)
+**How WSLg picks the taskbar icon:** WSLg matches a window's `WM_CLASS` (X11) or `app_id` (Wayland) against installed `.desktop` files' `StartupWMClass=` entry. The matched `.desktop`'s `Icon=` becomes the Windows taskbar icon. Konsole's default `WM_CLASS` is `konsole`, which matches `/usr/share/applications/org.kde.konsole.desktop` → its bundled icon → not ours.
 
-**What does work:** the cmd "Launch Log" window (the one that runs `kivun-terminal.bat`) shows the icon correctly because Windows reads it from the Desktop shortcut's `kivun_icon.ico` file. That's a Windows-native path, not WSLg.
+**v1.1.17 fix in `kivun-launch.sh`:**
+1. Generates `~/.local/share/applications/kivun-terminal.desktop` with `Icon=<absolute path to kivun-icon.png>` and `StartupWMClass=kivun-terminal`.
+2. Launches Konsole as `konsole --name kivun-terminal ...` so its `WM_CLASS` becomes `kivun-terminal` (Qt's `--name` arg sets `WM_CLASS` res_name).
+3. WSLg now matches the launched window to our `.desktop` and uses our icon.
 
-**Native Linux installs (Konsole on KDE Plasma desktop):** unaffected. The `_NET_WM_ICON` path works correctly there. Only WSLg installs see the blank Konsole icon.
+**Why this didn't get caught earlier:** the v1.1.7 `python-xlib` path *did* set `_NET_WM_ICON` correctly, and the launcher's log line `SUCCESS - Window icon set` made it look like the icon was applied. Under VcXsrv (the original deployment target) it WAS applied — VcXsrv reads `_NET_WM_ICON`. Under WSLg (the v1.1+ default), the property is set but unused. The `.desktop` registration is the WSLg-native path that actually drives the Windows taskbar.
 
-**Workaround if you really want a Konsole icon under WSLg:** run KDE Plasma inside WSL (heavy: ~1 GB additional install of `kde-plasma-desktop`) and use its KWin window manager instead of WSLg's Weston. Not recommended for most users — the cost exceeds the value of one icon.
+**The `_NET_WM_ICON` path still runs as a fallback** for users on `USE_VCXSRV=true` (VcXsrv reads it). The two paths complement each other — `.desktop` for WSLg, `_NET_WM_ICON` for VcXsrv. The cmd "Launch Log" window keeps its own icon from the Desktop shortcut's `kivun_icon.ico`.
+
+## Symptom: launcher worked then suddenly behaves like half the .bat is missing — wrong working directory, no early log lines, missing config
+
+**Cause (v1.1.16 updater regression, fixed in v1.1.17):** `Kivun-Update-To-V1116.bat` downloaded `kivun-terminal.bat` from GitHub raw via `curl -fsSL`, which preserves the repository's LF line endings. **cmd silently skips lines on LF-only `.bat` files** — many statements never execute, including the `WORK_DIR` setup. The launcher then falls through to the v1.1.16 path-conversion fallback and lands users at `~` (WSL home `/home/<user>`) instead of `%USERPROFILE%` (their Windows home `/mnt/c/Users/<user>`).
+
+**Diagnosis pattern:** if `LAUNCH_LOG.txt` shows the header (`KIVUN TERMINAL v1.1.16 LAUNCH LOG`, Date, Working Directory) followed directly by `[hh:mm:ss] SUCCESS - python deps installed` — skipping ALL the early `START - Launching`, `INFO - Using default work directory`, `SUCCESS - Config loaded`, `INFO - Checking WSL installation` lines that should appear in between — the .bat has LF-only line endings and cmd is racing through it dropping commands.
+
+**v1.1.17 fix:**
+- The new updater (`Kivun-Update-To-V1117.bat`) explicitly normalizes the downloaded `.bat` to CRLF after `curl`, via `tr -d '\r' | sed 's/$/\r/'` inside WSL.
+- Bonus belt-and-suspenders fix in `kivun-terminal.bat` itself: when `WORK_DIR` is empty or `.`, substitute `%USERPROFILE%` upstream so `wslpath` converts a real Windows path → `/mnt/c/Users/<user>` instead of cascading through the `~` (WSL home) fallback. So even if you somehow end up with an invalid WORK_DIR, the launcher lands in the Windows home — matching what the Desktop shortcut promises.
+
+**Manual recovery (without re-running an updater):**
+
+```cmd
+wsl -d Ubuntu --user root -- bash -c "tr -d '\r' < /mnt/c/Users/<your-user>/AppData/Local/Kivun-WSL/kivun-terminal.bat | sed 's/\$/\r/' > /tmp/k.bat && mv /tmp/k.bat /mnt/c/Users/<your-user>/AppData/Local/Kivun-WSL/kivun-terminal.bat"
+```
+
+Or just download the v1.1.17 installer fresh from the [releases page](https://github.com/noambrand/kivun-terminal-wsl/releases/latest) — the NSIS installer always ships proper CRLF.
 
 ## Symptom: Working directory is `/mnt/c/Users/<you>/AppData/Local/Kivun-WSL` (the install dir) instead of your home or the right-clicked folder
 
 **Cause (verified April 27, 2026 in WSL 2.6.3.0):** `wslpath ""` and `wslpath "."` both return the literal `.` string. The pre-v1.1.16 `kivun-terminal.bat` only checked for empty WSL_PATH; a `.` value slipped through, got passed to bash, and `cd .` kept whatever cwd bash inherited from cmd — typically the install dir when launched from the Desktop shortcut.
 
-**Fixed in v1.1.16:** the .bat now treats `WSL_PATH=.` the same as empty and falls back to `~` (your WSL home directory).
+**v1.1.16 partial fix:** added `WSL_PATH=.` check, fell back to `~` (WSL home `/home/<user>`). User feedback: this was wrong direction — the Desktop shortcut implies `%USERPROFILE%` (the Windows home), not the WSL home.
 
-**Manual fix on v1.1.15 and earlier:**
+**v1.1.17 correct fix:** when `WORK_DIR` is empty or `.`, substitute `%USERPROFILE%` upfront so `wslpath` converts a real Windows path → `/mnt/c/Users/<you>`. Belt-and-suspenders second `wslpath` call on the result if it still came back empty/`.`. So launching the Desktop shortcut now lands you at `/mnt/c/Users/<you>` (your Windows home), matching what the shortcut implies.
 
-```cmd
-notepad %LOCALAPPDATA%\Kivun-WSL\kivun-terminal.bat
-```
-
-Find the `if "%WSL_PATH%"==""` block (around line 255) and add a parallel check:
-
-```cmd
-) else if "%WSL_PATH%"=="." (
-    set "WSL_PATH=~"
-    call :LOG "WARNING - Path conversion returned '.', using home directory"
-)
-```
-
-Save and re-launch.
+**Manual fix on v1.1.16 and earlier:** download the v1.1.17 installer or the v1.1.17 updater bat — both ship the corrected logic. Hand-editing this case is brittle because the v1.1.16 fallback still resolves to `~` and you have to fix it BEFORE wslpath is called.
 
 ## Symptom: Konsole opens, then Claude immediately exits with `--dangerously-skip-permissions cannot be used with root/sudo privileges`
 

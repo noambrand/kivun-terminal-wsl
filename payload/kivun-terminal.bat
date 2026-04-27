@@ -251,19 +251,31 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM Convert paths
 call :LOG "INFO - Converting Windows paths to WSL paths"
+REM v1.1.17: pre-validate WORK_DIR before wslpath. The launcher used to
+REM let `wslpath "."` return literal "." then fall back to ~ (WSL home).
+REM But ~ resolves to /home/<user> — NOT what users expect when the
+REM Desktop shortcut promised %USERPROFILE% (their Windows home).
+REM Now: if WORK_DIR is empty OR ".", substitute %USERPROFILE% upfront
+REM so wslpath converts a real Windows path → /mnt/c/Users/<user>.
+if "%WORK_DIR%"=="" (
+    set "WORK_DIR=%USERPROFILE%"
+    call :LOG "INFO - WORK_DIR was empty, substituting USERPROFILE=%USERPROFILE%"
+)
+if "%WORK_DIR%"=="." (
+    set "WORK_DIR=%USERPROFILE%"
+    call :LOG "INFO - WORK_DIR was '.', substituting USERPROFILE=%USERPROFILE%"
+)
 for /f "delims=" %%i in ('wsl wslpath "%WORK_DIR%" 2^>nul') do set "WSL_PATH=%%i"
-REM v1.1.16: wslpath returns the literal "." string when given an empty
-REM input or a "." input (verified April 2026 in WSL 2.6.3.0). The
-REM original empty-only check missed this and bash would `cd .` into
-REM whatever cwd it inherited from cmd — typically the Kivun install
-REM dir when launched via the Desktop shortcut. Treat "." the same as
-REM empty: fall back to the home directory.
+REM Belt-and-suspenders: if wslpath still returned "" or ".", fall back
+REM to USERPROFILE via a second wslpath call (NOT to ~). v1.1.16 used ~
+REM which lands users in the WSL home; v1.1.17 keeps the Windows-home
+REM contract that the Desktop shortcut implies.
 if "%WSL_PATH%"=="" (
-    set "WSL_PATH=~"
-    call :LOG "WARNING - Path conversion failed (empty), using home directory"
+    for /f "delims=" %%i in ('wsl wslpath "%USERPROFILE%" 2^>nul') do set "WSL_PATH=%%i"
+    call :LOG "WARNING - wslpath returned empty for '%WORK_DIR%', falling back to USERPROFILE"
 ) else if "%WSL_PATH%"=="." (
-    set "WSL_PATH=~"
-    call :LOG "WARNING - Path conversion returned '.', using home directory"
+    for /f "delims=" %%i in ('wsl wslpath "%USERPROFILE%" 2^>nul') do set "WSL_PATH=%%i"
+    call :LOG "WARNING - wslpath returned '.' for '%WORK_DIR%', falling back to USERPROFILE"
 ) else (
     call :LOG "SUCCESS - WSL work path: %WSL_PATH%"
 )

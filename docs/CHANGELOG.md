@@ -3,6 +3,35 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.17] - 2026-04-27
+
+Two regressions that surfaced from real install testing of v1.1.16. Both were caused by code I shipped in v1.1.16; both are fixed here.
+
+### Fixed: v1.1.16 updater bat shipped LF-endings .bat → cmd silently skipped half the launcher
+
+**Symptom:** users who ran `Kivun-Update-To-V1116.bat` reported the working directory was wrong (landed in `/home/<user>` instead of `%USERPROFILE%`-converted `/mnt/c/Users/<user>`), the icon didn't show, and Claude asked to trust the folder on every launch (because it was a different folder than before).
+
+**Cause (the actual root, found by counting CRs in the deployed file):** the v1.1.16 updater downloaded `kivun-terminal.bat` via `curl -fsSL` from GitHub raw. **GitHub raw serves files with the repository's storage line endings — LF on Linux-flavored repos.** The original NSIS installer wraps shipped files in CRLF, but the updater didn't normalize. Result: the deployed `kivun-terminal.bat` had ALL LF endings (verified: 0 lines with `\r$` out of 658 total). cmd is *partially* tolerant of LF-only `.bat` files — some lines run, some don't — and the symptom is silent. In practice the `WORK_DIR` setup at line 53, the config-file read at line 80, and ~10 other early `:LOG` calls were all skipped, so the launcher fell through to the v1.1.16 path-conversion fallback (`~`) instead of the proper `%USERPROFILE%` branch.
+
+**Fix in v1.1.17 updater:** explicitly normalizes the downloaded `.bat` to CRLF inside WSL via `tr -d '\r' | sed 's/$/\r/'` after `curl`. Belt-and-suspenders fix in `kivun-terminal.bat` itself: when `WORK_DIR` is empty or `.`, substitute `%USERPROFILE%` upstream BEFORE `wslpath` (instead of falling back to `~` after `wslpath` returns `.`). So even if a future updater bug ships LF-endings again, the launcher's surviving fragments still land users at their Windows home, not WSL home.
+
+### Fixed (also retracted v1.1.16's "architectural limit" claim): Konsole window has no taskbar icon under WSLg
+
+**v1.1.16 incorrectly documented the missing taskbar icon as a WSLg architectural limit.** It isn't. WSLg sets the Windows taskbar icon by matching window WM_CLASS (or Wayland app_id) against installed `.desktop` files' `StartupWMClass=` entry — a different mechanism than X11's `_NET_WM_ICON` (which the v1.1.7 path correctly sets but WSLg ignores). Konsole's default WM_CLASS is `konsole`, which matches the system's `org.kde.konsole.desktop` and uses Konsole's bundled icon — NOT ours.
+
+**Fix in v1.1.17 `kivun-launch.sh`:**
+1. Generates `~/.local/share/applications/kivun-terminal.desktop` with `Icon=<absolute path to kivun-icon.png>` and `StartupWMClass=kivun-terminal`.
+2. Launches Konsole with `--name kivun-terminal` (Qt's WM_CLASS res_name flag).
+3. WSLg matches the `kivun-terminal` WM_CLASS to our `.desktop` and uses our PNG for the Windows taskbar icon. Verified working April 27, 2026.
+
+The original `python-xlib` `_NET_WM_ICON` path still runs as a fallback for users on `USE_VCXSRV=true` — VcXsrv reads `_NET_WM_ICON` directly. The two paths are complementary: `.desktop` for WSLg installs (the v1.1+ default), `_NET_WM_ICON` for VcXsrv installs.
+
+### Lesson learned (carried into the launcher-bulletproofing memory entry)
+
+When a doc says something is "architecturally not fixable", check first whether you've explored ALL the platform's mechanisms — not just the one you tried. v1.1.16 declared WSLg icon-setting unfixable based on testing two `_NET_WM_ICON` paths. The actual answer was a third mechanism (`.desktop` + WM_CLASS) that's the *standard* way Linux desktops associate icons with applications. "Not fixable" claims should require active disproof of all known APIs, not "I tried two things and they didn't work."
+
+Also: when shipping an updater that pulls files from GitHub raw, ALWAYS normalize line endings explicitly. The repo-side storage endings are not the same as the installer-bundled endings.
+
 ## [1.1.16] - 2026-04-27
 
 Two user-reported issues from real install testing on April 27, 2026.
