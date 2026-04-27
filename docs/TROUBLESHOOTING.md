@@ -180,6 +180,47 @@ Restart Kivun Terminal. The wrapper will now strip the leading `●` from any li
 
 **Trade-off:** the visible `●` marker disappears on Hebrew bullet lines (the indentation stays, so you still see lines as visually grouped). English bullet lines are not touched - their `●` continues to render normally. If you'd rather keep the bullet visible at the cost of the LTR layout on Konsole 23.x, leave `KIVUN_BIDI_STRIP_BULLET=off` (the default).
 
+## Symptom: Hebrew lines render right-aligned BUT English/code/numbers land at the wrong column inside Hebrew sentences
+
+**E.g.** `אני משתמש ב-React כדי לרנדר את הקומפוננטות` renders with "React" stuck at the visual left edge instead of mid-sentence between `ב-` and `כדי`.
+
+**Cause (USER-CONFIRMED via DUMP_RAW capture, April 2026):** Claude Code's TUI emits **CSI cursor-forward escapes (`\x1b[1C`) instead of literal space characters between every word.** Konsole's BiDi engine treats each invisible cursor-forward as an attribute-region boundary the same way it treats SGR color changes — splitting the BiDi run between every word, so each word fragment gets BiDi-resolved independently and Qt mispositions LTR fragments to the visual left edge.
+
+**Fix shipped in v1.1.13:** the wrapper now intercepts CSI cursor-forwards on RTL lines and replaces each `\x1b[NC` with N literal space characters. Visually identical (cursor-forward moves over presumed-blank cells; spaces write to those same cells), but no attribute-region boundary so the entire RTL line is one BiDi run. Gated on the existing `KIVUN_BIDI_FLATTEN_COLORS_RTL=on` flag (default on).
+
+**If you're still seeing it on v1.1.13+:** verify the wrapper deployed correctly — `grep cursorForwardReplacedCount ~/.local/share/kivun-terminal/kivun-claude-bidi/lib/injector.js` should print at least one match. If not, re-run the installer or use `Kivun-Update-To-V1113.bat` to pull the latest wrapper from `main`.
+
+## Symptom: Hebrew rendering looks broken in a NEW way that doesn't match any symptom above
+
+**General debugging recipe** (the one we used to find the v1.1.13 cursor-forward bug):
+
+1. **Turn on raw stream capture.** Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt` (Linux: `~/.config/kivun-terminal/config.txt`, macOS: `~/Library/Application Support/Kivun-Terminal/config.txt`) and set `KIVUN_BIDI_DUMP_RAW=on`. Save. Close + reopen Kivun.
+2. **Reproduce the rendering bug.** Send Claude one prompt that triggers it. Close Kivun.
+3. **Inspect the dump.** The wrapper has captured every byte Claude emitted to:
+   ```
+   ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+   ```
+4. **Look for invisible CSI sequences acting as attribute-region boundaries.** Visible escapes (colors via `\x1b[...m`, cursor positioning via `\x1b[...H`, etc.) are obvious. The killers are sequences that LOOK like text in the dump but are actually escapes:
+   - `\x1b[NC` — cursor-forward (was the v1.1.13 culprit)
+   - `\x1b[ND` — cursor-back
+   - `\x1b[NA` / `\x1b[NB` — cursor up / down
+   - `\x1b[?Nh` / `\x1b[?Nl` — set / reset terminal modes
+   - `\x1b]...\x1b\\` — OSC sequences (window title, hyperlinks, etc.)
+5. **Quick frequency count via Python:**
+   ```bash
+   python3 -c "
+   import re, collections
+   data = open('/path/to/bidi-raw-dump.bin', 'rb').read()
+   finals = collections.Counter(m.group(1) for m in re.finditer(rb'\x1b\[[\x30-\x3f]*[\x20-\x2f]*([\x40-\x7e])', data))
+   for byte, count in finals.most_common(10):
+       print(f'  CSI ending in {chr(byte[0])!r:8} ({byte.hex()}): {count} occurrences')
+   "
+   ```
+6. **Whichever final byte has hundreds of occurrences inside the Hebrew text** is your suspect splitter. Pin its replacement in `kivun-claude-bidi/lib/injector.js` the same way v1.1.13 pinned cursor-forward.
+7. **Turn off DUMP_RAW after diagnostic** to avoid filling disk: flip `KIVUN_BIDI_DUMP_RAW=on` back to `=off` in `config.txt`. (Auto-rotation at 5 MiB caps total use, but cleaner is off when not actively investigating.)
+
+The pattern: when the wrapper-rendered output looks wrong even though all *visible* escapes are stripped, look for *invisible* CSI sequences that act as attribute-region boundaries. The DUMP_RAW side log makes them visible.
+
 ## Symptom: `KIVUN_BIDI_WRAPPER=on` but Hebrew still renders reversed
 
 **Cause:** The BiDi wrapper (`kivun-claude-bidi`) is default-on as of v1.1.0 but requires a one-time first-run `npm install` before it can be used. If something in that flow failed, the launcher falls back to unwrapped `claude` silently from the user's perspective - but the launch log records the reason.

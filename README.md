@@ -120,7 +120,7 @@ Disable via `TERMINAL_COLOR=default` in your config to fall back to the terminal
 
 ## BiDi Wrapper
 
-v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's output through a state machine doing six complementary fixes for known Konsole BiDi limitations. Every fix here was added in response to a specific user-visible Hebrew rendering bug; cumulatively they make Hebrew/English mixed terminal output behave the way `<bdi>` makes it behave in HTML.
+v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's output through a state machine doing seven complementary fixes for known Konsole BiDi limitations. Every fix here was added in response to a specific user-visible Hebrew rendering bug; cumulatively they make Hebrew/English mixed terminal output behave the way `<bdi>` makes it behave in HTML.
 
 | Fix | What it does | Solves | Default |
 |---|---|---|---|
@@ -130,14 +130,17 @@ v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's outp
 | **Strip-incoming bidi controls** (v1.1.9) | Strips embedding (`U+202A`–`U+202E`) and isolate (`U+2066`–`U+2069`) marks from Claude's stream; preserves LRM/RLM | Stops upstream-emitted bidi controls from compounding with wrapper-injected RLM and producing nondeterministic positioning | auto |
 | **Flatten colors on RTL lines** (v1.1.10) | Strips ANSI SGR (CSI`...m`) sequences from any line whose first strong char is Hebrew so the line is one attribute run | Konsole's BiDi only runs within continuous-attribute regions; color changes split the BiDi run and Qt mispositions the resulting fragments | on |
 | **No per-run RLE/PDF on RTL lines** (v1.1.11) | When the line is already RTL via line-start RLM, skip per-Hebrew-run RLE/PDF brackets — let UAX #9 handle direction across the whole single-attribute line | Per-run brackets *themselves* act as attribute-region boundaries; on lines with multiple Hebrew runs separated by LTR runs, they recreated the same misposition v1.1.10 was supposed to fix | off |
+| **Cursor-forward → space replacement on RTL lines** (v1.1.13, **user-confirmed working** April 2026) | Replaces each `\x1b[NC` cursor-forward CSI with N literal space characters on RTL lines. Visually identical (cursor moves over presumed-blank cells; spaces write to those same cells) but no attribute-region boundary | Claude Code's TUI uses cursor-forward escapes instead of literal spaces between every word — confirmed via `KIVUN_BIDI_DUMP_RAW=on` capture showing **306 cursor-forward CSIs in one short Hebrew session**. Each one was splitting Konsole's BiDi run the same way SGR colors did, just invisibly. v1.1.10 caught the visible color splitters; v1.1.13 catches the invisible cursor-forward splitters | on (gated on the same `KIVUN_BIDI_FLATTEN_COLORS_RTL` flag) |
 
-**Why this isn't fixable upstream:** Konsole has no real BiDi engine — it hands continuous-attribute regions to Qt's text layout, and Qt has no idea where a colored or bracketed fragment logically belongs in the surrounding RTL paragraph. This is documented at [terminal-wg.pages.freedesktop.org](https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html) and was empirically confirmed via April 2026 A/B tests on Konsole 23.08.5. KDE has shown no signs of changing it; the wrapper's job is to give Konsole exactly what it can render correctly: a single attribute run per RTL line.
+**Why this isn't fixable upstream:** Konsole has no real BiDi engine — it hands continuous-attribute regions to Qt's text layout, and Qt has no idea where a colored, bracketed, or cursor-positioned fragment logically belongs in the surrounding RTL paragraph. This is documented at [terminal-wg.pages.freedesktop.org](https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html) and was empirically confirmed via April 2026 A/B tests on Konsole 23.08.5. KDE has shown no signs of changing it; the wrapper's job is to give Konsole exactly what it can render correctly: a single attribute run per RTL line.
 
 **Trade-offs:**
-- v1.1.10 flatten loses syntax color on Hebrew lines. Set `KIVUN_BIDI_FLATTEN_COLORS_RTL=off` to keep colors at the cost of broken positioning.
+- v1.1.10 flatten loses syntax color on Hebrew lines. Set `KIVUN_BIDI_FLATTEN_COLORS_RTL=off` to keep colors at the cost of broken positioning. (v1.1.13 cursor-forward replacement is gated on the same flag, so opting out of color-flatten also opts out of cursor-forward replacement.)
 - v1.1.11 no-bracket is the cleaner path; if you preferred the legacy v1.1.0–v1.1.10 behavior set `KIVUN_BIDI_BRACKET_RTL_RUNS=on`.
 
-Toggle the wrapper itself via `KIVUN_BIDI_WRAPPER=on|off` in your config. Each individual fix has its own toggle (`KIVUN_BIDI_STRIP_BULLET`, `KIVUN_BIDI_STRIP_INCOMING`, `KIVUN_BIDI_FLATTEN_COLORS_RTL`, `KIVUN_BIDI_BRACKET_RTL_RUNS`). Test coverage as of v1.1.11: 72 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
+**The "look for invisible CSI splitters" debugging pattern** (v1.1.13 lesson learned, also captured in `docs/TROUBLESHOOTING.md`): when a wrapper-rendered terminal output looks wrong even though all *visible* escapes (colors, RLE/PDF) are stripped, look for *invisible* CSI sequences acting as attribute-region boundaries. Cursor-forward (`...C`), cursor-back (`...D`), set/reset mode (`...h`/`...l`) all qualify. Turn on `KIVUN_BIDI_DUMP_RAW=on` and inspect `~/.local/state/kivun-terminal/bidi-raw-dump.bin` — anything that *looks* like text in the dump but is actually an escape sequence is a candidate splitter.
+
+Toggle the wrapper itself via `KIVUN_BIDI_WRAPPER=on|off` in your config. Each individual fix has its own toggle (`KIVUN_BIDI_STRIP_BULLET`, `KIVUN_BIDI_STRIP_INCOMING`, `KIVUN_BIDI_FLATTEN_COLORS_RTL`, `KIVUN_BIDI_BRACKET_RTL_RUNS`). Test coverage as of v1.1.13: 87 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
 
 ## Architecture
 
