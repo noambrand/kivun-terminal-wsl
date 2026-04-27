@@ -3,6 +3,26 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.26] - 2026-04-27
+
+Eighth iteration. v1.1.25's `ping`-based polling worked (launcher_stderr now empty, no more "Input redirection" errors), but the test STILL failed even though `/root/.local/bin/claude` was successfully installed. v1.1.26 adds per-iteration polling diagnostics + a longer test timeout.
+
+### Changed: per-iteration polling diagnostic + test timeout 120s → 240s
+
+CI run 25017204704 (v1.1.25) confirmed:
+- launcher_stderr.txt is **empty** — `ping` fix solved the timeout-rejection issue
+- `/root/.local/bin/claude → versions/2.1.119` exists at install completion (timestamp 20:15)
+- Polling kickoff log fires: `INFO - install kicked off via setsid; polling for /tmp/kivun-install-rc`
+- Polling LOG line `INFO - install.sh returned exit code N` **never appears**
+
+The launcher's polling is silent — we can't tell if it's iterating, what wsl returns each time, or if it's stuck. v1.1.26 adds `DEBUG - poll iter wait=Xs wsl_rc=N` log line per iteration so we can diagnose without guessing.
+
+Also bumped the test's polling cap from 120s to 240s. Real users on warm PCs are fine in 30-90s, but a cold CI runner has WSL-boot + curl + native-build + symlink overhead — could plausibly take 2-3 min total. The launcher's own cap is 660s so 240s for the test stays under that.
+
+### Match working redirect pattern in polling
+
+Switched polling line from `< nul >> "%LOG_FILE%" 2>&1` to `< nul 2>&1 >> "%LOG_FILE%"` — the former is what we wrote in v1.1.24/v1.1.25 but the latter is what every working `< nul`-using line in this launcher actually uses (lines 34, 194, 199, 666). Empirically the latter is reliable; the former may have parser-order edge cases.
+
 ## [1.1.25] - 2026-04-27
 
 Seventh hot-fix in the same day. Found the real culprit: `timeout.exe`, NOT `wsl.exe`, was producing all the "Input redirection is not supported" errors across v1.1.21–v1.1.24's failed CI runs.

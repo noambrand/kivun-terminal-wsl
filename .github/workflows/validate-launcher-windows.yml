@@ -314,16 +314,19 @@ jobs:
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
 
-      - name: Wait for SUCCESS marker (fail-fast at 2 min) + diagnostic dump
+      - name: Wait for SUCCESS marker (fail-fast at 4 min) + diagnostic dump
         shell: bash
         run: |
-          # Per user feedback 2026-04-27: a healthy install completes in
-          # 30-90 seconds. If the launcher hasn't logged SUCCESS or ERROR
-          # within 2 minutes, treat it as a hang and dump everything we
-          # know — don't sit on the polling loop for 15 minutes pretending
-          # the install might still be going. Cap at 120s for clean fail.
+          # v1.1.26: bumped from 120s to 240s. v1.1.25 confirmed launcher
+          # polling works (no more "Input redirection" errors), but a cold
+          # CI runner takes longer than 120s for: WSL boot + install.sh
+          # download + native-build extraction + symlink. Real-user PCs are
+          # typically faster, but CI runner first-launch is the worst case.
+          # 240s gives 4 min headroom; healthy install still completes in
+          # 30-90s. The launcher's own internal cap is 660s so this stays
+          # under that.
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
-          end=$((SECONDS + 120))
+          end=$((SECONDS + 240))
           install_succeeded=0
           install_failed=0
           install_timed_out=0
@@ -377,7 +380,7 @@ jobs:
           echo "===== /tmp/claude-installer.sh existence ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/claude-installer.sh /root/.local/bin/claude 2>&1 || true"
           echo
-          echo "===== bat lines we expect to be running (v1.1.25 sanity check) ====="
+          echo "===== bat lines we expect to be running (v1.1.26 sanity check) ====="
           grep -nE 'setsid|kivun-install-claude\.sh|kivun-install-rc|_install_poll|install kicked off' payload/kivun-terminal.bat | head -15
           echo "===== /tmp/kivun-install-rc (inside WSL — should exist if install completed) ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/kivun-install-rc 2>&1; cat /tmp/kivun-install-rc 2>/dev/null || echo '(no rc file)'"

@@ -685,8 +685,14 @@ REM    /tmp tmpfs before we read the marker, the binary still exists in
 REM    /root/.local (persistent), so we can verify install success.
 set /a INSTALL_WAIT=0
 :_install_poll
-wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc || test -x /root/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
-if %ERRORLEVEL% EQU 0 goto :_install_check_rc
+REM v1.1.26: match the redirect order from the working line 194:
+REM `< nul 2>&1 >> "%LOG_FILE%"` instead of `< nul >> ... 2>&1`. Empirically
+REM the former is the one that always works in this launcher.
+wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc || test -x /root/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
+set "_POLL_RC=%ERRORLEVEL%"
+REM Per-iteration log so we can see polling actually progresses.
+call :LOG "DEBUG - poll iter wait=%INSTALL_WAIT%s wsl_rc=%_POLL_RC%"
+if "%_POLL_RC%"=="0" goto :_install_check_rc
 set /a INSTALL_WAIT+=5
 if %INSTALL_WAIT% GEQ 660 (
     call :LOG "WARNING - install.sh hit 660s cmd-side poll cap (setsid'd process stuck or killed)"
