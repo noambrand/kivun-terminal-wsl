@@ -54,6 +54,37 @@ log "  USE_VCXSRV=$USE_VCXSRV"
 log "  LOG_FILE=$LOG_FILE"
 log "  TEXT_DIR=$TEXT_DIR"
 
+# v1.1.14: defense-in-depth root-user guard. The Windows .bat already
+# tries to find a non-root user when WSLg is root-owned, but if some
+# upstream WSL/distro change defeats that detection (or someone runs
+# this script directly via `wsl --user root -- bash kivun-launch.sh`),
+# we still need to refuse cleanly. Claude Code refuses to start with
+# --dangerously-skip-permissions when running as root, and the user
+# sees a cryptic "Claude exited with code 1" without context.
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    log "ERROR - Running as root (EUID=0). Claude Code refuses to start as root."
+    {
+        echo ""
+        echo "============================================================"
+        echo " ERROR: Kivun launcher is running as root."
+        echo "============================================================"
+        echo " Claude Code refuses --dangerously-skip-permissions when"
+        echo " running as root for security reasons."
+        echo ""
+        echo " Fix: create a non-root user in Ubuntu and set it as the"
+        echo " default. From Windows cmd or PowerShell:"
+        echo ""
+        echo "   wsl -d Ubuntu --user root -- adduser yourname"
+        echo "   wsl -d Ubuntu --user root -- usermod -aG sudo yourname"
+        echo "   ubuntu config --default-user yourname"
+        echo "   wsl --terminate Ubuntu"
+        echo ""
+        echo " Then re-launch Kivun Terminal."
+        echo "============================================================"
+    }
+    exit 1
+fi
+
 # Kill any zombie/stale konsole processes belonging to THIS user only —
 # prior failed launches can leave hidden windows that confuse xdotool
 # into reporting "found konsole" when our new window hasn't appeared yet.

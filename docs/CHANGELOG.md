@@ -3,6 +3,33 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.14] - 2026-04-27
+
+User-reported real install failure on a machine where `/mnt/wslg/runtime-dir` was owned by `root` (fresh Ubuntu setup, default WSL user is root, or distro from cloud-init). The launcher faithfully detected the WSLg owner and ran as root, the wrapper deployed to `/root/.local/share/kivun-terminal/...`, and Claude Code immediately exited with `--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons`. From the user's perspective: Kivun opens, prints "Claude exited with code 1", crashes.
+
+### Fixed
+
+- **`payload/kivun-terminal.bat` v1.1.14**: when `WSLG_USER` resolves to `root`, the launcher now queries `wsl -d Ubuntu --user root -- id -un 1000` to find the conventional first non-root user, and uses that for the WSL launch instead of root. If no UID-1000 user exists, the launcher aborts with a clear error message and copy-paste-able instructions for creating one (`adduser`, `usermod -aG sudo`, `ubuntu config --default-user`, `wsl --terminate`).
+- **`payload/kivun-launch.sh` v1.1.14 (defense in depth)**: a guard at the top of the WSL-side launcher that refuses to run when `EUID=0`. If somehow the .bat detection is defeated upstream, or someone invokes the bash launcher directly via `wsl --user root -- bash kivun-launch.sh`, this prints the same fix-instructions and exits 1 before reaching Claude.
+
+### Why this didn't surface earlier
+
+Most Kivun users created their Ubuntu via the standard MS Store image, which prompts for a username on first run and creates UID 1000. WSLg ends up owned by that user. The WSLG_USER detection (added v1.1.4) Just Works and the launcher runs as the right user.
+
+The reported case (user `mipmip`) had Ubuntu's default user as root — likely a fresh install that skipped the user-creation prompt, or a custom distro image. There the WSLG_USER detection returned `root`, the launcher dutifully passed `--user root`, and the chain failed with a confusing Claude error message instead of a clear "create a non-root user first."
+
+### Test path (manual, no unit test for Windows .bat / WSL launch)
+
+To reproduce + verify locally:
+
+```cmd
+REM 1. Reset to a "no non-root user" state (DESTRUCTIVE - back up first):
+REM    wsl -d Ubuntu --user root -- userdel -r yourname
+REM    ubuntu config --default-user root
+REM 2. Run Kivun. Should now show the v1.1.14 error message with
+REM    instructions instead of crashing with the Claude exit-code-1 message.
+```
+
 ## [1.1.13] - 2026-04-27
 
 > **Status:** USER-CONFIRMED WORKING. Verified against a real Hebrew Claude session on Konsole 23.08.5 (Ubuntu 24.04 LTS, April 27, 2026). The wrapper processes the actual user `dump.bin` cleanly: 55 cursor-forwards replaced + 98 SGR codes stripped, single attribute region per RTL line, English/code runs land at UAX #9 logical positions inside Hebrew sentences.
