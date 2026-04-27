@@ -377,11 +377,14 @@ jobs:
           echo "===== /tmp/claude-installer.sh existence ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/claude-installer.sh /root/.local/bin/claude 2>&1 || true"
           echo
-          echo "===== bat lines we expect to be running (v1.1.20 sanity check) ====="
-          grep -nE 'timeout 600|Auto-installing|install.sh returned|kivun-claude.log|< /dev/null' payload/kivun-terminal.bat | head -10
+          echo "===== bat lines we expect to be running (v1.1.21 sanity check) ====="
+          grep -nE 'timeout 600|Auto-installing|install.sh returned|kivun-install-rc|disown|_install_poll' payload/kivun-terminal.bat | head -15
           echo
           echo "===== Live processes (post-cleanup) ====="
-          tasklist //FI "IMAGENAME eq cmd.exe" //FI "IMAGENAME eq wsl.exe" //FI "IMAGENAME eq bash.exe" 2>&1 | head -20
+          # `MSYS_NO_PATHCONV=1` + `MSYS2_ARG_CONV_EXCL='*'` preserve `/FI`
+          # literally, so we use single `/` here, not `//`. Earlier dump
+          # used `//FI` and tasklist rejected with "Invalid argument/option".
+          tasklist /FI "IMAGENAME eq cmd.exe" /FI "IMAGENAME eq wsl.exe" /FI "IMAGENAME eq bash.exe" 2>&1 | head -20
           echo "================================================================"
           exit 1
 
@@ -803,7 +806,9 @@ jobs:
           grep -nE 'Reading config.txt|for /f.*tokens.*config.txt|Config loaded|FOLDER_PICKER|Setting language-specific' payload/kivun-terminal.bat | head -10
           echo
           echo "===== Live processes (post-cleanup) ====="
-          tasklist //FI "IMAGENAME eq cmd.exe" //FI "IMAGENAME eq wsl.exe" //FI "IMAGENAME eq bash.exe" //FI "IMAGENAME eq findstr.exe" 2>&1 | head -25
+          # See note in test-no-claude-accept-install dump: `/FI` not `//FI`
+          # because workflow-level MSYS_NO_PATHCONV preserves it literally.
+          tasklist /FI "IMAGENAME eq cmd.exe" /FI "IMAGENAME eq wsl.exe" /FI "IMAGENAME eq bash.exe" /FI "IMAGENAME eq findstr.exe" 2>&1 | head -25
           echo "================================================================"
           exit 1
 

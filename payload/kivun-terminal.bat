@@ -607,25 +607,52 @@ REM wsl invocation in this launcher) can't see. CI proved this: the
 REM install logged "Claude Code successfully installed" but the verify
 REM step couldn't find it.
 REM
-REM v1.1.19 added `timeout 600` + `| tee /tmp/kivun-claude.log` to fix the
-REM real-user hang report from 2026-04-27 (install.sh stuck forever, log
-REM empty). The `tee` part regressed: install COMPLETED on disk
-REM (/root/.local/bin/claude appeared) but the wsl.exe pipe never EOF'd,
-REM so cmd never saw INSTALL_RC and the launcher hung anyway.
+REM v1.1.19 added `timeout 600` + `| tee /tmp/kivun-claude.log` — install
+REM COMPLETED on disk but tee held the pipe open, wsl.exe never returned.
+REM v1.1.20 dropped the pipe (`> /tmp/kivun-claude.log 2>&1 < /dev/null`)
+REM but wsl.exe STILL hung. CI run 25014868847 proved it: install
+REM completed (binary at /root/.local/bin/claude → versions/2.1.119),
+REM LAUNCH_LOG ended at "Auto-installing Claude" with no INSTALL_RC line,
+REM wsl.exe was still alive 2 min later. Something in claude.ai/install.sh's
+REM "native build" path retains a wsl-side fd or process-group reference
+REM that keeps wsl.exe waiting even after the install's main process exits.
 REM
-REM v1.1.20: drop the pipe entirely. claude.ai/install.sh's "native build"
-REM path forks a post-install hook that inherits the parent's stdout fd;
-REM when the install's main process exits, the grandchild keeps the pipe
-REM write-end open, `tee` blocks on read forever, and `wsl.exe` never
-REM returns. Writing the log file INSIDE WSL via `> /tmp/kivun-claude.log
-REM 2>&1` sidesteps this — wsl.exe returns as soon as the timeout
-REM subshell exits, regardless of any orphaned background processes.
-REM `< /dev/null` closes stdin inside WSL so install.sh's interactive
-REM prompts (if any) cannot block. `$?` cleanly carries the timeout/
-REM install exit code out to %ERRORLEVEL%.
+REM v1.1.21: stop waiting for wsl.exe. Detach the install entirely:
+REM `( ... ) </dev/null >/dev/null 2>&1 & disown` runs the install in a
+REM backgrounded subshell whose stdin/stdout/stderr are all closed before
+REM `& disown` removes it from the outer bash's job table. The outer
+REM `bash -c` has nothing left to wait for, exits, wsl.exe returns to cmd
+REM in <1s. The subshell continues running detached; when the install
+REM finishes (timeout or natural), it writes its exit code to
+REM /tmp/kivun-install-rc. cmd polls every 5s for that marker file —
+REM there's no synchronous wsl.exe wait anywhere in this path so it
+REM cannot hang regardless of what install.sh forks.
 echo Installing Claude Code in Ubuntu (max 10 min)...
-wsl -d Ubuntu -- bash -c "timeout 600 bash -c 'curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh && bash /tmp/claude-installer.sh; rc=$?; rm -f /tmp/claude-installer.sh; exit $rc' > /tmp/kivun-claude.log 2>&1 < /dev/null"
-set "INSTALL_RC=%ERRORLEVEL%"
+REM `< nul` closes cmd-stdin (test pipes blank lines via launcher_input.txt
+REM and we don't want set/p prompts to consume them later).
+wsl -d Ubuntu -- bash -c "rm -f /tmp/kivun-claude.log /tmp/kivun-install-rc; ( timeout 600 bash -c 'curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh && bash /tmp/claude-installer.sh; rc=$?; rm -f /tmp/claude-installer.sh; exit $rc' > /tmp/kivun-claude.log 2>&1; echo $? > /tmp/kivun-install-rc ) </dev/null >/dev/null 2>&1 & disown" < nul
+
+REM Poll for the marker. cmd's `timeout /t 5 /nobreak` sleeps 5s without
+REM accepting Ctrl-C. Cap at 660s (= 600s install + 60s slack) so a stuck
+REM install can never freeze the launcher beyond install.sh's own bound.
+set /a INSTALL_WAIT=0
+:_install_poll
+wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc" < nul 2>nul
+if %ERRORLEVEL% EQU 0 goto :_install_check_rc
+set /a INSTALL_WAIT+=5
+if %INSTALL_WAIT% GEQ 660 (
+    call :LOG "WARNING - install.sh hit 660s cmd-side poll cap (subshell stuck or wsl unreachable)"
+    set "INSTALL_RC=124"
+    goto :_install_after
+)
+timeout /t 5 /nobreak > nul
+goto :_install_poll
+
+:_install_check_rc
+set "INSTALL_RC=1"
+for /f "delims=" %%R in ('wsl -d Ubuntu -- bash -c "cat /tmp/kivun-install-rc 2>/dev/null"') do set "INSTALL_RC=%%R"
+
+:_install_after
 call :LOG "INFO - install.sh returned exit code %INSTALL_RC%"
 if "%INSTALL_RC%"=="124" call :LOG "WARNING - install.sh hit 600s timeout"
 if not "%INSTALL_RC%"=="0" call :_NPM_FALLBACK

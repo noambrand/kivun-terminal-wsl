@@ -3,6 +3,49 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.21] - 2026-04-27
+
+Third hot-fix in the same day for the auto-install hang. v1.1.19 (added `timeout 600` + `tee`) and v1.1.20 (dropped `tee`, kept file redirect) both improved the path but neither made `wsl.exe` reliably return after install completes. CI artifact (run 25014868847) was definitive: claude binary on disk, install COMPLETE, but `wsl.exe` still alive 2 minutes later. v1.1.21 stops waiting for `wsl.exe` at all.
+
+### Fixed: launcher cannot hang on auto-install regardless of what install.sh does
+
+**Root cause analysis.** v1.1.20's diagnostic dump showed:
+- `/root/.local/bin/claude → versions/2.1.119` exists immediately after install (timestamped 19:23, install kicked off at 19:23:25 — install completes in seconds)
+- LAUNCH_LOG ends at `INFO - Auto-installing Claude (AUTO_INSTALL_CLAUDE=yes)` — the next expected line `INFO - install.sh returned exit code N` (line 629 of the .bat) is **never written**
+- launcher_stdout ends at `Installing Claude Code in Ubuntu (max 10 min)...` — also silent
+- `wsl.exe` was still alive when the test killed it at 2 min mark
+
+The bash subshell that runs the install **exits cleanly**, but `wsl.exe` doesn't follow it out. Possible causes (any one of which would block `wsl.exe`):
+1. `claude.ai/install.sh`'s "native build" execs a post-install hook that inherits the wsl-side pty fd
+2. install.sh forks a daemon in the same process group that wsl.exe is monitoring
+3. WSL's interop relay holds a reference until the orphan group exits
+
+We can't fix any of these from the launcher side, and they may evolve as Anthropic ships further install.sh changes.
+
+**Fix in `payload/kivun-terminal.bat` `:_do_install`:** stop relying on `wsl.exe` returning. Detach the install entirely:
+
+```
+wsl -d Ubuntu -- bash -c "rm -f /tmp/kivun-claude.log /tmp/kivun-install-rc; ( timeout 600 bash -c '...install...' > /tmp/kivun-claude.log 2>&1; echo $? > /tmp/kivun-install-rc ) </dev/null >/dev/null 2>&1 & disown"
+```
+
+The `( ... ) </dev/null >/dev/null 2>&1 & disown` runs the install in a backgrounded subshell whose stdin/stdout/stderr are all closed before `& disown` removes it from the outer bash's job table. The outer `bash -c` has nothing left to wait for, exits, `wsl.exe` returns to cmd in <1s.
+
+The detached subshell continues running:
+- `timeout 600 bash -c '...install...' > /tmp/kivun-claude.log 2>&1` runs the install with output captured
+- After it exits (success, failure, or 600s timeout = exit 124), `echo $? > /tmp/kivun-install-rc` writes the exit code
+
+cmd polls every 5s for the marker file (`wsl -- bash -c "test -f /tmp/kivun-install-rc"`), reads the exit code when it appears, and proceeds with verify or npm fallback. **No synchronous `wsl.exe` wait anywhere in the install path** — the launcher cannot hang regardless of what install.sh forks.
+
+Cap: 660s of polling (= 600s install + 60s slack), then assume the subshell is wedged and fall through to npm fallback.
+
+### Also: fixed CI diagnostic dump's `tasklist //FI` syntax
+
+With workflow-level `MSYS_NO_PATHCONV=1` and `MSYS2_ARG_CONV_EXCL='*'`, `//FI` is preserved literally instead of being collapsed by Git-Bash's MSYS layer to `/FI`. tasklist rejects `//FI` with `Invalid argument/option`. Changed to single `/FI`.
+
+### Lesson
+
+Three releases in one day — v1.1.19, v1.1.20, v1.1.21 — to chase a hang that turned out to need a fundamentally different approach (give up on `wsl.exe` returning) rather than tweaks to the same approach (drop pipe, drop redirect, etc.). Lesson added to launcher-bulletproofing memory: **for any wsl-invoked command that runs user-supplied installer scripts, assume `wsl.exe` may not return, and detach by default.** Trust nothing about pty/fd/process-group cleanup that depends on the inner script's good behavior.
+
 ## [1.1.20] - 2026-04-27
 
 Follow-up to v1.1.19. The same `test-no-claude-accept-install` job that v1.1.19 was supposed to make pass kept failing — and the new fail-fast diagnostic dump revealed the actual reason: install COMPLETED on disk (`/root/.local/bin/claude` symlink existed) but `wsl.exe` never returned to cmd, so the launcher never logged `INFO - install.sh returned exit code N` and never reached `SUCCESS - Claude Code installed in WSL`. v1.1.19's `tee` was holding the launcher hostage to an orphaned grandchild process inside the install.

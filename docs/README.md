@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.20
+# Kivun Terminal v1.1.21
 
-[![Version](https://img.shields.io/badge/version-1.1.20-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.21-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -78,10 +78,10 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
 
-### What's new in v1.1.20
+### What's new in v1.1.21
 
-- **Auto-install no longer hangs after install completes.** v1.1.19's `| tee /tmp/kivun-claude.log` regressed: claude.ai/install.sh's "native build" path forks a post-install hook that inherits stdout, so when the install's main process exits, the orphaned grandchild keeps the pipe write-end open, `tee` blocks on read forever, and `wsl.exe` never returns to cmd.exe. The launcher would then sit silently at "Auto-installing Claude" even though `/root/.local/bin/claude` was already on disk. v1.1.20 drops the pipe and writes the install log directly inside WSL (`> /tmp/kivun-claude.log 2>&1 < /dev/null`), so wsl.exe returns as soon as the timeout subshell exits, regardless of orphaned background processes.
-- Inherits v1.1.19 (`timeout 600` bound on the auto-install) and v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
+- **Auto-install no longer hangs, period.** v1.1.20 dropped the `tee` pipe but `wsl.exe` STILL hung after install completed (CI proved it: binary on disk at `/root/.local/bin/claude → versions/2.1.119`, but launcher silent for 2 min). Something in `claude.ai/install.sh`'s "native build" retains a wsl-side fd or process-group reference even with stdout/stderr redirected to a file. v1.1.21 stops waiting for `wsl.exe` to return: detaches the install with `( ... ) </dev/null >/dev/null 2>&1 & disown`, writes the exit code to `/tmp/kivun-install-rc` when done, and polls cmd-side every 5s for that marker. wsl.exe returns in <1s, the launcher cannot hang on this path regardless of what install.sh forks.
+- Inherits v1.1.20 (no `tee` pipe), v1.1.19 (`timeout 600` bound), v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
 
 ### What's new in v1.1.18
 
