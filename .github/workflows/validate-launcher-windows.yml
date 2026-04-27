@@ -808,47 +808,51 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Confirm WSL is available
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --status
           wsl --version
 
       - name: Install Ubuntu in WSL (no-launch, default user = root)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --install -d Ubuntu --no-launch
-          $start = Get-Date
-          do {
-            Start-Sleep -Seconds 5
-            $list = wsl -l -v 2>&1 | Out-String
-            if ($list -match 'Ubuntu') { break }
-          } while (((Get-Date) - $start).TotalSeconds -lt 120)
-          Write-Host $list
+          # Probe Ubuntu directly instead of parsing `wsl -l -v` (UTF-16 output).
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
       - name: Confirm no UID 1000 user exists (the v1.1.15 abort scenario)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # The launcher's v1.1.15 fallback queries `id -un 1000` after
           # WSLg owner detection returns root or empty. UID 1000 must be
           # absent here so the abort path will fire in run B.
-          $r = (wsl -d Ubuntu --user root -- bash -c "id -un 1000 2>&1; true") | Out-String
-          Write-Host "id -un 1000: $r"
-          if ($r -notmatch 'no such user|cannot find name') {
-            throw "Test setup invalid: UID 1000 already exists, can't exercise abort path"
-          }
+          out=$(wsl -d Ubuntu --user root -- bash -c "id -un 1000 2>&1; true")
+          echo "id -un 1000: $out"
+          if ! echo "$out" | grep -qE 'no such user|cannot find name'; then
+            echo "FAIL: Test setup invalid: UID 1000 already exists, can't exercise abort path" >&2
+            exit 1
+          fi
 
       - name: Pre-install Claude as root in Ubuntu
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # Pre-install Claude so the launcher passes the claude-present
           # check and reaches the v1.1.15 user-detection block. Without
           # Claude, the launcher exits earlier with EXIT - No Claude in WSL.
           wsl -d Ubuntu --user root -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
-          if ($LASTEXITCODE -ne 0) { throw "Pre-install of Claude failed" }
-          $ver = wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1" | Out-String
-          if ($LASTEXITCODE -ne 0) { throw "Claude not callable post-install" }
-          Write-Host "Pre-installed claude: $ver"
+          ver=$(wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1")
+          echo "Pre-installed claude: $ver"
 
       - name: 'Run A — launcher with "." arg (v1.1.16 dot-fallback)'
         shell: cmd
@@ -868,18 +872,19 @@ jobs:
           copy "%LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt" "LAUNCH_LOG_A.txt" >nul
 
       - name: Assert v1.1.16 WSL_PATH=. fallback fired in run A
-        shell: pwsh
+        shell: bash
         run: |
-          $log = Get-Content "LAUNCH_LOG_A.txt" -Raw
-          Write-Host "----- LAUNCH_LOG_A.txt (run with '.') -----"
-          Write-Host $log
-          Write-Host "-------------------------------------------"
+          set -e
+          echo "----- LAUNCH_LOG_A.txt (run with '.') -----"
+          cat LAUNCH_LOG_A.txt
+          echo "-------------------------------------------"
           # The marker is the v1.1.16 log line. If this disappears, the
           # bash launcher is back to cd'ing into the install dir.
-          if ($log -notmatch "Path conversion returned '\.'") {
-            throw "FAIL: v1.1.16 WSL_PATH=. fallback log line missing — bug back"
-          }
-          Write-Host "PASS: v1.1.16 dot-fallback fired"
+          if ! grep -qF "Path conversion returned '.'" LAUNCH_LOG_A.txt; then
+            echo "FAIL: v1.1.16 WSL_PATH=. fallback log line missing — bug back" >&2
+            exit 1
+          fi
+          echo "PASS: v1.1.16 dot-fallback fired"
 
       - name: 'Run B — launcher with normal path (v1.1.15 abort)'
         shell: cmd
@@ -892,25 +897,31 @@ jobs:
           (echo RUN_B_EXITCODE=%RC_B%)>>"%GITHUB_ENV%"
 
       - name: Assert v1.1.15 abort fired in run B
-        shell: pwsh
+        shell: bash
         run: |
-          $log = Get-Content "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt" -Raw
-          Write-Host "----- LAUNCH_LOG.txt (full) -----"
-          Write-Host $log
-          Write-Host "---------------------------------"
-          if ($log -notmatch 'No non-root user \(UID 1000\) found') {
-            throw "FAIL: v1.1.15 abort log line missing — root-user-check regressed"
-          }
-          if ($env:RUN_B_EXITCODE -ne '1') {
-            throw "FAIL: launcher exit code was '$env:RUN_B_EXITCODE', expected 1 (v1.1.15 abort)"
-          }
+          set -e
+          # Git Bash auto-converts $LOCALAPPDATA to a Unix-style path that
+          # `cat`/`grep` can read directly. No path-string surgery needed.
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          echo "----- LAUNCH_LOG.txt (full) -----"
+          cat "$log"
+          echo "---------------------------------"
+          if ! grep -qE 'No non-root user \(UID 1000\) found' "$log"; then
+            echo "FAIL: v1.1.15 abort log line missing — root-user-check regressed" >&2
+            exit 1
+          fi
+          if [ "$RUN_B_EXITCODE" != "1" ]; then
+            echo "FAIL: launcher exit code was '$RUN_B_EXITCODE', expected 1 (v1.1.15 abort)" >&2
+            exit 1
+          fi
           # Defense-in-depth: launcher must NOT pretend to fall through
           # past the abort. The fake fall-through (warn-then-crash) was
           # the v1.1.0 anti-pattern that ate user 'mipmip' twice.
-          if ($log -match 'INFO - Launching Konsole|INFO - Falling back to direct') {
-            throw "FAIL: launcher proceeded past abort despite no UID 1000"
-          }
-          Write-Host "PASS: v1.1.15 abort fired with exit 1 + no fake fall-through"
+          if grep -qE 'INFO - Launching Konsole|INFO - Falling back to direct' "$log"; then
+            echo "FAIL: launcher proceeded past abort despite no UID 1000" >&2
+            exit 1
+          fi
+          echo "PASS: v1.1.15 abort fired with exit 1 + no fake fall-through"
 
       - name: Upload artifacts
         if: always()
@@ -941,101 +952,110 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Confirm WSL is available
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --status
 
       - name: Install Ubuntu in WSL (no-launch)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --install -d Ubuntu --no-launch
-          $start = Get-Date
-          do {
-            Start-Sleep -Seconds 5
-            $list = wsl -l -v 2>&1 | Out-String
-            if ($list -match 'Ubuntu') { break }
-          } while (((Get-Date) - $start).TotalSeconds -lt 120)
-          Write-Host $list
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
       - name: Create UID 1000 user "kivuntest" (default wsl user stays root)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # useradd (not adduser, which prompts interactively for full-name).
           # -u 1000 = the conventional first non-root UID the launcher's
           # v1.1.15 fallback queries via `id -un 1000`. -m creates the
           # home dir. Default wsl user is NOT changed — stays root, the
           # mipmip/root-default-user scenario.
           wsl -d Ubuntu --user root -- bash -c "useradd -u 1000 -m -s /bin/bash kivuntest && id kivuntest"
-          if ($LASTEXITCODE -ne 0) { throw "useradd failed" }
-          $u = (wsl -d Ubuntu --user root -- bash -c "id -un 1000") | Out-String
-          $u = $u.Trim()
-          Write-Host "id -un 1000: '$u'"
-          if ($u -ne 'kivuntest') {
-            throw "Setup wrong: id -un 1000 returned '$u', expected 'kivuntest'"
-          }
+          u=$(wsl -d Ubuntu --user root -- bash -c "id -un 1000" | tr -d '\r\n')
+          echo "id -un 1000: '$u'"
+          if [ "$u" != "kivuntest" ]; then
+            echo "FAIL: Setup wrong: id -un 1000 returned '$u', expected 'kivuntest'" >&2
+            exit 1
+          fi
 
       - name: Pre-install Claude system-wide so the launcher's probe finds it
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # Install as kivuntest so $HOME resolves correctly, then
           # symlink to /usr/local/bin so the launcher's claude-present
           # probe (which tests $HOME/.local/bin/claude || /usr/local/bin/claude)
           # finds it from any user context.
           wsl -d Ubuntu --user kivuntest -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
-          if ($LASTEXITCODE -ne 0) { throw "Claude pre-install as kivuntest failed" }
           wsl -d Ubuntu --user root -- bash -c "ln -sf /home/kivuntest/.local/bin/claude /usr/local/bin/claude && /usr/local/bin/claude --version"
-          if ($LASTEXITCODE -ne 0) { throw "claude not callable via /usr/local/bin symlink" }
 
       - name: 'Run launcher, wait for Will-run-as kivuntest marker, then kill'
-        shell: pwsh
+        shell: bash
         run: |
-          (echo AUTO_INSTALL_CLAUDE=no) | Out-File -FilePath "payload\config.txt" -Encoding ASCII
-          $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
-          [System.IO.File]::WriteAllText($inputFile, "`r`n`r`n`r`n", [System.Text.Encoding]::ASCII)
+          set -e
+          # Match what the .bat's Out-File ASCII produced: CRLF-terminated
+          # AUTO_INSTALL_CLAUDE=no on its own line.
+          printf 'AUTO_INSTALL_CLAUDE=no\r\n' > payload/config.txt
+          input_file="$RUNNER_TEMP/launcher_input.txt"
+          printf '\r\n\r\n\r\n' > "$input_file"
 
-          $proc = Start-Process -FilePath "cmd.exe" `
-            -ArgumentList "/c", "call payload\kivun-terminal.bat C:\temp < `"$inputFile`"" `
-            -PassThru -NoNewWindow -RedirectStandardOutput "launcher_stdout.txt" `
-            -RedirectStandardError "launcher_stderr.txt"
+          # Run cmd.exe in background; redirect to files for post-mortem.
+          # `cmd //c` is the Git Bash idiom that escapes MSYS path translation
+          # of `/c`. The double slash stays a single slash inside cmd.
+          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
+            > launcher_stdout.txt 2> launcher_stderr.txt &
+          launcher_pid=$!
 
-          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          $start = Get-Date
-          $sawMarker = $false
-          $sawAbort = $false
-          while (((Get-Date) - $start).TotalMinutes -lt 5) {
-            if (Test-Path $log) {
-              $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
-              if ($content -match 'Will run as: kivuntest') {
-                $sawMarker = $true
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          end=$((SECONDS + 300))
+          saw_marker=0
+          saw_abort=0
+          while [ $SECONDS -lt $end ]; do
+            if [ -e "$log" ]; then
+              if grep -qF 'Will run as: kivuntest' "$log" 2>/dev/null; then
+                saw_marker=1
                 break
-              }
-              if ($content -match 'No non-root user \(UID 1000\) found') {
-                $sawAbort = $true
+              fi
+              if grep -qE 'No non-root user \(UID 1000\) found' "$log" 2>/dev/null; then
+                saw_abort=1
                 break
-              }
-            }
-            if ($proc.HasExited) { break }
-            Start-Sleep -Seconds 5
-          }
+              fi
+            fi
+            if ! kill -0 "$launcher_pid" 2>/dev/null; then
+              break
+            fi
+            sleep 5
+          done
 
-          if (-not $proc.HasExited) {
-            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
-          }
-          Get-Process | Where-Object { $_.ProcessName -in 'claude','wsl','bash','node' } |
-            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+          # Cleanup: terminate the cmd.exe wrapper and any TUI children.
+          kill -TERM "$launcher_pid" 2>/dev/null || true
+          for img in claude.exe wsl.exe bash.exe node.exe; do
+            taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
+          done
 
-          if ($sawAbort) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw | Write-Host
-            throw "FAIL: launcher hit abort path despite UID 1000 existing — v1.1.15 fallback regressed"
-          }
-          if (-not $sawMarker) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
-            throw "FAIL: launcher never logged 'Will run as: kivuntest' within 5 min"
-          }
-          Write-Host "PASS: v1.1.15 routed through UID 1000 user as expected"
+          if [ "$saw_abort" = "1" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log"
+            echo "FAIL: launcher hit abort path despite UID 1000 existing — v1.1.15 fallback regressed" >&2
+            exit 1
+          fi
+          if [ "$saw_marker" = "0" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log" 2>/dev/null || echo "(log missing)"
+            echo "FAIL: launcher never logged 'Will run as: kivuntest' within 5 min" >&2
+            exit 1
+          fi
+          echo "PASS: v1.1.15 routed through UID 1000 user as expected"
 
       - name: Upload artifacts
         if: always()
@@ -1066,83 +1086,87 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Confirm WSL is available
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --status
 
       - name: Install Ubuntu in WSL (no-launch)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --install -d Ubuntu --no-launch
-          $start = Get-Date
-          do {
-            Start-Sleep -Seconds 5
-            $list = wsl -l -v 2>&1 | Out-String
-            if ($list -match 'Ubuntu') { break }
-          } while (((Get-Date) - $start).TotalSeconds -lt 120)
-          Write-Host $list
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
       - name: Compute payload path inside WSL (no hardcoded username)
-        shell: pwsh
+        shell: bash
         run: |
-          # The runner's checkout dir varies (D:\a\... or C:\actions-runner\_work\...).
-          # Derive the WSL form dynamically — never hardcode. Same pattern
-          # as job 5 but factored into one step here for reuse below.
-          $payload = (Resolve-Path "payload").Path
-          $drive = $payload.Substring(0,1).ToLower()
-          $rest = $payload.Substring(2) -replace '\\','/'
-          $wslPayload = "/mnt/$drive$rest"
-          Write-Host "payload (Windows): $payload"
-          Write-Host "payload (WSL):     $wslPayload"
-          "WSL_PAYLOAD=$wslPayload" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          set -e
+          # Derive the WSL form of $GITHUB_WORKSPACE/payload dynamically.
+          # Use `wsl wslpath` rather than string surgery — it's the same
+          # tool the launcher uses, so we get an apples-to-apples WSL path.
+          # Strip the CR that wsl appends to its stdout on Windows.
+          wsl_payload=$(wsl wslpath -a "$(pwd -W 2>/dev/null || pwd)/payload" | tr -d '\r')
+          echo "payload (WSL): $wsl_payload"
+          echo "WSL_PAYLOAD=$wsl_payload" >> "$GITHUB_ENV"
 
       - name: Strip CRLF from .sh files (Windows checkout adds CRLF)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # The launcher .bat does this in production. Bash on the runner
           # would otherwise hit "$'\r': command not found" on every line.
-          wsl -d Ubuntu --user root -- bash -c "sed -i 's/\r$//' $env:WSL_PAYLOAD/kivun-launch.sh $env:WSL_PAYLOAD/kivun-direct.sh"
+          wsl -d Ubuntu --user root -- bash -c "sed -i 's/\r\$//' '$WSL_PAYLOAD/kivun-launch.sh' '$WSL_PAYLOAD/kivun-direct.sh'"
 
       - name: 'kivun-direct.sh as root → must exit 1 with refusal message'
-        shell: pwsh
+        shell: bash
         run: |
-          $out = wsl -d Ubuntu --user root -- bash "$env:WSL_PAYLOAD/kivun-direct.sh" /tmp "test-prompt" 2>&1 | Out-String
-          $rc = $LASTEXITCODE
-          Write-Host "----- kivun-direct.sh stdout/stderr -----"
-          Write-Host $out
-          Write-Host "----- exit code: $rc -----"
-          if ($rc -ne 1) {
-            throw "FAIL: kivun-direct.sh exit code was $rc, expected 1 (v1.1.15 EUID guard)"
-          }
-          if ($out -notmatch 'Kivun direct-fallback is running as root') {
-            throw "FAIL: refusal message missing — kivun-direct.sh let root through"
-          }
-          if ($out -notmatch 'wsl -d Ubuntu --user root -- adduser') {
-            throw "FAIL: copy-paste-able fix instructions missing from refusal output"
-          }
-          Write-Host "PASS: kivun-direct.sh refused root with exit 1 + helpful instructions"
-          # The whole point of this step is to verify the script intentionally
-          # exits non-zero. PowerShell would otherwise propagate $LASTEXITCODE=1
-          # from the wsl call and fail the step despite all assertions passing.
-          exit 0
+          # The script intentionally exits 1 (the v1.1.15 EUID-as-root guard).
+          # Capture stdout/stderr and the exit code without letting `set -e`
+          # abort us — we WANT the non-zero exit, then assert on it.
+          out=$(wsl -d Ubuntu --user root -- bash "$WSL_PAYLOAD/kivun-direct.sh" /tmp "test-prompt" 2>&1) || true
+          rc=$?
+          echo "----- kivun-direct.sh stdout/stderr -----"
+          echo "$out"
+          echo "----- exit code: $rc -----"
+          if [ "$rc" != "1" ]; then
+            echo "FAIL: kivun-direct.sh exit code was $rc, expected 1 (v1.1.15 EUID guard)" >&2
+            exit 1
+          fi
+          if ! echo "$out" | grep -qF 'Kivun direct-fallback is running as root'; then
+            echo "FAIL: refusal message missing — kivun-direct.sh let root through" >&2
+            exit 1
+          fi
+          if ! echo "$out" | grep -qF 'wsl -d Ubuntu --user root -- adduser'; then
+            echo "FAIL: copy-paste-able fix instructions missing from refusal output" >&2
+            exit 1
+          fi
+          echo "PASS: kivun-direct.sh refused root with exit 1 + helpful instructions"
 
       - name: 'kivun-launch.sh as root → must exit 1 with refusal message'
-        shell: pwsh
+        shell: bash
         run: |
           # 7 positional args, all with defaults — the EUID guard fires
           # before they're consumed, so dummy values are fine.
-          $out = wsl -d Ubuntu --user root -- bash "$env:WSL_PAYLOAD/kivun-launch.sh" "/tmp" "test-prompt" "hebrew" "false" "/tmp/k.log" "rtl" "0 0 1024 768" 2>&1 | Out-String
-          $rc = $LASTEXITCODE
-          Write-Host "----- kivun-launch.sh stdout/stderr -----"
-          Write-Host $out
-          Write-Host "----- exit code: $rc -----"
-          if ($rc -ne 1) {
-            throw "FAIL: kivun-launch.sh exit code was $rc, expected 1 (v1.1.14 EUID guard)"
-          }
-          if ($out -notmatch 'Kivun launcher is running as root') {
-            throw "FAIL: refusal message missing — kivun-launch.sh let root through"
-          }
-          Write-Host "PASS: kivun-launch.sh refused root with exit 1 + helpful instructions"
-          # Same reason as the kivun-direct.sh step above.
-          exit 0
+          out=$(wsl -d Ubuntu --user root -- bash "$WSL_PAYLOAD/kivun-launch.sh" \
+            "/tmp" "test-prompt" "hebrew" "false" "/tmp/k.log" "rtl" "0 0 1024 768" 2>&1) || true
+          rc=$?
+          echo "----- kivun-launch.sh stdout/stderr -----"
+          echo "$out"
+          echo "----- exit code: $rc -----"
+          if [ "$rc" != "1" ]; then
+            echo "FAIL: kivun-launch.sh exit code was $rc, expected 1 (v1.1.14 EUID guard)" >&2
+            exit 1
+          fi
+          if ! echo "$out" | grep -qF 'Kivun launcher is running as root'; then
+            echo "FAIL: refusal message missing — kivun-launch.sh let root through" >&2
+            exit 1
+          fi
+          echo "PASS: kivun-launch.sh refused root with exit 1 + helpful instructions"
