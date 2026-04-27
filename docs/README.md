@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.21
+# Kivun Terminal v1.1.22
 
-[![Version](https://img.shields.io/badge/version-1.1.21-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.22-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -78,10 +78,10 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
 
-### What's new in v1.1.21
+### What's new in v1.1.22
 
-- **Auto-install no longer hangs, period.** v1.1.20 dropped the `tee` pipe but `wsl.exe` STILL hung after install completed (CI proved it: binary on disk at `/root/.local/bin/claude → versions/2.1.119`, but launcher silent for 2 min). Something in `claude.ai/install.sh`'s "native build" retains a wsl-side fd or process-group reference even with stdout/stderr redirected to a file. v1.1.21 stops waiting for `wsl.exe` to return: detaches the install with `( ... ) </dev/null >/dev/null 2>&1 & disown`, writes the exit code to `/tmp/kivun-install-rc` when done, and polls cmd-side every 5s for that marker. wsl.exe returns in <1s, the launcher cannot hang on this path regardless of what install.sh forks.
-- Inherits v1.1.20 (no `tee` pipe), v1.1.19 (`timeout 600` bound), v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
+- **Pair `< nul` with `2>&1 >> file` on the detached install kickoff.** v1.1.21's new wsl call used `< nul` alone (no stdout redirect), which `wsl.exe 2.6.x` rejects with `ERROR: Input redirection is not supported, exiting the process immediately.` The install never started, polling timed out, claude was never installed. v1.1.22 matches the pattern used by every other working `< nul` call in this launcher: pair it with `2>&1 >> "%LOG_FILE%"` so wsl.exe sees fully-redirected I/O and accepts the call. Same fix applied to the polling loop's `wsl ... test -f` (`< nul > nul 2>&1`). Plus: immediate `%ERRORLEVEL%` check after the kickoff so a wsl-rejection failure surfaces in <1s, not after 11 minutes of polling.
+- Inherits v1.1.21 (detach + cmd-side poll for auto-install), v1.1.20 (no `tee` pipe), v1.1.19 (`timeout 600` bound), v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
 
 ### What's new in v1.1.18
 

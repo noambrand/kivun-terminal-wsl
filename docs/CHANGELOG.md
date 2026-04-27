@@ -3,6 +3,28 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.22] - 2026-04-27
+
+Fourth hot-fix in the same day for the auto-install path. v1.1.21's detach + poll architecture was correct, but the new wsl kickoff call used a `< nul` stdin redirect without a paired stdout redirect — and `wsl.exe 2.6.x` rejects that combination with `ERROR: Input redirection is not supported, exiting the process immediately.` So the install never started.
+
+### Fixed: `< nul` without paired stdout redirect makes wsl.exe reject the call
+
+CI run 25015480190 was definitive:
+- LAUNCH_LOG ends at `INFO - Auto-installing Claude` (same place as before)
+- `/root/.local/bin/claude` does **not** exist (different from v1.1.20: install never ran)
+- `launcher_stderr.txt` contains ~30 lines of `ERROR: Input redirection is not supported, exiting the process immediately.` — one per polling iteration plus the kickoff call
+
+Every other `< nul` call in `payload/kivun-terminal.bat` pairs `< nul` with `2>&1 >> "%LOG_FILE%"` (lines 34, 133, 147, 194, 199, 666, 671). I missed that pattern when adding the v1.1.21 detach call (line 633) and polling call (line 640). v1.1.22 matches the established pattern:
+
+- Line 633 (kickoff): append `>> "%LOG_FILE%" 2>&1` after `< nul`
+- Line 640 (poll): change `< nul 2>nul` to `< nul > nul 2>&1`
+
+Also added an immediate `%ERRORLEVEL%` check after the kickoff: if wsl.exe rejects the call, fail fast in <1s via the npm fallback path instead of polling fruitlessly for 660s.
+
+### Lesson
+
+Cmd-side I/O patterns are non-orthogonal: stdin redirection alone (`< nul`) can be rejected by some Windows binaries (including `wsl.exe`) when stdout is left attached to a tty. Always pair `< nul` with explicit stdout/stderr redirection. Added to launcher-bulletproofing memory: **never use `< nul` without a paired `>> file 2>&1` (or `> nul 2>&1`) on Windows binaries that may check for tty.**
+
 ## [1.1.21] - 2026-04-27
 
 Third hot-fix in the same day for the auto-install hang. v1.1.19 (added `timeout 600` + `tee`) and v1.1.20 (dropped `tee`, kept file redirect) both improved the path but neither made `wsl.exe` reliably return after install completes. CI artifact (run 25014868847) was definitive: claude binary on disk, install COMPLETE, but `wsl.exe` still alive 2 minutes later. v1.1.21 stops waiting for `wsl.exe` at all.
