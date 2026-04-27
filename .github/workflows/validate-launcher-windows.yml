@@ -987,7 +987,7 @@ jobs:
           wsl -d Ubuntu --user root -- bash -c "ln -sf /home/kivuntest/.local/bin/claude /usr/local/bin/claude && /usr/local/bin/claude --version"
           if ($LASTEXITCODE -ne 0) { throw "claude not callable via /usr/local/bin symlink" }
 
-      - name: Run launcher, wait for "Will run as: kivuntest" marker, kill
+      - name: 'Run launcher, wait for Will-run-as kivuntest marker, then kill'
         shell: pwsh
         run: |
           (echo AUTO_INSTALL_CLAUDE=no) | Out-File -FilePath "payload\config.txt" -Encoding ASCII
