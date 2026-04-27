@@ -607,26 +607,24 @@ REM wsl invocation in this launcher) can't see. CI proved this: the
 REM install logged "Claude Code successfully installed" but the verify
 REM step couldn't find it.
 REM
-REM v1.1.19: three changes to fix a real-user hang reported 2026-04-27.
-REM Anthropic shipped a new "native build" install.sh which hangs
-REM indefinitely under the prior invocation pattern (output redirected
-REM to /tmp/kivun-claude.log + < nul). LAUNCH_LOG showed the launcher
-REM stuck at "Auto-installing Claude" with zero further progress for
-REM 15+ minutes; /tmp/kivun-claude.log stayed empty.
-REM   1. `timeout 600` bounds the install — after 10 min, exit 124 and
-REM      we fall through to the npm fallback. Launcher can never hang
-REM      forever again on this path.
-REM   2. `| tee /tmp/...` instead of `> /tmp/... 2>&1` so install
-REM      output streams visibly to the user AND is captured for
-REM      postmortem. The invisible-redirect was the proximal trigger
-REM      for the new install.sh's hang behavior.
-REM   3. Removed `< nul`. install.sh doesn't read stdin in any version
-REM      we've tested, but `< nul` may tickle interactive-vs-non-tty
-REM      detection ([ -t 0 ]) in the new install.sh.
-REM PIPESTATUS[0] propagates the timeout/install exit code through tee
-REM (tee always exits 0; without PIPESTATUS we'd never see the failure).
+REM v1.1.19 added `timeout 600` + `| tee /tmp/kivun-claude.log` to fix the
+REM real-user hang report from 2026-04-27 (install.sh stuck forever, log
+REM empty). The `tee` part regressed: install COMPLETED on disk
+REM (/root/.local/bin/claude appeared) but the wsl.exe pipe never EOF'd,
+REM so cmd never saw INSTALL_RC and the launcher hung anyway.
+REM
+REM v1.1.20: drop the pipe entirely. claude.ai/install.sh's "native build"
+REM path forks a post-install hook that inherits the parent's stdout fd;
+REM when the install's main process exits, the grandchild keeps the pipe
+REM write-end open, `tee` blocks on read forever, and `wsl.exe` never
+REM returns. Writing the log file INSIDE WSL via `> /tmp/kivun-claude.log
+REM 2>&1` sidesteps this — wsl.exe returns as soon as the timeout
+REM subshell exits, regardless of any orphaned background processes.
+REM `< /dev/null` closes stdin inside WSL so install.sh's interactive
+REM prompts (if any) cannot block. `$?` cleanly carries the timeout/
+REM install exit code out to %ERRORLEVEL%.
 echo Installing Claude Code in Ubuntu (max 10 min)...
-wsl -d Ubuntu -- bash -c "timeout 600 bash -c 'curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh && bash /tmp/claude-installer.sh; rc=$?; rm -f /tmp/claude-installer.sh; exit $rc' 2>&1 | tee /tmp/kivun-claude.log; exit ${PIPESTATUS[0]}"
+wsl -d Ubuntu -- bash -c "timeout 600 bash -c 'curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh && bash /tmp/claude-installer.sh; rc=$?; rm -f /tmp/claude-installer.sh; exit $rc' > /tmp/kivun-claude.log 2>&1 < /dev/null"
 set "INSTALL_RC=%ERRORLEVEL%"
 call :LOG "INFO - install.sh returned exit code %INSTALL_RC%"
 if "%INSTALL_RC%"=="124" call :LOG "WARNING - install.sh hit 600s timeout"

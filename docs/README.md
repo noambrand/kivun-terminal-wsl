@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.19
+# Kivun Terminal v1.1.20
 
-[![Version](https://img.shields.io/badge/version-1.1.19-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.20-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -78,10 +78,10 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
 
-### What's new in v1.1.19
+### What's new in v1.1.20
 
-- **Auto-install no longer hangs forever.** Real-user-reported: launcher froze at "Auto-installing Claude" when Anthropic shipped a new `claude.ai/install.sh` whose behavior under the launcher's prior `> file 2>&1` + `< nul` invocation pattern was indefinite hang. v1.1.19 wraps the install in `timeout 600`, streams output visibly via `tee`, and removes the `< nul` stdin redirect. If install ever hangs again the launcher recovers cleanly via the 10-min cap → npm fallback → final `:_install_failed` path with copy-pasteable manual instructions.
-- Inherits v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
+- **Auto-install no longer hangs after install completes.** v1.1.19's `| tee /tmp/kivun-claude.log` regressed: claude.ai/install.sh's "native build" path forks a post-install hook that inherits stdout, so when the install's main process exits, the orphaned grandchild keeps the pipe write-end open, `tee` blocks on read forever, and `wsl.exe` never returns to cmd.exe. The launcher would then sit silently at "Auto-installing Claude" even though `/root/.local/bin/claude` was already on disk. v1.1.20 drops the pipe and writes the install log directly inside WSL (`> /tmp/kivun-claude.log 2>&1 < /dev/null`), so wsl.exe returns as soon as the timeout subshell exits, regardless of orphaned background processes.
+- Inherits v1.1.19 (`timeout 600` bound on the auto-install) and v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
 
 ### What's new in v1.1.18
 

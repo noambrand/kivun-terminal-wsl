@@ -377,8 +377,8 @@ jobs:
           echo "===== /tmp/claude-installer.sh existence ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/claude-installer.sh /root/.local/bin/claude 2>&1 || true"
           echo
-          echo "===== bat lines we expect to be running (v1.1.19 sanity check) ====="
-          grep -nE 'timeout 600|Auto-installing|install.sh returned|kivun-claude.log' payload/kivun-terminal.bat | head -10
+          echo "===== bat lines we expect to be running (v1.1.20 sanity check) ====="
+          grep -nE 'timeout 600|Auto-installing|install.sh returned|kivun-claude.log|< /dev/null' payload/kivun-terminal.bat | head -10
           echo
           echo "===== Live processes (post-cleanup) ====="
           tasklist //FI "IMAGENAME eq cmd.exe" //FI "IMAGENAME eq wsl.exe" //FI "IMAGENAME eq bash.exe" 2>&1 | head -20
@@ -731,11 +731,18 @@ jobs:
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
 
-      - name: Wait for claude-present marker, then kill
+      - name: Wait for claude-present marker (fail-fast at 2 min) + diagnostic dump
+        # v1.1.20: 2-min cap + full diagnostic dump. The 5-min wait + 1-line
+        # FAIL message that this step used to print told us nothing — every
+        # observed failure ended with LAUNCH_LOG truncated at "Reading
+        # config.txt" with no clue what wsl/cmd/bash was actually doing.
+        # Mirror the dump pattern from test-no-claude-accept-install so we
+        # always know stdout/stderr, /tmp/* state inside WSL, and live
+        # processes when a hang occurs.
         shell: bash
         run: |
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
-          end=$((SECONDS + 300))
+          end=$((SECONDS + 120))
           saw_present=0
           saw_no_claude=0
           while [ $SECONDS -lt $end ]; do
@@ -752,23 +759,53 @@ jobs:
             sleep 5
           done
 
+          # Cleanup BEFORE dumping — taskkill may free fds the dump needs.
           for img in claude.exe wsl.exe; do
             taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
           done
 
+          if [ "$saw_present" = "1" ]; then
+            echo "PASS: launcher discovered claude at non-standard path via login-shell lookup"
+            exit 0
+          fi
+
+          # Anything else = fail. Dump everything we have.
+          echo "================================================================"
           if [ "$saw_no_claude" = "1" ]; then
-            echo "----- LAUNCH_LOG.txt -----"
-            cat "$log"
-            echo "FAIL: launcher hit :no_claude_exit despite claude being on PATH via .bashrc (v1.1.6 active-discovery regression)" >&2
-            exit 1
+            echo "FAIL: launcher hit :no_claude_exit despite claude being on PATH via .bashrc"
+            echo "      (v1.1.6 active-discovery regression — discovery branch did not fire)"
+          else
+            echo "FAIL: launcher never reached :claude_present within 120s (silent hang)"
           fi
-          if [ "$saw_present" = "0" ]; then
-            echo "----- LAUNCH_LOG.txt -----"
-            cat "$log" 2>/dev/null || echo "(log missing)"
-            echo "FAIL: launcher never reached :claude_present" >&2
-            exit 1
-          fi
-          echo "PASS: launcher discovered claude at non-standard path via login-shell lookup"
+          echo "================================================================"
+          echo
+          echo "===== LAUNCH_LOG.txt ====="
+          cat "$log" 2>/dev/null || echo "(LAUNCH_LOG.txt missing)"
+          echo
+          echo "===== launcher_stdout.txt ====="
+          cat launcher_stdout.txt 2>/dev/null || echo "(launcher_stdout.txt missing)"
+          echo
+          echo "===== launcher_stderr.txt ====="
+          cat launcher_stderr.txt 2>/dev/null || echo "(launcher_stderr.txt missing)"
+          echo
+          echo "===== payload/config.txt (test-staged) ====="
+          cat payload/config.txt 2>/dev/null | od -c | head -5 || echo "(payload/config.txt missing)"
+          echo
+          echo "===== WSL discovery probes (re-run as root, what launcher SHOULD see) ====="
+          echo "-- standard slots --"
+          wsl -d Ubuntu --user root -- bash -c "for s in /root/.local/bin/claude /usr/local/bin/claude /usr/bin/claude; do test -x \$s && echo \"\$s present\" || echo \"\$s absent\"; done" 2>&1 || true
+          echo "-- login-shell command -v --"
+          wsl -d Ubuntu --user root -- bash -lc "command -v claude" 2>&1 || true
+          echo "-- /opt/kivun-test stub --"
+          wsl -d Ubuntu --user root -- bash -c "ls -la /opt/kivun-test/ 2>&1; head -3 /root/.bashrc 2>&1; tail -3 /root/.bashrc 2>&1" || true
+          echo
+          echo "===== bat config-parsing block we expect to be running ====="
+          grep -nE 'Reading config.txt|for /f.*tokens.*config.txt|Config loaded|FOLDER_PICKER|Setting language-specific' payload/kivun-terminal.bat | head -10
+          echo
+          echo "===== Live processes (post-cleanup) ====="
+          tasklist //FI "IMAGENAME eq cmd.exe" //FI "IMAGENAME eq wsl.exe" //FI "IMAGENAME eq bash.exe" //FI "IMAGENAME eq findstr.exe" 2>&1 | head -25
+          echo "================================================================"
+          exit 1
 
       - name: Assert the discovery branch (not the standard-slot branch) fired
         shell: bash
@@ -802,7 +839,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LAUNCH_LOG-claude-discovery-from-bashrc
-          path: LAUNCH_LOG.txt
+          path: |
+            LAUNCH_LOG.txt
+            launcher_stdout.txt
+            launcher_stderr.txt
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------

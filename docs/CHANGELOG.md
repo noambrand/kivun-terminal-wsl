@@ -3,6 +3,34 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.20] - 2026-04-27
+
+Follow-up to v1.1.19. The same `test-no-claude-accept-install` job that v1.1.19 was supposed to make pass kept failing — and the new fail-fast diagnostic dump revealed the actual reason: install COMPLETED on disk (`/root/.local/bin/claude` symlink existed) but `wsl.exe` never returned to cmd, so the launcher never logged `INFO - install.sh returned exit code N` and never reached `SUCCESS - Claude Code installed in WSL`. v1.1.19's `tee` was holding the launcher hostage to an orphaned grandchild process inside the install.
+
+### Fixed: launcher hangs AFTER auto-install completes successfully
+
+**Symptom:** identical user-visible behavior to v1.1.19's hang ("Auto-installing Claude" → silent freeze), but with a different cause and farther along the install process. CI artifact (run 25002708236):
+- `/root/.local/bin/claude → versions/2.1.119` exists on disk after install — install.sh **succeeded**.
+- LAUNCH_LOG ends abruptly at `Installing Claude Code native build latest...`.
+- Expected next launcher line `INFO - install.sh returned exit code N` **never written**.
+- `/tmp/kivun-claude.log` is **empty/missing** despite stdout flowing to terminal.
+- `wsl.exe` was still alive when the test killed the launcher 2 minutes later.
+
+**Cause:** `claude.ai/install.sh`'s "native build" path forks a post-install hook (npm-style daemon or similar) that **inherits the parent shell's stdout file descriptor**. v1.1.19's `... | tee /tmp/kivun-claude.log` keeps that pipe open as long as ANY process on the write-end is alive. When the install's main process exits, the orphaned grandchild keeps the pipe open, `tee` blocks indefinitely on read, the bash subshell waits for `tee`, and `wsl.exe` waits for bash. Net effect: the install succeeds but `wsl.exe` never returns to cmd, `%ERRORLEVEL%` is never set, and the launcher never advances to its post-install logging.
+
+**Fix in `payload/kivun-terminal.bat` `:_do_install`:** drop the pipe entirely. Replace `| tee /tmp/kivun-claude.log; exit ${PIPESTATUS[0]}` with `> /tmp/kivun-claude.log 2>&1 < /dev/null`. The redirection happens **inside** WSL, written by the install's bash subshell directly. `wsl.exe` returns as soon as the timeout subshell exits, regardless of any orphaned background processes that inherited stdout. Trade-off: install output no longer streams visibly to the user during the install — they see "Installing Claude Code in Ubuntu (max 10 min)..." then ~30-90 seconds of silence, then either `SUCCESS - Claude Code installed in WSL` or the npm fallback. Acceptable trade since the alternative is hang-forever.
+
+### Improved: CI diagnostic dump now covers `test-claude-discovery-from-bashrc` too
+
+`test-claude-discovery-from-bashrc` was hanging silently in the same v1.1.19 run with LAUNCH_LOG truncated at `Reading config.txt`. The 5-min wait + 1-line `FAIL` message it printed told us nothing useful. v1.1.20 mirrors the comprehensive dump pattern from `test-no-claude-accept-install` into the discovery test: 2-min fail-fast, then dump LAUNCH_LOG, launcher_stdout, launcher_stderr, the staged config.txt (via `od -c` to expose CR/LF/BOM issues), the WSL discovery probes re-run as root (so we see what the launcher SHOULD have seen), the relevant .bat lines (sanity check), and live tasklist. Future hangs in this job will be diagnosable in 2 minutes instead of 5.
+
+### Lesson
+
+v1.1.19 was diagnosed correctly (real install hang), but the fix introduced a new failure mode (pipe-held-open by orphaned grandchild). Two takeaways added to launcher-bulletproofing memory:
+
+1. **Don't pipe output of WSL-side commands that may fork**. If install/build/setup scripts can fork background processes that inherit stdout, the pipe will outlive the main process. Redirect to a file instead — the file gets the bytes, the fd gets closed when the subshell exits.
+2. **Every CI job that exercises the launcher needs a comprehensive failure dump, not just `cat $log`.** The single-line FAIL output from `test-claude-discovery-from-bashrc` cost us ~3 hours of guessing what hung; the comprehensive dump in `test-no-claude-accept-install` localized the v1.1.19 bug in 2 minutes.
+
 ## [1.1.19] - 2026-04-27
 
 Real-user-reported hang: launcher freezes indefinitely at "Auto-installing Claude" when Anthropic's `claude.ai/install.sh` runs under the launcher's prior invocation pattern. CI reproduced the same hang on the same day, confirming user reports.
