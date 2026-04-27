@@ -211,43 +211,20 @@ set "CLAUDE_IN_WSL=1"
 call :LOG "SUCCESS - Claude Code is installed"
 echo   Claude: OK
 
-REM Check if Konsole is installed
-call :LOG "INFO - Checking if Konsole is installed"
-wsl -d Ubuntu -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "WARNING - Konsole not found, attempting installation"
-    echo   Konsole: NOT FOUND - installing...
-    wsl -d Ubuntu -- sudo apt-get install -y konsole 2>&1 >> "%LOG_FILE%"
-    wsl -d Ubuntu -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
-    if %ERRORLEVEL% NEQ 0 (
-        call :LOG "ERROR - Konsole installation failed"
-        echo   Konsole install failed - will run Claude directly.
-        goto :run_direct
-    )
-    call :LOG "SUCCESS - Konsole installed successfully"
-) else (
-    call :LOG "SUCCESS - Konsole is installed"
-)
-echo   Konsole: OK
-
-REM Ensure python3-xlib + python3-pil are present so kivun-launch.sh
-REM can override the Konsole window icon (see kivun-set-icon.py). This
-REM is optional -- the launcher logs and skips if missing -- but the
-REM cost of pre-installing is low and gives every user the branded
-REM icon out of the box. Use --user root to avoid sudo password prompts.
-call :LOG "INFO - Checking python3-xlib + python3-pil for icon override"
-wsl -d Ubuntu -- bash -c "python3 -c 'import Xlib, PIL' 2>/dev/null" >> "%LOG_FILE%" 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "INFO - Installing python3-xlib + python3-pil"
-    wsl -d Ubuntu --user root -- apt-get install -y python3-xlib python3-pil >> "%LOG_FILE%" 2>&1
-    if %ERRORLEVEL% NEQ 0 (
-        call :LOG "WARNING - python deps install failed; window will keep default X icon"
-    ) else (
-        call :LOG "SUCCESS - python deps installed"
-    )
-) else (
-    call :LOG "SUCCESS - python deps already present"
-)
+REM v1.1.18: do path conversion + WSLg-user detection BEFORE the
+REM Konsole check. The Konsole apt-install can fail (no GUI on a CI
+REM runner, flaky apt mirror, network outage) and the launcher then
+REM falls through to :run_direct via `goto`. Until v1.1.18 the goto
+REM jumped OVER both the path conversion (sets WSL_PATH + INST_WSL)
+REM and the WSLg-user detection (sets WSL_USER_FLAG), so the direct
+REM fallback ran with all three variables empty — bash got
+REM `wsl -d Ubuntu bash kivun-direct.sh` with no INST_WSL prefix,
+REM couldn't find the script, the launch silently failed, and the
+REM launcher logged "Claude session ended" anyway because the exit
+REM code wasn't checked. Reordering puts all three variables in the
+REM environment before we try Konsole, so both the Konsole-launch
+REM path and the direct-fallback path use the same resolved
+REM WSL_PATH / INST_WSL / WSL_USER_FLAG.
 
 REM Convert paths
 call :LOG "INFO - Converting Windows paths to WSL paths"
@@ -388,6 +365,44 @@ if not defined WSLG_USER (
 )
 call :LOG "INFO - Will run as: %WSLG_USER%"
 set "WSL_USER_FLAG=--user %WSLG_USER%"
+
+REM Check if Konsole is installed
+call :LOG "INFO - Checking if Konsole is installed"
+wsl -d Ubuntu -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
+if %ERRORLEVEL% NEQ 0 (
+    call :LOG "WARNING - Konsole not found, attempting installation"
+    echo   Konsole: NOT FOUND - installing...
+    wsl -d Ubuntu -- sudo apt-get install -y konsole 2>&1 >> "%LOG_FILE%"
+    wsl -d Ubuntu -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
+    if %ERRORLEVEL% NEQ 0 (
+        call :LOG "ERROR - Konsole installation failed"
+        echo   Konsole install failed - will run Claude directly.
+        goto :run_direct
+    )
+    call :LOG "SUCCESS - Konsole installed successfully"
+) else (
+    call :LOG "SUCCESS - Konsole is installed"
+)
+echo   Konsole: OK
+
+REM Ensure python3-xlib + python3-pil are present so kivun-launch.sh
+REM can override the Konsole window icon (see kivun-set-icon.py). This
+REM is optional -- the launcher logs and skips if missing -- but the
+REM cost of pre-installing is low and gives every user the branded
+REM icon out of the box. Use --user root to avoid sudo password prompts.
+call :LOG "INFO - Checking python3-xlib + python3-pil for icon override"
+wsl -d Ubuntu -- bash -c "python3 -c 'import Xlib, PIL' 2>/dev/null" >> "%LOG_FILE%" 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    call :LOG "INFO - Installing python3-xlib + python3-pil"
+    wsl -d Ubuntu --user root -- apt-get install -y python3-xlib python3-pil >> "%LOG_FILE%" 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        call :LOG "WARNING - python deps install failed; window will keep default X icon"
+    ) else (
+        call :LOG "SUCCESS - python deps installed"
+    )
+) else (
+    call :LOG "SUCCESS - python deps already present"
+)
 
 REM Get primary monitor size via wmic (PowerShell is blocked by GPO on some
 REM machines). Windows always places the primary monitor at origin (0,0),
