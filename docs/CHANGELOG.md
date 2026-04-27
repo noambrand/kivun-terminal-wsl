@@ -3,6 +3,46 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.23] - 2026-04-27
+
+Fifth hot-fix in the same day for the auto-install path. v1.1.21 (detach + poll) was architecturally right but the implementation kept failing in different ways. v1.1.23 finally lands a working version by shipping a static install runner script and using `setsid -f` for true session detachment.
+
+### Fixed: auto-install actually runs in the background and survives wsl.exe exit
+
+CI run 25015901486 (v1.1.22) revealed two distinct bugs in the v1.1.21/v1.1.22 detach approach:
+
+1. **Detached subshell never executed.** Even though `wsl.exe` returned 0 from the kickoff call, `/root/.local/bin/claude` did not exist. WSL's interop relay (the process inside Ubuntu that wsl.exe communicates with) kills its cgroup descendants when wsl.exe exits. `& disown` only tells bash's job table not to send SIGHUP — it does NOT escape the cgroup. The detached subshell was killed before it could run install.sh.
+
+2. **Polling loop blocked by wsl.exe rejection.** `wsl ... bash -c "test -f file" < nul > nul 2>&1` was rejected with `ERROR: Input redirection is not supported, exiting the process immediately.` Only `< nul >> file 2>&1` is accepted by wsl.exe 2.6.x; `< nul > nul 2>&1` is not.
+
+**Fix:** ship `payload/kivun-install-claude.sh` as a static install runner, invoke via `wsl -d Ubuntu -- setsid -f bash <path>`:
+
+```sh
+# payload/kivun-install-claude.sh
+#!/bin/bash
+rm -f /tmp/kivun-claude.log /tmp/kivun-install-rc
+{
+  timeout 600 bash -c '
+    curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh \
+      && bash /tmp/claude-installer.sh
+    rc=$?
+    rm -f /tmp/claude-installer.sh
+    exit $rc
+  '
+} > /tmp/kivun-claude.log 2>&1
+echo $? > /tmp/kivun-install-rc
+```
+
+`setsid -f` forks AND creates a new session — the install becomes a session leader, fully orphaned from wsl.exe's session and cgroup, so it survives wsl.exe's exit. cmd polls `/tmp/kivun-install-rc` every 5s (cap 660s). `< nul` is dropped from the new wsl calls entirely — the inner commands don't read stdin so it's unnecessary.
+
+Also added `kivun-install-claude.sh` to the NSIS installer's File and Delete lists so it ships in the installed payload.
+
+### Lessons (added to launcher-bulletproofing memory)
+
+1. **`& disown` is not enough to detach from wsl.exe.** WSL's interop relay maintains cgroup ownership of all descendants. To survive wsl.exe exit, a process must escape the cgroup via `setsid` (new session) or `systemd-run` (new scope).
+2. **wsl.exe 2.6.x has unintuitive stdin-redirect rules.** `< nul >> "%LOG_FILE%" 2>&1` is accepted; `< nul > nul 2>&1` is rejected. Easiest workaround: avoid `< nul` entirely when the inner command doesn't need stdin closed.
+3. **Multi-line bash logic belongs in a static .sh, not inline in a `bash -c` string.** Five releases of debugging trace back to nested cmd→bash→bash quoting. A `payload/<name>.sh` file installed alongside the launcher avoids the entire quoting problem.
+
 ## [1.1.22] - 2026-04-27
 
 Fourth hot-fix in the same day for the auto-install path. v1.1.21's detach + poll architecture was correct, but the new wsl kickoff call used a `< nul` stdin redirect without a paired stdout redirect — and `wsl.exe 2.6.x` rejects that combination with `ERROR: Input redirection is not supported, exiting the process immediately.` So the install never started.

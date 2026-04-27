@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.22
+# Kivun Terminal v1.1.23
 
-[![Version](https://img.shields.io/badge/version-1.1.22-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.23-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -78,10 +78,10 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
 
-### What's new in v1.1.22
+### What's new in v1.1.23
 
-- **Pair `< nul` with `2>&1 >> file` on the detached install kickoff.** v1.1.21's new wsl call used `< nul` alone (no stdout redirect), which `wsl.exe 2.6.x` rejects with `ERROR: Input redirection is not supported, exiting the process immediately.` The install never started, polling timed out, claude was never installed. v1.1.22 matches the pattern used by every other working `< nul` call in this launcher: pair it with `2>&1 >> "%LOG_FILE%"` so wsl.exe sees fully-redirected I/O and accepts the call. Same fix applied to the polling loop's `wsl ... test -f` (`< nul > nul 2>&1`). Plus: immediate `%ERRORLEVEL%` check after the kickoff so a wsl-rejection failure surfaces in <1s, not after 11 minutes of polling.
-- Inherits v1.1.21 (detach + cmd-side poll for auto-install), v1.1.20 (no `tee` pipe), v1.1.19 (`timeout 600` bound), v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
+- **Auto-install runs detached via setsid + a static script.** v1.1.21's `( ... ) & disown` returned 0 from wsl but the install never executed — WSL's interop relay kills its cgroup descendants when wsl.exe exits, and `& disown` only manages the bash job table, not cgroup membership. v1.1.23 ships `payload/kivun-install-claude.sh` and runs it via `wsl -d Ubuntu -- setsid -f bash <script>`. `setsid -f` forks AND creates a new session — the install becomes a session leader, fully orphaned from wsl.exe's session, so it survives wsl.exe's exit cleanly. Output → `/tmp/kivun-claude.log`, exit code → `/tmp/kivun-install-rc` (cmd polls every 5s for the marker file, cap 660s).
+- Inherits v1.1.21 (detach + cmd-side poll architecture), v1.1.20 (no `tee` pipe), v1.1.19 (`timeout 600` bound), v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
 
 ### What's new in v1.1.18
 

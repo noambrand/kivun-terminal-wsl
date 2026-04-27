@@ -377,8 +377,11 @@ jobs:
           echo "===== /tmp/claude-installer.sh existence ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/claude-installer.sh /root/.local/bin/claude 2>&1 || true"
           echo
-          echo "===== bat lines we expect to be running (v1.1.22 sanity check) ====="
-          grep -nE 'timeout 600|Auto-installing|install.sh returned|kivun-install-rc|disown|_install_poll|kickoff wsl call' payload/kivun-terminal.bat | head -15
+          echo "===== bat lines we expect to be running (v1.1.23 sanity check) ====="
+          grep -nE 'setsid|kivun-install-claude\.sh|kivun-install-rc|_install_poll|install kicked off' payload/kivun-terminal.bat | head -15
+          echo "===== payload/kivun-install-claude.sh (v1.1.23) ====="
+          ls -la payload/kivun-install-claude.sh 2>&1 | head -3
+          head -10 payload/kivun-install-claude.sh 2>&1
           echo
           echo "===== Live processes (post-cleanup) ====="
           # `MSYS_NO_PATHCONV=1` + `MSYS2_ARG_CONV_EXCL='*'` preserve `/FI`

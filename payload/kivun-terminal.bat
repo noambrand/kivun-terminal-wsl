@@ -628,36 +628,56 @@ REM /tmp/kivun-install-rc. cmd polls every 5s for that marker file —
 REM there's no synchronous wsl.exe wait anywhere in this path so it
 REM cannot hang regardless of what install.sh forks.
 echo Installing Claude Code in Ubuntu (max 10 min)...
-REM v1.1.22: pair `< nul` with `2>&1 >> "%LOG_FILE%"`. CI run 25015480190
-REM proved that wsl.exe 2.6.x emits "ERROR: Input redirection is not
-REM supported, exiting the process immediately." when stdin is redirected
-REM but stdout/stderr are NOT also redirected. Every other working `< nul`
-REM call in this launcher (lines 34, 133, 147, 194, 199, 666, 671) pairs
-REM `< nul` with `2>&1 >> file` or equivalent — match that pattern here.
-REM Without this pairing, the wsl call fails immediately, install never
-REM starts, and the polling loop times out at 660s.
-wsl -d Ubuntu -- bash -c "rm -f /tmp/kivun-claude.log /tmp/kivun-install-rc; ( timeout 600 bash -c 'curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh && bash /tmp/claude-installer.sh; rc=$?; rm -f /tmp/claude-installer.sh; exit $rc' > /tmp/kivun-claude.log 2>&1; echo $? > /tmp/kivun-install-rc ) </dev/null >/dev/null 2>&1 & disown" < nul >> "%LOG_FILE%" 2>&1
-REM If wsl rejected the call (non-zero exit), the detached install never
-REM started — fail fast instead of polling for 660s.
+REM v1.1.23: ship the install runner as a static script + setsid -f to
+REM fully detach. v1.1.21/v1.1.22's inline `( ... ) & disown` returned
+REM 0 from wsl but the detached subshell never ran — WSL's interop relay
+REM kills its cgroup descendants when wsl.exe exits, and `& disown` only
+REM tells the bash job table not to send SIGHUP, it doesn't escape the
+REM cgroup. `setsid -f` forks AND creates a NEW session — the install
+REM becomes a session leader, fully orphaned from wsl.exe's session.
+REM CI run 25015901486 confirmed v1.1.22 with `& disown` left
+REM /root/.local/bin/claude absent (install never executed).
+REM
+REM v1.1.22 also revealed a wsl.exe 2.6.x quirk: `< nul > nul 2>&1`
+REM is rejected with "ERROR: Input redirection is not supported"
+REM (only `< nul >> file 2>&1` works, not `< nul > nul 2>&1`).
+REM v1.1.23 dodges by NOT using `< nul` at all on the new wsl calls —
+REM bash inherits launcher's stdin (launcher_input.txt or cmd console),
+REM but the inner commands (setsid + script, test -f) don't read stdin
+REM so it doesn't matter.
+
+REM Compute install dir's WSL path locally (the global INST_WSL is set
+REM later, after :claude_present). Strip trailing backslash from %~dp0
+REM before wslpath — wslpath returns "." for paths ending in `\`.
+set "_INST_DIR=%~dp0"
+if "%_INST_DIR:~-1%"=="\" set "_INST_DIR=%_INST_DIR:~0,-1%"
+for /f "delims=" %%i in ('wsl wslpath -a "%_INST_DIR%" 2^>nul') do set "_INST_WSL=%%i"
+if "%_INST_WSL%"=="" call :WIN_TO_WSL_PATH "%_INST_DIR%" _INST_WSL
+if not "%_INST_WSL:~-1%"=="/" set "_INST_WSL=%_INST_WSL%/"
+call :LOG "INFO - Install dir WSL path: %_INST_WSL%"
+
+REM Kick off the install. setsid -f forks a child that becomes session
+REM leader, then execs bash on the install script. wsl.exe sees the
+REM setsid parent exit (~immediately) and returns. The session-leader
+REM child runs detached, writes its exit code to /tmp/kivun-install-rc.
+wsl -d Ubuntu -- setsid -f bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    call :LOG "ERROR - kickoff wsl call failed with exit %ERRORLEVEL%; install not started"
+    call :LOG "ERROR - setsid kickoff failed with exit %ERRORLEVEL%; install not started"
     set "INSTALL_RC=%ERRORLEVEL%"
     goto :_install_after
 )
-call :LOG "INFO - install kickoff returned 0; polling for completion"
+call :LOG "INFO - install kicked off via setsid; polling for /tmp/kivun-install-rc"
 
 REM Poll for the marker. cmd's `timeout /t 5 /nobreak` sleeps 5s without
-REM accepting Ctrl-C. Cap at 660s (= 600s install + 60s slack) so a stuck
-REM install can never freeze the launcher beyond install.sh's own bound.
+REM accepting Ctrl-C. Cap at 660s (= 600s install.sh + 60s slack) so a
+REM stuck install can never freeze the launcher.
 set /a INSTALL_WAIT=0
 :_install_poll
-REM Same `< nul` + stdout-redirect rule. > nul 2>&1 discards both since
-REM we only care about ERRORLEVEL.
-wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc" < nul > nul 2>&1
+wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc" >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% EQU 0 goto :_install_check_rc
 set /a INSTALL_WAIT+=5
 if %INSTALL_WAIT% GEQ 660 (
-    call :LOG "WARNING - install.sh hit 660s cmd-side poll cap (subshell stuck or wsl unreachable)"
+    call :LOG "WARNING - install.sh hit 660s cmd-side poll cap (setsid'd process stuck or killed)"
     set "INSTALL_RC=124"
     goto :_install_after
 )
@@ -666,8 +686,6 @@ goto :_install_poll
 
 :_install_check_rc
 set "INSTALL_RC=1"
-REM `for /f ('cmd')` already redirects cmd's stdout via pipe — wsl sees
-REM non-tty stdout, so it accepts the call without `< nul` workarounds.
 for /f "delims=" %%R in ('wsl -d Ubuntu -- bash -c "cat /tmp/kivun-install-rc 2>/dev/null" 2^>nul') do set "INSTALL_RC=%%R"
 
 :_install_after
