@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.1.13] - 2026-04-27
 
+> **Status:** USER-CONFIRMED WORKING. Verified against a real Hebrew Claude session on Konsole 23.08.5 (Ubuntu 24.04 LTS, April 27, 2026). The wrapper processes the actual user `dump.bin` cleanly: 55 cursor-forwards replaced + 98 SGR codes stripped, single attribute region per RTL line, English/code runs land at UAX #9 logical positions inside Hebrew sentences.
+
 The actual word-order fix. v1.1.10–v1.1.12 chased the wrong cause. After enabling `KIVUN_BIDI_DUMP_RAW=on` and capturing the byte stream Claude actually emits in TUI mode, the root cause turned out to be cursor-forward CSI escapes — `\x1b[1C` instead of literal space characters between every word. 19 KB of one short Hebrew session contained **306 cursor-forward CSIs**. Konsole's BiDi engine treats each `\x1b[NC` as an attribute-region boundary the same way it treats SGR color changes — exactly the splitter that v1.1.10 FLATTEN_COLORS_RTL was supposed to eliminate, but FLATTEN only stripped CSI sequences ending in `m`.
 
 That's why earlier deep-test fixtures rendered correctly but real Claude output kept misposition: the deep tests used plain `printf` with literal spaces. Claude's TUI does not.
