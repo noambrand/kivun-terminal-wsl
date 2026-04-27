@@ -3,6 +3,37 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.18] - 2026-04-27
+
+CI coverage added in PR #60 (the `validate-launcher-windows.yml` jobs that exercise the v1.1.14/v1.1.15/v1.1.16 launcher paths) caught a real production bug that no prior release surfaced: **the direct-fallback path runs with empty environment variables when Konsole apt-install fails.**
+
+### Fixed: Konsole-install-fail → silent broken launch (the bug PR #60 caught)
+
+**Symptom:** when `apt-get install -y konsole` failed inside WSL — possible on a CI runner with no GUI, on a flaky apt mirror, on a machine without sudo cached, or behind a network outage — the launcher logged `ERROR - Konsole installation failed`, then `INFO - Falling back to direct Claude execution`, then `INFO - Executing: claude --append-system-prompt`, then `COMPLETE - Claude session ended`. The user saw the launch "succeed" but no Claude window appeared.
+
+**Cause:** the `goto :run_direct` at line 225 of `kivun-terminal.bat` jumped past:
+- the path conversion block (which sets `WSL_PATH` and `INST_WSL`)
+- the WSLg-user detection block (which sets `WSL_USER_FLAG`)
+
+So `:run_direct` invoked `wsl -d Ubuntu bash kivun-direct.sh "" "<prompt>"` — bash with no `INST_WSL` prefix on the script path. WSL bash inherits cmd's cwd (the Windows install dir, mapped to `/mnt/c/Users/.../AppData/Local/Kivun-WSL/` or wherever cmd was running), looks for `kivun-direct.sh` relative to that cwd, doesn't find it, exits silently. The launcher logs `COMPLETE - Claude session ended` regardless because the wsl invocation's exit code wasn't checked — the same anti-pattern v1.1.1 was supposed to kill but only addressed for the `claude not found` branch.
+
+**Fix:** moved the path conversion + line-ending fix + VcXsrv check + bash log path + WSLg-user detection blocks to **before** the Konsole check in `payload/kivun-terminal.bat`. Now both the Konsole-launch path and the direct-fallback path run with the same fully-resolved `WSL_PATH` / `INST_WSL` / `WSL_USER_FLAG`. As a side benefit, the v1.1.15 abort (no UID 1000 user) now fires before we try to install Konsole, instead of after — so users in that scenario don't watch a 30-second apt run before being told to create a non-root user.
+
+**Why no earlier release caught this:** every prior CI job (`test-no-claude-no-konsole`, `test-existing-claude-no-reinstall`, etc.) either pre-installed Konsole or asserted on the pre-Konsole code path. The new `test-v1115-abort-and-v1116-dot-fallback` and `test-v1115-routes-through-uid-1000` jobs in PR #60 both exercise the **Konsole-install-fail → direct-fallback** path end-to-end, and immediately exposed that the v1.1.16 dot-fallback marker and the v1.1.15 user-detection markers never appeared in the log because the goto jumped over them.
+
+### Lesson learned (added to launcher-bulletproofing memory)
+
+`goto :label` in cmd is a one-way trapdoor. Any code after the call site that the goto jumps over might as well not exist for the post-goto code. When adding new launcher invariants (path conversion, user detection, etc.), put them BEFORE all conditional gotos that lead to paths needing those invariants — not after, with the assumption that the goto path will redo or skip the work. The "happy path runs every line; error paths skip lines" mental model is wrong for cmd.
+
+### CI coverage already covers this fix
+
+PR #60's three new jobs assert the post-fix behavior:
+- `test-v1115-abort-and-v1116-dot-fallback`: now reaches the v1.1.16 `Path conversion returned '.'` log line on a `.` arg, and reaches the v1.1.15 abort message when no UID 1000 exists. Both were previously skipped by the goto.
+- `test-v1115-routes-through-uid-1000`: now reaches the v1.1.15 `Will run as: kivuntest` log line. Previously skipped.
+- `test-sh-scripts-refuse-root`: regex assertion fixed in PR #60 to match the actual `wsl -d Ubuntu --user root -- adduser yourname` message.
+
+After v1.1.18 lands on main, PR #60 will rebase clean and turn green.
+
 ## [1.1.17] - 2026-04-27
 
 Two regressions that surfaced from real install testing of v1.1.16. Both were caused by code I shipped in v1.1.16; both are fixed here.

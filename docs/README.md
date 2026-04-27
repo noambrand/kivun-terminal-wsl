@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.17
+# Kivun Terminal v1.1.18
 
-[![Version](https://img.shields.io/badge/version-1.1.17-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.18-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -66,7 +66,7 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 ### How it's different from the LTR sister project
 
-| | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.17 |
+| | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.18 |
 |---|---|---|
 | **Runtime** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
 | **RTL/BiDi rendering** | LTR only | Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
@@ -78,11 +78,10 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
 
-### What's new in v1.1.17
+### What's new in v1.1.18
 
-- **WSLg taskbar icon — actually fixed.** v1.1.16 docs called the blank Konsole title-bar/taskbar icon a WSLg architectural limit. It isn't. WSLg matches Windows taskbar icons via `WM_CLASS` → `.desktop` `StartupWMClass=` lookup, NOT via `_NET_WM_ICON`. v1.1.17 generates `~/.local/share/applications/kivun-terminal.desktop` with our PNG and launches Konsole with `--name kivun-terminal` so the lookup matches. Verified working April 27, 2026. The original `_NET_WM_ICON` path stays as a fallback for `USE_VCXSRV=true` users.
-- **`Kivun-Update-To-V1117.bat` normalizes line endings.** v1.1.16 updater shipped LF-endings `.bat` files (GitHub raw serves repo-storage line endings). cmd silently skips lines on LF-only `.bat`, breaking the launcher's WORK_DIR setup → users landed in `/home/<user>` instead of their Windows home. v1.1.17 updater explicitly CRLF-normalizes after curl, and the launcher itself now substitutes `%USERPROFILE%` upstream when WORK_DIR is empty/`.` so even a misshipped LF-only `.bat` lands users at their Windows home.
-- Inherits v1.1.16 (cursor-forward → literal-space replacement on RTL lines, USER-CONFIRMED), v1.1.11 (no per-run RLE/PDF on RTL lines), v1.1.10 (SGR color flatten on RTL lines), v1.1.9 (strip-incoming bidi controls + diagnostic side log), v1.1.8 (bullet-strip workaround for Konsole 23.x), v1.1.7 (branded Konsole window icon over VcXsrv + `setsid` detach), v1.1.6 (active Claude PATH discovery for nvm/pnpm/snap/corp installs).
+- **Bulletproof Konsole-install-fail fallback.** When `apt-get install konsole` failed inside WSL (no GUI on a CI runner, flaky apt mirror, network outage, missing sudo cache), the launcher logged `Falling back to direct Claude execution` and `COMPLETE - Claude session ended`, but no Claude window actually appeared — the `goto :run_direct` jumped over the path-conversion and WSLg-user-detection blocks, leaving `WSL_PATH` / `INST_WSL` / `WSL_USER_FLAG` empty, so the fallback ran `wsl bash kivun-direct.sh` with no path prefix, bash couldn't find the script, and the wsl exit code wasn't checked. v1.1.18 reorders the .bat so all three variables are set before the Konsole check, so both the Konsole-launch path and the direct-fallback path work end-to-end. The new CI jobs in `validate-launcher-windows.yml` (PR #60) caught this and assert it stays fixed.
+- Inherits v1.1.17 (`%USERPROFILE%` upstream substitution + WSLg taskbar icon via `.desktop` + `--name`), v1.1.16 (cursor-forward → literal-space replacement on RTL lines, USER-CONFIRMED), v1.1.11 (no per-run RLE/PDF on RTL lines), v1.1.10 (SGR color flatten on RTL lines), v1.1.9 (strip-incoming bidi controls + diagnostic side log), v1.1.8 (bullet-strip workaround for Konsole 23.x), v1.1.7 (branded Konsole window icon over VcXsrv + `setsid` detach), v1.1.6 (active Claude PATH discovery for nvm/pnpm/snap/corp installs).
 - Test coverage: 87 injector unit fixtures + smoke test against fake-claude via node-pty, all green on Linux + macOS + Windows.
 
 ### Common first checks (when something's wrong)
