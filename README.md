@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/version-1.1.23-brightgreen" alt="v1.1.23">
+  <img src="https://img.shields.io/badge/version-1.1.24-brightgreen" alt="v1.1.24">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
   <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?color=purple&label=downloads" alt="Total Downloads"></a>
@@ -47,7 +47,7 @@
 
 ## Why Kivun Terminal?
 
-|  | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.23 |
+|  | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.24 |
 |---|---|---|
 | **Runtime (Windows)** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
 | **RTL/BiDi rendering** | LTR only (Windows Terminal has no BiDi engine) | ✅ Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |

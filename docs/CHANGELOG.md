@@ -3,6 +3,22 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.24] - 2026-04-27
+
+Sixth hot-fix in the same day. v1.1.23's `setsid -f` detachment WORKED — `/root/.local/bin/claude` was actually installed in CI (run 25016464334 confirmed). But the polling loop's `wsl ... bash -c "test -f file" >> "%LOG_FILE%" 2>&1` was rejected by wsl.exe with `ERROR: Input redirection is not supported`. So polling never saw the marker, the launcher never logged SUCCESS, the test failed even though Claude WAS installed.
+
+### Fixed: polling needs `< nul`; setsid kickoff doesn't
+
+Discovered subtle wsl.exe 2.6.x rule: `bash -c` calls inherit launcher's stdin (a redirected file in CI / `start /B` contexts), and wsl.exe rejects file-stdin for `bash -c` even when stdout/stderr ARE redirected. The fix is `< nul` before the stdout redirect.
+
+But `wsl ... setsid -f bash <script>` (NOT via `bash -c`) does NOT trigger the same check — wsl.exe accepts file-stdin for non-bash-c commands.
+
+So the kickoff (line 663, `setsid -f bash <script>`) works without `< nul`. The polling (line 676, `bash -c "test -f file"`) needs `< nul`. Added it.
+
+### CI status after this fix
+
+If CI still fails, the next layer to check is whether `/tmp/kivun-install-rc` exists when polling fires. v1.1.24's diagnostic dump now also `cat`'s `/tmp/kivun-install-rc` so we can verify the install runner's output regardless of polling status.
+
 ## [1.1.23] - 2026-04-27
 
 Fifth hot-fix in the same day for the auto-install path. v1.1.21 (detach + poll) was architecturally right but the implementation kept failing in different ways. v1.1.23 finally lands a working version by shipping a static install runner script and using `setsid -f` for true session detachment.

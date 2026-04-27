@@ -671,9 +671,19 @@ call :LOG "INFO - install kicked off via setsid; polling for /tmp/kivun-install-
 REM Poll for the marker. cmd's `timeout /t 5 /nobreak` sleeps 5s without
 REM accepting Ctrl-C. Cap at 660s (= 600s install.sh + 60s slack) so a
 REM stuck install can never freeze the launcher.
+REM
+REM v1.1.24: polling needs `< nul` because `bash -c` inherits launcher's
+REM stdin (launcher_input.txt for tests, file-like for `start /B` real
+REM users) and wsl.exe rejects bash-c with file-stdin via "ERROR: Input
+REM redirection is not supported". The kickoff (line 663) doesn't need
+REM `< nul` because `setsid -f bash` runs WITHOUT `bash -c`, and wsl.exe
+REM doesn't apply the stdin-rejection rule to non-bash-c commands.
+REM Note CI run 25016464334: same `>> "%LOG_FILE%" 2>&1` pattern, line
+REM 663 worked (setsid), line 676 failed (bash -c). The differentiator
+REM is bash -c, not the redirect.
 set /a INSTALL_WAIT=0
 :_install_poll
-wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc" >> "%LOG_FILE%" 2>&1
+wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc" < nul >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% EQU 0 goto :_install_check_rc
 set /a INSTALL_WAIT+=5
 if %INSTALL_WAIT% GEQ 660 (
