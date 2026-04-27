@@ -454,6 +454,23 @@ fi
 export KIVUN_BIDI_FLATTEN_COLORS_RTL
 log "INFO - KIVUN_BIDI_FLATTEN_COLORS_RTL=$KIVUN_BIDI_FLATTEN_COLORS_RTL"
 
+# Per-run RLE/PDF bracketing of Hebrew runs INSIDE RTL paragraphs.
+# Default OFF in v1.1.11+ — Konsole 23.x's BiDi treats per-run RLE/PDF
+# pairs as attribute-region boundaries and mispositions LTR fragments
+# (English/code) inside Hebrew sentences. Skipping per-run bracketing
+# means line-start RLM + Konsole's UAX #9 handle direction without
+# extra region boundaries. Hebrew runs inside LTR paragraphs still
+# get bracketed (the Hebrew is the exception in an LTR flow).
+# Set to "on" if you want the legacy v1.1.0 - v1.1.10 behavior back.
+KIVUN_BIDI_BRACKET_RTL_RUNS="off"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_BRACKET_RTL_RUNS[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_BRACKET_RTL_RUNS[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_BRACKET_RTL_RUNS="$val"
+fi
+export KIVUN_BIDI_BRACKET_RTL_RUNS
+log "INFO - KIVUN_BIDI_BRACKET_RTL_RUNS=$KIVUN_BIDI_BRACKET_RTL_RUNS"
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates

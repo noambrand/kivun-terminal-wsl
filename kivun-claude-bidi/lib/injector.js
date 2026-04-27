@@ -82,6 +82,25 @@ const STRIP_INCOMING_MODE = (process.env.KIVUN_BIDI_STRIP_INCOMING || 'auto').to
 //         (default — Hebrew users gain positioning, lose color)
 const FLATTEN_COLORS_MODE = (process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL || 'on').toLowerCase();
 const CP_M = 0x6D;
+
+// Per-run RLE/PDF bracketing of Hebrew runs INSIDE RTL paragraphs.
+// Default OFF in v1.1.11+. Confirmed via Konsole 23.08.5 A/B test
+// (April 2026, post-v1.1.10): bracketing each Hebrew run separately
+// on an RTL line creates multiple attribute-change regions which
+// Konsole's per-region BiDi mispositions — even with FLATTEN_COLORS_RTL
+// stripping all SGR. The very RLE/PDF marks the wrapper emits act as
+// attribute-region boundaries to Konsole. The same line rendered with
+// just RLM at line-start (no per-run brackets) renders correctly.
+//
+// Hebrew runs INSIDE LTR PARAGRAPHS still get bracketed normally —
+// the Hebrew is an exception inside an LTR flow and needs the marker
+// for direction. Only RTL-paragraph runs are affected.
+//
+// Modes (KIVUN_BIDI_BRACKET_RTL_RUNS):
+//   off — no per-run RLE/PDF bracketing on RTL lines (default v1.1.11+)
+//   on  — bracket every Hebrew run regardless of paragraph direction
+//         (legacy v1.1.0 - v1.1.10 behavior)
+const BRACKET_RTL_RUNS = (process.env.KIVUN_BIDI_BRACKET_RTL_RUNS || 'off').toLowerCase();
 // Char class covers U+202A LRE, U+202B RLE, U+202C PDF, U+202D LRO, U+202E RLO,
 // U+2066 LRI, U+2067 RLI, U+2068 FSI, U+2069 PDI. Does NOT touch U+200E LRM
 // or U+200F RLM (we keep those — RLM is what the wrapper itself injects).
@@ -250,6 +269,11 @@ class Injector {
     // Public counter — number of SGR sequences this Injector dropped.
     // Useful for tests + diagnostic output.
     this.flattenedSgrCount = 0;
+    // Per-run bracketing tracking — set when we emit RLE for a run so
+    // the matching PDF emit knows whether it should fire. When BRACKET_RTL_RUNS
+    // is off and the line is RTL, runIsBracketed stays false through the run
+    // and no PDF gets emitted at the end (mirrors no RLE at start).
+    this.runIsBracketed = false;
     // Per-session raw-dump bookkeeping. Rotate any leftover oversized dump
     // file from a prior session, then write a session-start marker so each
     // run is delineated in the file when the user inspects it later.
@@ -469,6 +493,14 @@ class Injector {
     }
     if (isHebrew(cp)) {
       this.insideRun = true;
+      // Skip RLE prefix on RTL lines when per-run bracketing is off:
+      // line-start RLM + UAX #9 handle direction correctly without
+      // creating extra attribute boundaries that confuse Konsole.
+      if (this.lineIsRTL && BRACKET_RTL_RUNS === 'off') {
+        this.runIsBracketed = false;
+        return ch;
+      }
+      this.runIsBracketed = true;
       return RLE + ch;
     }
     return ch;
@@ -503,8 +535,12 @@ class Injector {
   _commitPendingOutside() {
     let out = '';
     if (this.insideRun) {
-      out += PDF;
+      // PDF only fires if we emitted RLE for this run. With per-run
+      // bracketing off on RTL lines (v1.1.11+ default), runIsBracketed
+      // stays false through the run and we emit no closing PDF.
+      if (this.runIsBracketed) out += PDF;
       this.insideRun = false;
+      this.runIsBracketed = false;
     }
     if (this.pending.length > 0) {
       out += String.fromCodePoint(...this.pending);
@@ -525,8 +561,9 @@ class Injector {
       this.pending = [];
     }
     if (this.insideRun) {
-      out += PDF;
+      if (this.runIsBracketed) out += PDF;
       this.insideRun = false;
+      this.runIsBracketed = false;
     }
     // FLATTEN_COLORS: if the stream ended mid-CSI (orphan ESC + [ + params
     // with no final byte ever arriving), emit what we buffered so the

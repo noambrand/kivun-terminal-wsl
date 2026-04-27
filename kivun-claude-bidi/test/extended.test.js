@@ -1,9 +1,9 @@
 'use strict';
 
-// See note in core.test.js: these tests pre-date FLATTEN_COLORS_RTL and
-// assume SGR codes pass through unchanged on RTL lines. Opt out of
-// FLATTEN here so they keep asserting the legacy passthrough behavior.
+// See note in core.test.js. These tests pre-date both v1.1.10 FLATTEN
+// and v1.1.11 no-RTL-bracket; opt back to legacy behavior here.
 process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL = 'off';
+process.env.KIVUN_BIDI_BRACKET_RTL_RUNS = 'on';
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');

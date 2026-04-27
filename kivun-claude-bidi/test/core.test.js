@@ -1,11 +1,14 @@
 'use strict';
 
-// Pre-v1.1.10 wrapper assumed SGR codes always passed through. With the
-// v1.1.10 FLATTEN_COLORS_RTL feature defaulting on, SGR codes get stripped
-// from RTL lines. These core algorithm tests were written against the
-// passthrough behavior, so we explicitly opt out of FLATTEN here. The new
-// FLATTEN-on assertions live in test/flatten-colors-rtl.test.js.
+// Pre-v1.1.10 wrapper assumed SGR codes always passed through and that
+// every Hebrew run got an RLE/PDF bracket. v1.1.10 added FLATTEN_COLORS_RTL
+// (default on, strips SGR on RTL lines) and v1.1.11 added BRACKET_RTL_RUNS
+// (default off, skips per-run bracketing on RTL lines). These core
+// algorithm tests pre-date both, so opt back to legacy behavior here.
+// New behavior is exercised in flatten-colors-rtl.test.js and
+// no-bracket-rtl-runs.test.js.
 process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL = 'off';
+process.env.KIVUN_BIDI_BRACKET_RTL_RUNS = 'on';
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');

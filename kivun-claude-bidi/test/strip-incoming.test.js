@@ -1,5 +1,10 @@
 'use strict';
 
+// strip-incoming fixtures predate v1.1.11 no-RTL-bracket. The "strip
+// doesn't break the strip-bullet pipeline" test relies on legacy
+// RLE/PDF emission; opt back to legacy bracketing here.
+process.env.KIVUN_BIDI_BRACKET_RTL_RUNS = 'on';
+
 // Regression tests for KIVUN_BIDI_STRIP_INCOMING (added in v1.1.9).
 //
 // Background: ChatGPT analysis (April 2026) flagged the wrapper as a
