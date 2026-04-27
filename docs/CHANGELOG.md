@@ -3,6 +3,23 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.12] - 2026-04-27
+
+Hebrew system-prompt formatting hint. v1.1.11 closed the wrapper-side investigation: BiDi rendering is now correct for the bytes Claude actually emits. But Claude's mixed Hebrew/English output sometimes had unusual spacing patterns (`עדכוןsrc/components/Header.tsx` glued, `הזה-endpoint` with the demonstrative on the wrong side via hyphen) that look broken even though the wrapper renders them faithfully. Fix at the source: tell Claude how to format Hebrew/English mixed text via `--append-system-prompt`.
+
+### Changed
+
+- **Hebrew language prompt** (`payload/languages.sh` + `payload/kivun-terminal.bat`) now includes spacing/demonstrative-placement guidance:
+  - Always insert a space between Hebrew text and a foreign token (`'הקובץ src/index.ts'`, not `'הקובץsrc/index.ts'`)
+  - Place demonstratives like `הזה`, `הזאת`, `האלה` AFTER the foreign noun with a space (`'ה-endpoint הזה'`, not `'הזה-endpoint'`)
+  - The `'ה-'` prefix attaches directly to a single foreign noun via hyphen with no space (`'ה-API'`, `'ה-backend'`); other Hebrew words must be space-separated from foreign tokens
+
+The hint applies only when `RESPONSE_LANGUAGE=hebrew` is set in `config.txt`. Other languages and English-only sessions are unaffected.
+
+### Why a prompt-only release
+
+The wrapper itself shipped its full mixed-content fix in v1.1.11 (no per-run RLE/PDF on RTL lines). What was left was source-text quality from Claude — the wrapper preserves bytes faithfully, but if Claude generates `הזה-endpoint` it'll render exactly that, even though it's not idiomatic Hebrew. v1.1.12 nudges Claude toward better source text via the system prompt. Wrapper code unchanged from v1.1.11; this is a payload/config update only.
+
 ## [1.1.11] - 2026-04-27
 
 THE actual mixed-content positioning fix. v1.1.10 reduced the problem (no more visible color codes on Hebrew lines) but real Claude output still mispositioned `Claude Code`, `React 19`, numbers, and other LTR runs inside Hebrew sentences. Investigation revealed the wrapper's own RLE/PDF brackets were causing what was left.
