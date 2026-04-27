@@ -1,11 +1,11 @@
 'use strict';
 
-// FLATTEN_COLORS_RTL was added in v1.1.10 and defaults on. The "preserves
-// leading ANSI color codes around the stripped bullet" test below was
-// written against legacy SGR-passthrough behavior, so we explicitly opt
-// out of FLATTEN here. The new FLATTEN-on behavior is exercised in
-// test/flatten-colors-rtl.test.js.
+// strip-bullet tests pre-date v1.1.10 FLATTEN and v1.1.11 no-RTL-bracket
+// and assert the legacy combination of behaviors. Opt back to legacy here.
+// New behavior is exercised in flatten-colors-rtl.test.js and
+// no-bracket-rtl-runs.test.js.
 process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL = 'off';
+process.env.KIVUN_BIDI_BRACKET_RTL_RUNS = 'on';
 
 // Regression tests for KIVUN_BIDI_STRIP_BULLET (added in v1.1.8).
 //

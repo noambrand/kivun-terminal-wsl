@@ -234,6 +234,35 @@ KIVUN_BIDI_DUMP_RAW=off
 KIVUN_BIDI_FLATTEN_COLORS_RTL=on
 
 # =================================================================
+# SKIP PER-RUN RLE/PDF BRACKETING on RTL lines (v1.1.11)
+# =================================================================
+# THE actual fix for "English/code shifts to the wrong column inside
+# Hebrew sentences." Confirmed via Konsole 23.08.5 A/B test (April
+# 2026): even with v1.1.10 FLATTEN_COLORS_RTL stripping all SGR,
+# real Claude output still mispositioned 'React 19', 'Claude Code',
+# numbers, etc. Investigation showed the wrapper's own RLE/PDF
+# bracketing (one pair PER Hebrew run on a line) was creating
+# multiple attribute-region boundaries that Konsole's per-region
+# BiDi mispositions -- exactly what FLATTEN was supposed to fix.
+#
+# The same lines rendered with NO per-run brackets (just RLM at
+# line-start + Konsole's native UAX #9) position correctly. So
+# the wrapper now skips per-run bracketing on RTL lines. Hebrew
+# runs INSIDE LTR paragraphs (Hebrew embedded in English) still
+# get bracketed since the direction marker IS needed there.
+#
+# Modes:
+#   off - no per-run brackets on RTL lines (default v1.1.11+)
+#         The line is one attribute region; Konsole positions LTR
+#         runs at their UAX #9 logical positions.
+#   on  - bracket every Hebrew run regardless of paragraph direction
+#         (legacy v1.1.0 - v1.1.10 behavior; reverts to the
+#         multiple-attribute-region pattern that misposes LTR runs)
+#
+# Default: off
+KIVUN_BIDI_BRACKET_RTL_RUNS=off
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information

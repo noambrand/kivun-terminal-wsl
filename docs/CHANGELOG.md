@@ -3,6 +3,36 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.11] - 2026-04-27
+
+THE actual mixed-content positioning fix. v1.1.10 reduced the problem (no more visible color codes on Hebrew lines) but real Claude output still mispositioned `Claude Code`, `React 19`, numbers, and other LTR runs inside Hebrew sentences. Investigation revealed the wrapper's own RLE/PDF brackets were causing what was left.
+
+### The follow-up A/B test (April 2026 on Konsole 23.08.5)
+
+After v1.1.10 shipped and the user reported residual misposition, ran `Kivun-BiDi-Deep-Test.bat` — three renderings of the same problem strings:
+
+- **TEST A**: plain `printf` (no wrapper involvement at all)
+- **TEST B**: RLM at line-start only
+- **TEST C**: RLM + ONE RLE/PDF pair around the whole line
+
+**All three rendered the LTR runs at their correct UAX #9 logical positions.** The thing that made v1.1.10 still broken was the wrapper's own habit of bracketing Hebrew runs *individually* — on a line like `אני משתמש ב-Claude Code-בעברית` it emitted `RLM + RLE + "אני משתמש ב-" + PDF + "Claude Code" + RLE + "-בעברית" + PDF`, creating multiple PDF/RLE transitions that Konsole treated as attribute-region boundaries (the same boundary class as SGR color changes that v1.1.10 fixed).
+
+So per-run RLE/PDF brackets were *themselves* the attribute-region splitters that v1.1.10 was fighting. Removing them on RTL lines closes the loop.
+
+### Added
+
+- **`KIVUN_BIDI_BRACKET_RTL_RUNS` config option** (default `off`) — when off, Hebrew runs INSIDE RTL paragraphs no longer get individual RLE/PDF brackets. Line-start RLM + Konsole's native UAX #9 handle direction across the whole single-attribute line. Hebrew runs INSIDE LTR paragraphs (`Hello שלום world`) still get bracketed because the Hebrew is an exception in an LTR flow and *needs* the marker. Set to `on` if you want the legacy v1.1.0–v1.1.10 behavior back for some reason.
+- **Regression test suite** (`kivun-claude-bidi/test/no-bracket-rtl-runs.test.js`, 12 tests) covering off/on modes, Hebrew-only lines, the `Claude Code` mid-Hebrew pattern, the `React 19` pattern, numbers + colon inside Hebrew, the legacy bracketing-still-applies-on-LTR-lines case, line-start RLM preservation, multi-line direction switching, and integration with v1.1.8 strip-bullet.
+
+### Changed
+
+- **All four pre-v1.1.11 test files** (`core.test.js`, `extended.test.js`, `strip-bullet.test.js`, `strip-incoming.test.js`, `flatten-colors-rtl.test.js`) now opt into legacy bracketing with `process.env.KIVUN_BIDI_BRACKET_RTL_RUNS = 'on'` at the top of the file. Their fixtures pre-date v1.1.11 and assert the per-run-bracket pattern; the new no-bracket-on-RTL behavior is exercised only by the new test/no-bracket-rtl-runs.test.js suite.
+- **`runIsBracketed` instance flag added to Injector** so PDF emission only fires when the matching RLE was emitted. With per-run bracketing off on RTL lines, no RLE is emitted on entry → no PDF on exit.
+
+### Why three releases instead of one
+
+v1.1.9 (strip-incoming) ruled out "Claude is polluting the stream" — the stream is clean. v1.1.10 (flatten-colors) ruled out "ANSI SGR is splitting BiDi runs" — fixing it eliminated colors but not misposition. v1.1.11 (no per-run brackets) caught the actual cause: **the wrapper itself was a stream polluter from Konsole's perspective.** Each layer was needed to isolate the next layer; shipping incrementally let real-user evidence drive each decision rather than guessing all the layers at once.
+
 ## [1.1.10] - 2026-04-27
 
 The mixed-content positioning fix we said was "blocked on Konsole 24+" turned out to be possible from the wrapper after all, once we identified the actual root cause. Plus a debug-only diagnostic for future investigation.

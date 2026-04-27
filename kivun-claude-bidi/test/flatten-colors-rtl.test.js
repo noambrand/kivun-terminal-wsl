@@ -25,6 +25,11 @@
 // byte). Cursor positioning, screen-clear, scroll-region, OSC, etc. all
 // pass through. LTR lines are NEVER affected.
 
+// FLATTEN_COLORS_RTL test fixtures expect the legacy per-run RLE/PDF
+// bracketing alongside the SGR-strip behavior. v1.1.11 changed that
+// default to off, so opt back to legacy bracketing here.
+process.env.KIVUN_BIDI_BRACKET_RTL_RUNS = 'on';
+
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
