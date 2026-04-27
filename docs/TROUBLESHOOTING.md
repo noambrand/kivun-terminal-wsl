@@ -1,4 +1,4 @@
-# Kivun Terminal v1.1.15 - Troubleshooting
+# Kivun Terminal v1.1.16 - Troubleshooting
 
 ## First: collect the logs
 
@@ -179,6 +179,44 @@ KIVUN_BIDI_STRIP_BULLET=on
 Restart Kivun Terminal. The wrapper will now strip the leading `●` from any line whose first strong char is RTL before passing it to the terminal. Hebrew becomes the first visible char on the line, BiDi flips paragraph direction to RTL automatically, and the line renders right-aligned the way you'd expect.
 
 **Trade-off:** the visible `●` marker disappears on Hebrew bullet lines (the indentation stays, so you still see lines as visually grouped). English bullet lines are not touched - their `●` continues to render normally. If you'd rather keep the bullet visible at the cost of the LTR layout on Konsole 23.x, leave `KIVUN_BIDI_STRIP_BULLET=off` (the default).
+
+## Symptom: Konsole window opens with no icon (blank/white) in title bar and Windows taskbar
+
+**Cause:** WSLg architectural limit. Verified April 27, 2026 via `xprop -name "Kivun Terminal" _NET_WM_ICON` on a live Konsole window: our launcher correctly sets `_NET_WM_ICON` with all four icon sizes (16/32/48/64) — the property is on the window — but **WSLg's compositor (Weston → RDP → Windows) does not forward window icons to either the Konsole title bar or the Windows taskbar entry.**
+
+**What we tried (none worked under WSLg):**
+- `python-xlib` writing `_NET_WM_ICON` (the original v1.1.7 path) — property set, ignored by WSLg
+- Konsole's `--qwindowicon <path>` flag (Qt-native icon-set before window creation) — ignored by WSLg
+- (No other knobs available — neither X11 nor Qt have a path that goes through to WSLg's RDP-side icon rendering)
+
+**What does work:** the cmd "Launch Log" window (the one that runs `kivun-terminal.bat`) shows the icon correctly because Windows reads it from the Desktop shortcut's `kivun_icon.ico` file. That's a Windows-native path, not WSLg.
+
+**Native Linux installs (Konsole on KDE Plasma desktop):** unaffected. The `_NET_WM_ICON` path works correctly there. Only WSLg installs see the blank Konsole icon.
+
+**Workaround if you really want a Konsole icon under WSLg:** run KDE Plasma inside WSL (heavy: ~1 GB additional install of `kde-plasma-desktop`) and use its KWin window manager instead of WSLg's Weston. Not recommended for most users — the cost exceeds the value of one icon.
+
+## Symptom: Working directory is `/mnt/c/Users/<you>/AppData/Local/Kivun-WSL` (the install dir) instead of your home or the right-clicked folder
+
+**Cause (verified April 27, 2026 in WSL 2.6.3.0):** `wslpath ""` and `wslpath "."` both return the literal `.` string. The pre-v1.1.16 `kivun-terminal.bat` only checked for empty WSL_PATH; a `.` value slipped through, got passed to bash, and `cd .` kept whatever cwd bash inherited from cmd — typically the install dir when launched from the Desktop shortcut.
+
+**Fixed in v1.1.16:** the .bat now treats `WSL_PATH=.` the same as empty and falls back to `~` (your WSL home directory).
+
+**Manual fix on v1.1.15 and earlier:**
+
+```cmd
+notepad %LOCALAPPDATA%\Kivun-WSL\kivun-terminal.bat
+```
+
+Find the `if "%WSL_PATH%"==""` block (around line 255) and add a parallel check:
+
+```cmd
+) else if "%WSL_PATH%"=="." (
+    set "WSL_PATH=~"
+    call :LOG "WARNING - Path conversion returned '.', using home directory"
+)
+```
+
+Save and re-launch.
 
 ## Symptom: Konsole opens, then Claude immediately exits with `--dangerously-skip-permissions cannot be used with root/sudo privileges`
 

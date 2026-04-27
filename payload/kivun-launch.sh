@@ -631,6 +631,15 @@ log "INFO - Command: setsid konsole --profile KivunTerminal -e $LAUNCH_TMP"
 # bash dying (e.g. user closes the cmd.exe window or the wsl bridge
 # exits). Without this, closing the launcher's console window sent
 # SIGHUP to Konsole and killed the live Claude session along with it.
+#
+# Note (v1.1.16): we tried --qwindowicon $ICON_PNG here as a workaround
+# for the Konsole title-bar/taskbar icon being blank under WSLg.
+# Confirmed not to help on Konsole 23.08.5 + WSLg 1.0.71 — WSLg's
+# compositor doesn't forward Qt window icons to the Windows taskbar
+# either. Reverted. The python-xlib _NET_WM_ICON path runs after
+# launch (below) and works on native KDE/GNOME but is also silently
+# ignored by WSLg. See docs/TROUBLESHOOTING.md for the WSLg icon
+# limit discussion.
 setsid konsole --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
 KPID=$!
 

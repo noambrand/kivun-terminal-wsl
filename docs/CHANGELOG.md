@@ -3,6 +3,32 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.16] - 2026-04-27
+
+Two user-reported issues from real install testing on April 27, 2026.
+
+### Fixed: working directory was the install dir instead of `$HOME` / right-clicked folder
+
+**Symptom:** Konsole opened with the working directory set to `/mnt/c/Users/<you>/AppData/Local/Kivun-WSL` (the Kivun install directory) instead of your home directory or the folder you right-clicked.
+
+**Cause (verified April 27, 2026 in WSL 2.6.3.0):** `wslpath ""` and `wslpath "."` both return the literal `.` string instead of empty. The .bat's check was `if "%WSL_PATH%"==""` (empty only) so a `.` value slipped through, got passed to bash, and `cd .` kept whatever cwd bash inherited from cmd — typically the install dir when launched via the Desktop shortcut.
+
+**Fix:** added `if "%WSL_PATH%"=="."` fallback to the same home-directory-fallback branch in `payload/kivun-terminal.bat`. WORK_DIR upstream is also the harder fix to chase ("who is passing `.` or empty as `%~1`?"), but the defensive check at WSL_PATH covers both `wslpath` quirk cases regardless of upstream cause.
+
+### Investigated and documented: Konsole title-bar/taskbar icon is blank under WSLg
+
+**Symptom:** title bar and Windows taskbar entry for the Konsole window are blank/white instead of showing the orange Claude icon. Logs say `SUCCESS - Window icon set` but visually nothing.
+
+**Diagnosis (verified via xprop on the live window):** the python-xlib path *does* set `_NET_WM_ICON` correctly with all four icon sizes (16/32/48/64) and valid pixel data. Confirmed via `xprop -name "Kivun Terminal" _NET_WM_ICON` showing the orange figure clearly in the ASCII preview. **WSLg's compositor (Weston → RDP → Windows) does not forward `_NET_WM_ICON` to either the title bar or the Windows taskbar.** Tried `--qwindowicon <path>` as a Qt-native alternative (sets the icon at Qt application level before X11 window creation) — also ignored by WSLg.
+
+**Status:** WSLg architectural limit. Not Kivun-fixable. Documented in `docs/TROUBLESHOOTING.md`. **Native Linux KDE/GNOME installs are unaffected** — they show the icon correctly via `_NET_WM_ICON`. Only WSLg installs (most Windows Kivun users) get a blank Konsole-window icon, with the cmd "Launch Log" window keeping its icon from the Windows shortcut `.lnk` file.
+
+The `--qwindowicon` experiment is removed from `payload/kivun-launch.sh` (was added speculatively earlier today) but a comment block remains explaining why we tried it and why it doesn't help, so future agents don't re-derive the failed spike.
+
+### Why two issues were investigated together
+
+User reported them in close succession during v1.1.15 testing. The path issue is the meaningful fix; the icon issue is a documented limit. Bundling both lets the v1.1.16 release ship the path fix immediately AND give a clear "this is what we tried, this is why it can't be fixed from our side" answer for the icon question.
+
 ## [1.1.15] - 2026-04-27
 
 v1.1.14 was incomplete. Same user (`mipmip`) re-ran the launcher after the v1.1.14 update and **the same `--dangerously-skip-permissions cannot be used with root/sudo privileges` error happened again**, this time via the *fallback* path. Two bugs missed in v1.1.14:

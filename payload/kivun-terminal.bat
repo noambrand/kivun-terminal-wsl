@@ -252,9 +252,18 @@ if %ERRORLEVEL% NEQ 0 (
 REM Convert paths
 call :LOG "INFO - Converting Windows paths to WSL paths"
 for /f "delims=" %%i in ('wsl wslpath "%WORK_DIR%" 2^>nul') do set "WSL_PATH=%%i"
+REM v1.1.16: wslpath returns the literal "." string when given an empty
+REM input or a "." input (verified April 2026 in WSL 2.6.3.0). The
+REM original empty-only check missed this and bash would `cd .` into
+REM whatever cwd it inherited from cmd — typically the Kivun install
+REM dir when launched via the Desktop shortcut. Treat "." the same as
+REM empty: fall back to the home directory.
 if "%WSL_PATH%"=="" (
     set "WSL_PATH=~"
-    call :LOG "WARNING - Path conversion failed, using home directory"
+    call :LOG "WARNING - Path conversion failed (empty), using home directory"
+) else if "%WSL_PATH%"=="." (
+    set "WSL_PATH=~"
+    call :LOG "WARNING - Path conversion returned '.', using home directory"
 ) else (
     call :LOG "SUCCESS - WSL work path: %WSL_PATH%"
 )
