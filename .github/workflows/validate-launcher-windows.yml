@@ -1122,6 +1122,10 @@ jobs:
             throw "FAIL: copy-paste-able fix instructions missing from refusal output"
           }
           Write-Host "PASS: kivun-direct.sh refused root with exit 1 + helpful instructions"
+          # The whole point of this step is to verify the script intentionally
+          # exits non-zero. PowerShell would otherwise propagate $LASTEXITCODE=1
+          # from the wsl call and fail the step despite all assertions passing.
+          exit 0
 
       - name: 'kivun-launch.sh as root → must exit 1 with refusal message'
         shell: pwsh
@@ -1140,3 +1144,5 @@ jobs:
             throw "FAIL: refusal message missing — kivun-launch.sh let root through"
           }
           Write-Host "PASS: kivun-launch.sh refused root with exit 1 + helpful instructions"
+          # Same reason as the kivun-direct.sh step above.
+          exit 0
