@@ -3,6 +3,29 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.27] - 2026-04-27
+
+Ninth iteration. v1.1.26's per-iteration logging revealed `ping 127.0.0.1 -n 6 > nul` itself was the hang point — polling fired exactly ONCE at `wait=0s` with rc=1, then silence for 4 minutes until the test killed it. Replaced with WSL-side `sleep`.
+
+### Fixed: ping hang in `start /B`-detached context → use `wsl ... sleep 5` instead
+
+CI run 25017580692 (v1.1.26) LAUNCH_LOG showed:
+```
+[20:23:53.81] INFO - install kicked off via setsid; polling for /tmp/kivun-install-rc
+[20:23:53.95] DEBUG - poll iter wait=0s wsl_rc=1
+                              ← silence for 4 min until test gave up at 20:28:02
+```
+
+Each polling iteration's `ping 127.0.0.1 -n 6 > nul` should take ~5 seconds. Instead it took 4+ minutes. Possible causes (all known to affect `ping` on Windows when stdin is a redirected file and stdout is detached): ICMP loopback denied, ping waiting for a console, ping reading stdin in some configurations.
+
+Replaced with `wsl -d Ubuntu -- sleep 5 < nul 2>&1 >> "%LOG_FILE%"`. Same call pattern as every other working wsl invocation in this launcher (line 34, 194, 199, 666). WSL's Linux `sleep` doesn't depend on Windows-side TTY/console state.
+
+Also flattened the `if INSTALL_WAIT >= 660 (...)` cap block to goto-based flow to avoid cmd's known if-block parens-counting edge cases.
+
+### Lesson
+
+Tools that "should" work without a TTY don't always: `timeout.exe` (v1.1.25 fix), `ping.exe` (this fix). When polling from cmd.exe in a `start /B`-detached, file-stdin context, the safest sleep is to delegate it to a known-working subprocess — for this launcher, that's `wsl ... sleep N`. Adding to launcher-bulletproofing memory: **avoid Windows-native sleep utilities (timeout, ping) in detached cmd contexts; use `wsl ... sleep` instead.**
+
 ## [1.1.26] - 2026-04-27
 
 Eighth iteration. v1.1.25's `ping`-based polling worked (launcher_stderr now empty, no more "Input redirection" errors), but the test STILL failed even though `/root/.local/bin/claude` was successfully installed. v1.1.26 adds per-iteration polling diagnostics + a longer test timeout.

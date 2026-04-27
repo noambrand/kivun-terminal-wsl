@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.26
+# Kivun Terminal v1.1.27
 
-[![Version](https://img.shields.io/badge/version-1.1.26-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.27-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 

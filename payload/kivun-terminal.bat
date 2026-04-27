@@ -685,21 +685,25 @@ REM    /tmp tmpfs before we read the marker, the binary still exists in
 REM    /root/.local (persistent), so we can verify install success.
 set /a INSTALL_WAIT=0
 :_install_poll
-REM v1.1.26: match the redirect order from the working line 194:
-REM `< nul 2>&1 >> "%LOG_FILE%"` instead of `< nul >> ... 2>&1`. Empirically
-REM the former is the one that always works in this launcher.
+REM v1.1.27: replaced `ping 127.0.0.1 -n 6 > nul` with `wsl ... sleep 5`.
+REM CI run 25017580692 (v1.1.26) showed polling fired exactly ONCE then
+REM hung 4 minutes — ping itself was the new hang point in `start /B`-
+REM detached context. WSL-side `sleep` is the same call pattern as every
+REM other working wsl invocation in this launcher.
+REM
+REM Also flattened the if-cap to goto-based flow to avoid cmd's
+REM if (...) block parsing edge cases.
 wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc || test -x /root/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
 set "_POLL_RC=%ERRORLEVEL%"
-REM Per-iteration log so we can see polling actually progresses.
 call :LOG "DEBUG - poll iter wait=%INSTALL_WAIT%s wsl_rc=%_POLL_RC%"
 if "%_POLL_RC%"=="0" goto :_install_check_rc
 set /a INSTALL_WAIT+=5
-if %INSTALL_WAIT% GEQ 660 (
-    call :LOG "WARNING - install.sh hit 660s cmd-side poll cap (setsid'd process stuck or killed)"
-    set "INSTALL_RC=124"
-    goto :_install_after
-)
-ping 127.0.0.1 -n 6 > nul
+if %INSTALL_WAIT% LSS 660 goto :_install_sleep
+call :LOG "WARNING - install.sh hit 660s cmd-side poll cap"
+set "INSTALL_RC=124"
+goto :_install_after
+:_install_sleep
+wsl -d Ubuntu -- sleep 5 < nul 2>&1 >> "%LOG_FILE%"
 goto :_install_poll
 
 :_install_check_rc
