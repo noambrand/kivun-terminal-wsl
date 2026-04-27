@@ -1,4 +1,4 @@
-# Kivun Terminal v1.1.24 - Full Installation Guide
+# Kivun Terminal v1.1.25 - Full Installation Guide
 
 ## System Requirements
 

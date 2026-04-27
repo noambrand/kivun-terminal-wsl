@@ -3,6 +3,24 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.25] - 2026-04-27
+
+Seventh hot-fix in the same day. Found the real culprit: `timeout.exe`, NOT `wsl.exe`, was producing all the "Input redirection is not supported" errors across v1.1.21–v1.1.24's failed CI runs.
+
+### Fixed: replace `timeout /t 5 /nobreak` with `ping 127.0.0.1 -n 6` in polling loop
+
+CI run 25016792585 (v1.1.24) confirmed `setsid -f` install was actually working — `/root/.local/bin/claude → versions/2.1.119` was created. The polling loop was the only blocker. Detailed analysis of `launcher_stderr.txt` showed only ~9 "Input redirection" errors despite the polling loop running for 120 seconds at a 5s interval (which would produce ~24 if each iteration errored once). That mismatch led to the realization: the error was from **`timeout.exe`**, Windows' built-in sleep utility, NOT from `wsl.exe`. `timeout` requires a TTY for stdin and rejects file-stdin with the EXACT same error message as wsl.exe's known rejection.
+
+The launcher inherits stdin from `start /B cmd /c "... < launcher_input.txt"` (CI test) or from a redirected console (real `start /B` users), so `timeout`'s TTY check fails. cmd's classic workaround is `ping 127.0.0.1 -n 6 > nul` — `ping` does NOT require a TTY and waits ~5s for 6 echo replies (about 1s apart on localhost).
+
+Also: polling now checks the claude binary directly (`test -x /root/.local/bin/claude || ...`) in addition to the `/tmp/kivun-install-rc` marker. If `taskkill //IM wsl.exe` wipes /tmp (tmpfs) before we read the marker, the binary still exists in `/root/.local` (persistent), so we can verify success regardless. INSTALL_RC defaults to 0 if the marker is missing but the binary is present.
+
+### Lesson
+
+`timeout /t N /nobreak` is the Windows-cmd canonical sleep, but it requires a TTY for stdin. In any context where the launcher's stdin is a file (CI tests, `start /B`, redirected real-user invocations), `timeout` fails immediately with a confusing error message identical to one wsl.exe also produces. **Always use `ping 127.0.0.1 -n N+1 > nul` for cmd sleeps** — it works with any stdin source.
+
+Six wasted version bumps (v1.1.19 → v1.1.24) chasing wsl.exe behavior. The actual fix was a one-line swap in the polling loop. Lesson added to launcher-bulletproofing memory: when an error message is ambiguous about which binary produced it, audit ALL invocations near the error, not just the most-recently-changed one.
+
 ## [1.1.24] - 2026-04-27
 
 Sixth hot-fix in the same day. v1.1.23's `setsid -f` detachment WORKED — `/root/.local/bin/claude` was actually installed in CI (run 25016464334 confirmed). But the polling loop's `wsl ... bash -c "test -f file" >> "%LOG_FILE%" 2>&1` was rejected by wsl.exe with `ERROR: Input redirection is not supported`. So polling never saw the marker, the launcher never logged SUCCESS, the test failed even though Claude WAS installed.

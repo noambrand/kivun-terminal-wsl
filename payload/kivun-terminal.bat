@@ -668,22 +668,24 @@ if %ERRORLEVEL% NEQ 0 (
 )
 call :LOG "INFO - install kicked off via setsid; polling for /tmp/kivun-install-rc"
 
-REM Poll for the marker. cmd's `timeout /t 5 /nobreak` sleeps 5s without
-REM accepting Ctrl-C. Cap at 660s (= 600s install.sh + 60s slack) so a
-REM stuck install can never freeze the launcher.
+REM Poll for completion. v1.1.25 fixed two things in the polling loop:
 REM
-REM v1.1.24: polling needs `< nul` because `bash -c` inherits launcher's
-REM stdin (launcher_input.txt for tests, file-like for `start /B` real
-REM users) and wsl.exe rejects bash-c with file-stdin via "ERROR: Input
-REM redirection is not supported". The kickoff (line 663) doesn't need
-REM `< nul` because `setsid -f bash` runs WITHOUT `bash -c`, and wsl.exe
-REM doesn't apply the stdin-rejection rule to non-bash-c commands.
-REM Note CI run 25016464334: same `>> "%LOG_FILE%" 2>&1` pattern, line
-REM 663 worked (setsid), line 676 failed (bash -c). The differentiator
-REM is bash -c, not the redirect.
+REM 1. Replaced `timeout /t 5 /nobreak > nul` with `ping 127.0.0.1 -n 6
+REM    > nul`. CI run 25016792585 revealed the real source of the
+REM    "ERROR: Input redirection is not supported" errors filling
+REM    launcher_stderr.txt across v1.1.21–v1.1.24 was NOT wsl.exe but
+REM    Windows' TIMEOUT.EXE — it requires a TTY for stdin and rejects
+REM    file-stdin (launcher inherits stdin from launcher_input.txt for
+REM    tests / from a redirected console for `start /B` real users).
+REM    `ping 127.0.0.1 -n 6` sleeps ~5s and works with any stdin source.
+REM
+REM 2. Polling checks the binary directly (`test -x /root/.local/bin/claude`)
+REM    in addition to the marker file. If `taskkill //IM wsl.exe` wipes
+REM    /tmp tmpfs before we read the marker, the binary still exists in
+REM    /root/.local (persistent), so we can verify install success.
 set /a INSTALL_WAIT=0
 :_install_poll
-wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc" < nul >> "%LOG_FILE%" 2>&1
+wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc || test -x /root/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% EQU 0 goto :_install_check_rc
 set /a INSTALL_WAIT+=5
 if %INSTALL_WAIT% GEQ 660 (
@@ -691,12 +693,14 @@ if %INSTALL_WAIT% GEQ 660 (
     set "INSTALL_RC=124"
     goto :_install_after
 )
-timeout /t 5 /nobreak > nul
+ping 127.0.0.1 -n 6 > nul
 goto :_install_poll
 
 :_install_check_rc
-set "INSTALL_RC=1"
-for /f "delims=" %%R in ('wsl -d Ubuntu -- bash -c "cat /tmp/kivun-install-rc 2>/dev/null" 2^>nul') do set "INSTALL_RC=%%R"
+REM If the marker file exists, read its exit code. Otherwise fall back
+REM to "0" — the binary check above already confirmed install success.
+set "INSTALL_RC=0"
+for /f "delims=" %%R in ('wsl -d Ubuntu -- bash -c "if [ -f /tmp/kivun-install-rc ]; then cat /tmp/kivun-install-rc; else echo 0; fi" 2^>nul') do set "INSTALL_RC=%%R"
 
 :_install_after
 call :LOG "INFO - install.sh returned exit code %INSTALL_RC%"
