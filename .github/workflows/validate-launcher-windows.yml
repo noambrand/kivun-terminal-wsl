@@ -106,38 +106,41 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Confirm WSL is available on the runner
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --status
           wsl --version
 
       - name: Install Ubuntu in WSL (no-launch)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # windows-latest images pre-install WSL2 features. --no-launch
           # avoids the interactive user-creation prompt; we use --user root
           # for everything in CI so a regular user isn't required.
           wsl --install -d Ubuntu --no-launch
-          # Wait up to 2 min for the distro to be queryable.
-          $start = Get-Date
-          do {
-            Start-Sleep -Seconds 5
-            $list = wsl -l -v 2>&1 | Out-String
-            if ($list -match 'Ubuntu') { break }
-          } while (((Get-Date) - $start).TotalSeconds -lt 120)
-          Write-Host "wsl -l -v output:"
-          Write-Host $list
-          # Confirm bash works (forces distro init).
+          # Probe Ubuntu directly — `wsl -l -v` output is UTF-16 LE on
+          # Windows and parsing it from bash needs iconv juggling.
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
       - name: Confirm Claude is NOT in WSL (CI baseline)
-        shell: pwsh
+        shell: bash
         run: |
-          $r = wsl -d Ubuntu --user root -- bash -c "command -v claude || echo NOT_FOUND"
-          Write-Host "claude lookup: $r"
-          if ($r -notmatch 'NOT_FOUND') {
-            throw "Claude unexpectedly already installed in fresh Ubuntu"
-          }
+          set -e
+          r=$(wsl -d Ubuntu --user root -- bash -c "command -v claude || echo NOT_FOUND")
+          echo "claude lookup: $r"
+          if ! echo "$r" | grep -qF 'NOT_FOUND'; then
+            echo "FAIL: Claude unexpectedly already installed in fresh Ubuntu" >&2
+            exit 1
+          fi
 
       - name: Run launcher and capture exit code
         shell: cmd
@@ -162,53 +165,69 @@ jobs:
           (echo LAUNCHER_EXITCODE=%RC%)>>"%GITHUB_ENV%"
 
       - name: Assert v1.1.1 invariants on LAUNCH_LOG.txt
-        shell: pwsh
+        shell: bash
         run: |
-          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          if (-not (Test-Path $log)) {
-            throw "FAIL: LAUNCH_LOG.txt was not created at $log"
-          }
-          $content = Get-Content $log -Raw
-          Write-Host "----- LAUNCH_LOG.txt -----"
-          Write-Host $content
-          Write-Host "--------------------------"
+          set -e
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ ! -e "$log" ]; then
+            echo "FAIL: LAUNCH_LOG.txt was not created at $log" >&2
+            exit 1
+          fi
+          echo "----- LAUNCH_LOG.txt -----"
+          cat "$log"
+          echo "--------------------------"
 
           # Invariant 1: launcher must NOT contain the bug signature.
           # The v1.0.6 -> v1.1.0 bug was: ERROR - Claude Code not found
           # immediately followed by INFO - Executing: claude. That sequence
           # in the log means the launcher claimed to fall back and then
           # tried to run the missing binary. v1.1.1 must never do this.
-          if ($content -match '(?s)ERROR\s*-\s*Claude Code not found.*?INFO\s*-\s*Executing:\s*claude') {
-            throw "FAIL: bug signature present in LAUNCH_LOG (v1.1.1 regression)"
-          }
-          Write-Host "PASS: bug signature absent"
+          # `pcregrep -M` does multiline matching that ripgrep-style `grep
+          # -P` doesn't span line breaks for. Fall back to awk if missing.
+          if awk '
+            /ERROR[[:space:]]*-[[:space:]]*Claude Code not found/ { found_err=1; next }
+            found_err && /INFO[[:space:]]*-[[:space:]]*Executing:[[:space:]]*claude/ { exit 2 }
+          ' "$log"; then
+            : # awk exited 0 — sequence not seen
+          else
+            rc=$?
+            if [ "$rc" = "2" ]; then
+              echo "FAIL: bug signature present in LAUNCH_LOG (v1.1.1 regression)" >&2
+              exit 1
+            fi
+            # awk error other than our exit 2 — propagate
+            exit "$rc"
+          fi
+          echo "PASS: bug signature absent"
 
           # Invariant 2: the v1.1.1 :no_claude_exit message must be present.
           # This is the human-facing confirmation that the new path fired.
-          if ($content -notmatch 'EXIT - No Claude in WSL') {
-            throw "FAIL: expected v1.1.1 ':no_claude_exit' marker missing from log"
-          }
-          Write-Host "PASS: :no_claude_exit was reached"
+          if ! grep -qF 'EXIT - No Claude in WSL' "$log"; then
+            echo "FAIL: expected v1.1.1 ':no_claude_exit' marker missing from log" >&2
+            exit 1
+          fi
+          echo "PASS: :no_claude_exit was reached"
 
           # Invariant 3: launcher must have exited with code 2 (the
           # documented v1.1.1 exit code for absent-Claude + declined-install).
-          if ($env:LAUNCHER_EXITCODE -ne '2') {
-            throw "FAIL: launcher exit code was '$env:LAUNCHER_EXITCODE', expected 2"
-          }
-          Write-Host "PASS: launcher exited with code 2"
+          if [ "$LAUNCHER_EXITCODE" != "2" ]; then
+            echo "FAIL: launcher exit code was '$LAUNCHER_EXITCODE', expected 2" >&2
+            exit 1
+          fi
+          echo "PASS: launcher exited with code 2"
 
       - name: Copy LAUNCH_LOG into workspace for upload
         if: always()
-        shell: pwsh
+        shell: bash
         run: |
-          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          if (Test-Path $src) {
-            Copy-Item $src -Destination "LAUNCH_LOG.txt"
-            Write-Host "Copied $src to workspace"
-          } else {
-            Write-Host "WARNING: $src not present (launcher may have failed before logging)"
-            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
-          }
+          src="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ -e "$src" ]; then
+            cp "$src" LAUNCH_LOG.txt
+            echo "Copied $src to workspace"
+          else
+            echo "WARNING: $src not present (launcher may have failed before logging)"
+            echo "(LAUNCH_LOG was not created)" > LAUNCH_LOG.txt
+          fi
 
       - name: Upload LAUNCH_LOG as artifact
         if: always()
@@ -237,124 +256,129 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Confirm WSL is available on the runner
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --status
           wsl --version
 
       - name: Install Ubuntu in WSL (no-launch)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --install -d Ubuntu --no-launch
-          $start = Get-Date
-          do {
-            Start-Sleep -Seconds 5
-            $list = wsl -l -v 2>&1 | Out-String
-            if ($list -match 'Ubuntu') { break }
-          } while (((Get-Date) - $start).TotalSeconds -lt 120)
-          Write-Host "wsl -l -v output:"
-          Write-Host $list
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
       - name: Confirm Claude is NOT in WSL (CI baseline)
-        shell: pwsh
+        shell: bash
         run: |
-          $r = wsl -d Ubuntu --user root -- bash -c "command -v claude || echo NOT_FOUND"
-          Write-Host "claude lookup: $r"
-          if ($r -notmatch 'NOT_FOUND') {
-            throw "Claude unexpectedly already installed in fresh Ubuntu"
-          }
+          set -e
+          r=$(wsl -d Ubuntu --user root -- bash -c "command -v claude || echo NOT_FOUND")
+          echo "claude lookup: $r"
+          if ! echo "$r" | grep -qF 'NOT_FOUND'; then
+            echo "FAIL: Claude unexpectedly already installed in fresh Ubuntu" >&2
+            exit 1
+          fi
 
       - name: Run launcher (accept install), wait for SUCCESS, then kill
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # Build stdin: Y to accept install, then a bunch of empty lines
           # to satisfy any subsequent set/p or pause prompts the launcher
           # may emit before we kill it.
           # MUST be CRLF: cmd's set /p reads stdin a "line" at a time and
-          # bare-LF input gets consumed as a single token, so Set-Content
-          # (which writes LF only on this PS) caused YN to come back as
-          # something other than "Y" and the install prompt was declined
-          # silently. WriteAllText with explicit \r\n matches what job 2
-          # gets from cmd's own echo writer.
-          $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
-          [System.IO.File]::WriteAllText(
-            $inputFile,
-            "Y`r`n`r`n`r`n`r`n`r`n",
-            [System.Text.Encoding]::ASCII
-          )
-          Write-Host "Input file bytes:"
-          Format-Hex $inputFile | Out-String | Write-Host
+          # bare-LF input gets consumed as a single token. printf with
+          # explicit \r\n matches what cmd's own echo writer produces.
+          input_file="$RUNNER_TEMP/launcher_input.txt"
+          printf 'Y\r\n\r\n\r\n\r\n\r\n' > "$input_file"
+          echo "Input file bytes:"
+          od -c "$input_file" | head -3
 
           # Start the launcher in the background. We can't just block on it
           # because after install, the launcher tries to exec the claude
           # TUI which would hang forever in CI.
-          $proc = Start-Process -FilePath "cmd.exe" `
-            -ArgumentList "/c", "call payload\kivun-terminal.bat C:\temp < `"$inputFile`"" `
-            -PassThru -NoNewWindow -RedirectStandardOutput "launcher_stdout.txt" `
-            -RedirectStandardError "launcher_stderr.txt"
+          # `cmd //c` is the Git Bash idiom that escapes MSYS path
+          # translation of `/c`; the double slash stays a single slash
+          # inside cmd.
+          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
+            > launcher_stdout.txt 2> launcher_stderr.txt &
+          launcher_pid=$!
 
-          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          $start = Get-Date
-          $installSucceeded = $false
-          $installFailed = $false
-          while (((Get-Date) - $start).TotalMinutes -lt 15) {
-            if (Test-Path $log) {
-              $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
-              if ($content -match 'SUCCESS - Claude Code installed in WSL') {
-                $installSucceeded = $true
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          end=$((SECONDS + 900))
+          install_succeeded=0
+          install_failed=0
+          while [ $SECONDS -lt $end ]; do
+            if [ -e "$log" ]; then
+              if grep -qF 'SUCCESS - Claude Code installed in WSL' "$log" 2>/dev/null; then
+                install_succeeded=1
                 break
-              }
-              if ($content -match 'ERROR - Claude auto-install failed') {
-                $installFailed = $true
+              fi
+              if grep -qF 'ERROR - Claude auto-install failed' "$log" 2>/dev/null; then
+                install_failed=1
                 break
-              }
-            }
-            if ($proc.HasExited) { break }
-            Start-Sleep -Seconds 10
-          }
+              fi
+            fi
+            if ! kill -0 "$launcher_pid" 2>/dev/null; then
+              break
+            fi
+            sleep 10
+          done
 
           # Kill the launcher (and any TUI children) so we can move on.
-          if (-not $proc.HasExited) {
-            Write-Host "Launcher still running after install signal; terminating tree."
-            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
-          }
+          if kill -0 "$launcher_pid" 2>/dev/null; then
+            echo "Launcher still running after install signal; terminating tree."
+            kill -TERM "$launcher_pid" 2>/dev/null || true
+          fi
           # Belt and suspenders: kill stray claude/wsl/bash held by launcher.
-          Get-Process | Where-Object { $_.ProcessName -in 'claude','wsl','bash','node' } |
-            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+          for img in claude.exe wsl.exe bash.exe node.exe; do
+            taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
+          done
 
-          if ($installFailed) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
-            Write-Host "----- WSL install log -----"
+          if [ "$install_failed" = "1" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log" 2>/dev/null || echo "(log missing)"
+            echo "----- WSL install log -----"
             wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null || echo no-log"
-            throw "FAIL: launcher reported Claude auto-install failed"
-          }
-          if (-not $installSucceeded) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
-            throw "FAIL: SUCCESS marker did not appear within 15 min"
-          }
-          Write-Host "PASS: launcher logged 'SUCCESS - Claude Code installed in WSL'"
+            echo "FAIL: launcher reported Claude auto-install failed" >&2
+            exit 1
+          fi
+          if [ "$install_succeeded" = "0" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log" 2>/dev/null || echo "(log missing)"
+            echo "FAIL: SUCCESS marker did not appear within 15 min" >&2
+            exit 1
+          fi
+          echo "PASS: launcher logged 'SUCCESS - Claude Code installed in WSL'"
 
       - name: Assert no [Y/N] prompt appeared (v1.1.3 default-yes UX)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # The point of v1.1.3 is that a fresh user does NOT have to
           # type Y to get Claude installed. If this assertion ever
           # starts failing, somebody re-introduced the prompt as the
           # default and undid the UX fix.
-          $stdout = Get-Content "launcher_stdout.txt" -Raw -ErrorAction SilentlyContinue
-          if ($stdout -match 'Install Claude Code in Ubuntu now') {
-            Write-Host "----- launcher_stdout.txt -----"
-            Write-Host $stdout
-            throw "FAIL: launcher prompted [Y/N] - v1.1.3 default-yes regressed"
-          }
-          Write-Host "PASS: no [Y/N] prompt shown to user"
+          if grep -qF 'Install Claude Code in Ubuntu now' launcher_stdout.txt 2>/dev/null; then
+            echo "----- launcher_stdout.txt -----"
+            cat launcher_stdout.txt
+            echo "FAIL: launcher prompted [Y/N] - v1.1.3 default-yes regressed" >&2
+            exit 1
+          fi
+          echo "PASS: no [Y/N] prompt shown to user"
 
       - name: Assert :run_direct fallback can find claude (v1.1.4)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # In CI Konsole apt-install always fails (no GUI), so the
           # launcher hits :run_direct after the curl install succeeds.
           # If kivun-direct.sh cannot resolve claude (the v1.1.3 PATH
@@ -362,16 +386,16 @@ jobs:
           # found" before claude itself ever runs. v1.1.4 calls claude
           # via absolute path inside kivun-direct.sh, so this string
           # must never appear.
-          $stdout = Get-Content "launcher_stdout.txt" -Raw -ErrorAction SilentlyContinue
-          if ($stdout -match 'claude: command not found') {
-            Write-Host "----- launcher_stdout.txt -----"
-            Write-Host $stdout
-            throw "FAIL: :run_direct could not locate claude binary (v1.1.4 regression)"
-          }
-          Write-Host "PASS: :run_direct resolved claude (no 'command not found')"
+          if grep -qF 'claude: command not found' launcher_stdout.txt 2>/dev/null; then
+            echo "----- launcher_stdout.txt -----"
+            cat launcher_stdout.txt
+            echo "FAIL: :run_direct could not locate claude binary (v1.1.4 regression)" >&2
+            exit 1
+          fi
+          echo "PASS: :run_direct resolved claude (no 'command not found')"
 
       - name: Assert claude is actually callable inside Ubuntu
-        shell: pwsh
+        shell: bash
         run: |
           # The strongest signal: claude --version returns 0 and prints
           # a version string. Use the absolute path to the user-local
@@ -380,31 +404,33 @@ jobs:
           # launcher cannot: $PATH inherited from windows-latest contains
           # /mnt/c/Program Files (x86)/... entries with literal `(` and
           # `)` that bash word-splits and chokes on.
-          $ver = wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1 || /usr/local/bin/claude --version 2>&1" | Out-String
-          $rc = $LASTEXITCODE
-          Write-Host "claude --version output: $ver"
-          Write-Host "claude --version exit code: $rc"
-          if ($rc -ne 0) {
-            throw "FAIL: claude --version exited $rc inside WSL Ubuntu"
-          }
-          if ($ver -match 'not found' -or $ver -match 'No such file') {
-            throw "FAIL: claude --version reports binary missing inside WSL"
-          }
-          Write-Host "PASS: Claude Code is installed in Ubuntu and callable via the launcher's auto-install path"
+          ver=$(wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1 || /usr/local/bin/claude --version 2>&1") || true
+          rc=$?
+          echo "claude --version output: $ver"
+          echo "claude --version exit code: $rc"
+          if [ "$rc" != "0" ]; then
+            echo "FAIL: claude --version exited $rc inside WSL Ubuntu" >&2
+            exit 1
+          fi
+          if echo "$ver" | grep -qE 'not found|No such file'; then
+            echo "FAIL: claude --version reports binary missing inside WSL" >&2
+            exit 1
+          fi
+          echo "PASS: Claude Code is installed in Ubuntu and callable via the launcher's auto-install path"
 
       - name: Copy LAUNCH_LOG into workspace for upload
         if: always()
-        shell: pwsh
+        shell: bash
         run: |
-          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          if (Test-Path $src) {
-            Copy-Item $src -Destination "LAUNCH_LOG.txt"
-          } else {
-            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
-          }
+          src="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ -e "$src" ]; then
+            cp "$src" LAUNCH_LOG.txt
+          else
+            echo "(LAUNCH_LOG was not created)" > LAUNCH_LOG.txt
+          fi
           # Also pull the WSL-side install log for postmortem.
-          wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null" `
-            > "WSL_INSTALL_LOG.txt" 2>$null
+          wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null" \
+            > WSL_INSTALL_LOG.txt 2>/dev/null || true
 
       - name: Upload artifacts
         if: always()
@@ -438,44 +464,44 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Confirm WSL is available on the runner
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --status
           wsl --version
 
       - name: Install Ubuntu in WSL (no-launch)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --install -d Ubuntu --no-launch
-          $start = Get-Date
-          do {
-            Start-Sleep -Seconds 5
-            $list = wsl -l -v 2>&1 | Out-String
-            if ($list -match 'Ubuntu') { break }
-          } while (((Get-Date) - $start).TotalSeconds -lt 120)
-          Write-Host $list
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
       - name: Pre-install Claude in Ubuntu (simulating a returning user)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # Drop claude into the same slot the launcher's curl installer
           # uses (~/.local/bin) so we exercise the exact path the bug
           # missed. Using the official installer keeps the test honest:
           # if Anthropic ever moves the install location, this job will
           # break and force the resolver to be updated alongside.
-          wsl -d Ubuntu --user root -- bash -c `
+          wsl -d Ubuntu --user root -- bash -c \
             "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
-          $rc = $LASTEXITCODE
-          if ($rc -ne 0) { throw "Pre-install of Claude in WSL failed (exit $rc)" }
-          # Sanity check via absolute path -- same way the v1.1.5 launcher
+          # Sanity check via absolute path — same way the v1.1.5 launcher
           # check works, so we know what the launcher will see.
-          $ver = wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1" | Out-String
-          Write-Host "Pre-installed claude: $ver"
-          if ($LASTEXITCODE -ne 0) { throw "Pre-installed claude not callable" }
+          ver=$(wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1")
+          echo "Pre-installed claude: $ver"
 
       - name: Run launcher, wait for claude-present marker, kill
-        shell: pwsh
+        shell: bash
         # If the v1.1.5 presence check works, the launcher sees claude
         # already there, skips the install branch, then heads into the
         # Konsole stage. In CI Konsole launch fails (no GUI), the
@@ -483,82 +509,84 @@ jobs:
         # TUI, which would hang. So we run it in the background, watch
         # LAUNCH_LOG.txt for the claude-present marker, then kill.
         run: |
+          set -e
           # AUTO_INSTALL_CLAUDE=no makes a regression LOUD: if the check
           # ever falsely reports "not found" again, the launcher exits 2
           # via :no_claude_exit instead of silently reinstalling.
-          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
-          $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
-          [System.IO.File]::WriteAllText($inputFile, "`r`n`r`n`r`n", [System.Text.Encoding]::ASCII)
+          printf 'AUTO_INSTALL_CLAUDE=no\r\n' > payload/config.txt
+          input_file="$RUNNER_TEMP/launcher_input.txt"
+          printf '\r\n\r\n\r\n' > "$input_file"
 
-          $proc = Start-Process -FilePath "cmd.exe" `
-            -ArgumentList "/c", "call payload\kivun-terminal.bat C:\temp < `"$inputFile`"" `
-            -PassThru -NoNewWindow -RedirectStandardOutput "launcher_stdout.txt" `
-            -RedirectStandardError "launcher_stderr.txt"
+          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
+            > launcher_stdout.txt 2> launcher_stderr.txt &
+          launcher_pid=$!
 
-          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          $start = Get-Date
-          $sawPresent = $false
-          $sawNoClaude = $false
-          while (((Get-Date) - $start).TotalMinutes -lt 5) {
-            if (Test-Path $log) {
-              $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
-              if ($content -match 'SUCCESS - Claude Code is installed') {
-                $sawPresent = $true
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          end=$((SECONDS + 300))
+          saw_present=0
+          saw_no_claude=0
+          while [ $SECONDS -lt $end ]; do
+            if [ -e "$log" ]; then
+              if grep -qF 'SUCCESS - Claude Code is installed' "$log" 2>/dev/null; then
+                saw_present=1
                 break
-              }
-              if ($content -match 'EXIT - No Claude in WSL') {
-                $sawNoClaude = $true
+              fi
+              if grep -qF 'EXIT - No Claude in WSL' "$log" 2>/dev/null; then
+                saw_no_claude=1
                 break
-              }
-            }
-            if ($proc.HasExited) { break }
-            Start-Sleep -Seconds 5
-          }
+              fi
+            fi
+            if ! kill -0 "$launcher_pid" 2>/dev/null; then
+              break
+            fi
+            sleep 5
+          done
 
-          if (-not $proc.HasExited) {
-            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
-          }
-          Get-Process | Where-Object { $_.ProcessName -in 'claude','wsl','bash','node' } |
-            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+          kill -TERM "$launcher_pid" 2>/dev/null || true
+          for img in claude.exe wsl.exe bash.exe node.exe; do
+            taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
+          done
 
-          if ($sawNoClaude) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw | Write-Host
-            throw "FAIL: launcher hit :no_claude_exit even though Claude IS installed (v1.1.5 presence-check regression)"
-          }
-          if (-not $sawPresent) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
-            throw "FAIL: launcher never reached :claude_present within 5 min"
-          }
-          Write-Host "PASS: launcher saw existing Claude install via the v1.1.5 absolute-path check"
+          if [ "$saw_no_claude" = "1" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log"
+            echo "FAIL: launcher hit :no_claude_exit even though Claude IS installed (v1.1.5 presence-check regression)" >&2
+            exit 1
+          fi
+          if [ "$saw_present" = "0" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log" 2>/dev/null || echo "(log missing)"
+            echo "FAIL: launcher never reached :claude_present within 5 min" >&2
+            exit 1
+          fi
+          echo "PASS: launcher saw existing Claude install via the v1.1.5 absolute-path check"
 
       - name: Assert install branch was skipped (the actual bug)
-        shell: pwsh
+        shell: bash
         run: |
-          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          $content = Get-Content $log -Raw
-
+          set -e
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           # Auto-install log line is the cheapest sentinel for the bug --
           # it appears whether AUTO_INSTALL_CLAUDE is yes or no, whenever
           # the presence check decided claude was missing.
-          if ($content -match 'Auto-installing Claude|Installing Claude Code via official installer|User declined Claude auto-install|ERROR - Claude Code not found') {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Write-Host $content
-            throw "FAIL: launcher entered install branch despite Claude already being installed (the user-reported bug)"
-          }
-          Write-Host "PASS: install branch was skipped — no spurious reinstall"
+          if grep -qE 'Auto-installing Claude|Installing Claude Code via official installer|User declined Claude auto-install|ERROR - Claude Code not found' "$log"; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log"
+            echo "FAIL: launcher entered install branch despite Claude already being installed (the user-reported bug)" >&2
+            exit 1
+          fi
+          echo "PASS: install branch was skipped — no spurious reinstall"
 
       - name: Copy LAUNCH_LOG into workspace for upload
         if: always()
-        shell: pwsh
+        shell: bash
         run: |
-          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          if (Test-Path $src) {
-            Copy-Item $src -Destination "LAUNCH_LOG.txt"
-          } else {
-            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
-          }
+          src="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ -e "$src" ]; then
+            cp "$src" LAUNCH_LOG.txt
+          else
+            echo "(LAUNCH_LOG was not created)" > LAUNCH_LOG.txt
+          fi
 
       - name: Upload artifacts
         if: always()
@@ -586,48 +614,46 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Confirm WSL is available
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --status
           wsl --version
 
       - name: Install Ubuntu in WSL (no-launch)
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           wsl --install -d Ubuntu --no-launch
-          $start = Get-Date
-          do {
-            Start-Sleep -Seconds 5
-            $list = wsl -l -v 2>&1 | Out-String
-            if ($list -match 'Ubuntu') { break }
-          } while (((Get-Date) - $start).TotalSeconds -lt 120)
-          Write-Host $list
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
       - name: Install claude at a NON-STANDARD path + add to .bashrc
-        shell: pwsh
+        shell: bash
         run: |
+          set -e
           # Drop a stub `claude` binary in /opt/kivun-test (not in any
           # standard slot the resolver hard-codes) and put that dir on
           # PATH via root's .bashrc so a login shell finds it. This
           # simulates the nvm/pnpm/yarn pattern of "PATH gets set up
           # by rc files, not by the system default".
           #
-          # ABANDONED: inline `wsl bash -c "..."` quoting.
-          # Multiple CI rounds proved that `$PATH` could not be passed
-          # through PowerShell -> wsl.exe -> bash unexpanded by ANY
-          # combination of PS escapes and bash quote nesting. Even with
-          # PS double-quote outer + bash single-quote inner, bash STILL
-          # expanded $PATH at echo time, dropping the runner's literal
-          # PATH (full of `(x86)` parens) into .profile and breaking
-          # every subsequent `bash -lc` with "syntax error near `('".
-          #
-          # Approach that actually works: write a real bash script to
-          # disk on the Windows side (with LF line endings, no PS
-          # interpolation), then exec it inside WSL. Inside the script,
-          # bash quoting works exactly like it does on any Linux machine
-          # because there's no Win32-cmdline middleware mangling args.
-          $setupScript = @'
+          # We write a real bash script to disk on the Windows side
+          # first (LF line endings), then exec it inside WSL. Inside
+          # the script, bash quoting works exactly like it does on any
+          # Linux machine — no Win32 cmdline-quoting middleware to fight.
+          # Single-quote the whole `export PATH=` line so $PATH stays
+          # literal on disk and expands at .bashrc-source time.
+          tmp_script="$RUNNER_TEMP/kivun-stub-setup.sh"
+          # Convert CRLF→LF as we write — Git Bash's printf may emit
+          # CRLF on Windows runners depending on how heredocs are read.
+          cat > "$tmp_script" <<'OUTER'
           #!/bin/bash
           set -e
           mkdir -p /opt/kivun-test
@@ -637,144 +663,115 @@ jobs:
           exit 0
           STUB
           chmod +x /opt/kivun-test/claude
-          # Bash single quotes around the whole export -- $PATH stays
-          # literal on disk and expands at source time, not now.
           grep -q 'kivun-test' /root/.bashrc 2>/dev/null \
             || echo 'export PATH=/opt/kivun-test:$PATH' >> /root/.bashrc
           grep -q 'kivun-test' /root/.profile 2>/dev/null \
             || echo 'export PATH=/opt/kivun-test:$PATH' >> /root/.profile
-          # Verify the login-shell lookup the launcher will perform.
           bash -lc 'command -v claude'
-          '@ -replace "`r`n", "`n"
+          OUTER
+          # Strip 10-space indent the YAML add and force LF endings.
+          sed -i 's/^          //; s/\r$//' "$tmp_script"
 
-          # The PowerShell here-string above preserves the leading 10-space
-          # indent on every line. Strip it so bash sees flush-left content
-          # (heredoc closer 'STUB' MUST start at column 0 to terminate).
-          $setupScript = ($setupScript -split "`n" | ForEach-Object {
-            if ($_ -match '^          (.*)$') { $matches[1] } else { $_ }
-          }) -join "`n"
+          echo "----- setup.sh contents -----"
+          cat "$tmp_script"
+          echo "------------------------------"
 
-          $tmpScript = "$env:RUNNER_TEMP\kivun-stub-setup.sh"
-          [System.IO.File]::WriteAllText(
-            $tmpScript,
-            $setupScript,
-            (New-Object System.Text.UTF8Encoding $false)
-          )
-          Write-Host "----- setup.sh contents -----"
-          Get-Content $tmpScript | ForEach-Object { Write-Host $_ }
-          Write-Host "------------------------------"
-
-          # Translate the Windows path to its /mnt/<drive>/... WSL form.
-          # Doing this in PS instead of via `wsl wslpath -u` because the
-          # PS->wsl.exe arg boundary strips backslashes from path args
-          # ("D:\a\_temp\..." arrived inside WSL as "D:a_temp..." with
-          # all separators eaten), which made wslpath silently return
-          # null and the .Trim() call below blew up with
-          # "You cannot call a method on a null-valued expression".
-          $drive  = $tmpScript.Substring(0, 1).ToLower()
-          $rest   = $tmpScript.Substring(2) -replace '\\', '/'
-          $wslPath = "/mnt/$drive$rest"
-          Write-Host "Exec: wsl bash $wslPath"
-          wsl -d Ubuntu --user root -- bash $wslPath
-          if ($LASTEXITCODE -ne 0) { throw "stub setup script failed inside WSL" }
+          # Compute /mnt/<drive>/... form via wsl wslpath. Strip the CR
+          # wsl appends to its stdout on Windows.
+          wsl_path=$(wsl wslpath -a "$tmp_script" | tr -d '\r')
+          echo "Exec: wsl bash $wsl_path"
+          wsl -d Ubuntu --user root -- bash "$wsl_path"
 
           # Negative check: standard absolute slots must NOT have claude,
           # otherwise the v1.1.6 discovery branch wouldn't fire and the
-          # test wouldn't actually be testing what we think.
-          $slots = @(
-            "test -x /root/.local/bin/claude",
-            "test -x /usr/local/bin/claude",
-            "test -x /usr/bin/claude"
-          )
-          foreach ($slot in $slots) {
-            wsl -d Ubuntu --user root -- bash -c $slot
-            if ($LASTEXITCODE -eq 0) {
-              throw "Test setup invalid: $slot succeeded but should be empty"
-            }
-          }
-          Write-Host "Setup OK: claude only at /opt/kivun-test, none of the standard slots."
-          # The negative-check loop above intentionally invokes commands
-          # that exit 1 (test -x on missing files). PowerShell propagates
-          # the LAST $LASTEXITCODE as the step's exit code, so without
-          # this the step would fail despite reaching "Setup OK".
-          $global:LASTEXITCODE = 0
-          exit 0
+          # test wouldn't actually be testing what we think. These probes
+          # are EXPECTED to exit 1 — capture and discard their exit code.
+          for slot in /root/.local/bin/claude /usr/local/bin/claude /usr/bin/claude; do
+            if wsl -d Ubuntu --user root -- bash -c "test -x $slot" >/dev/null 2>&1; then
+              echo "FAIL: Test setup invalid: $slot exists but should be empty" >&2
+              exit 1
+            fi
+          done
+          echo "Setup OK: claude only at /opt/kivun-test, none of the standard slots."
 
       - name: Run launcher with AUTO_INSTALL_CLAUDE=no
-        shell: pwsh
+        shell: bash
         run: |
-          (echo AUTO_INSTALL_CLAUDE=no) | Out-File -FilePath "payload\config.txt" -Encoding ASCII
-          $inputFile = "$env:RUNNER_TEMP\launcher_input.txt"
-          [System.IO.File]::WriteAllText($inputFile, "`r`n`r`n`r`n", [System.Text.Encoding]::ASCII)
+          set -e
+          printf 'AUTO_INSTALL_CLAUDE=no\r\n' > payload/config.txt
+          input_file="$RUNNER_TEMP/launcher_input.txt"
+          printf '\r\n\r\n\r\n' > "$input_file"
 
-          $proc = Start-Process -FilePath "cmd.exe" `
-            -ArgumentList "/c", "call payload\kivun-terminal.bat C:\temp < `"$inputFile`"" `
-            -PassThru -NoNewWindow -RedirectStandardOutput "launcher_stdout.txt" `
-            -RedirectStandardError "launcher_stderr.txt"
+          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
+            > launcher_stdout.txt 2> launcher_stderr.txt &
+          launcher_pid=$!
 
-          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          $start = Get-Date
-          $sawPresent = $false
-          $sawNoClaude = $false
-          while (((Get-Date) - $start).TotalMinutes -lt 5) {
-            if (Test-Path $log) {
-              $content = Get-Content $log -Raw -ErrorAction SilentlyContinue
-              if ($content -match 'SUCCESS - Claude Code is installed') {
-                $sawPresent = $true
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          end=$((SECONDS + 300))
+          saw_present=0
+          saw_no_claude=0
+          while [ $SECONDS -lt $end ]; do
+            if [ -e "$log" ]; then
+              if grep -qF 'SUCCESS - Claude Code is installed' "$log" 2>/dev/null; then
+                saw_present=1
                 break
-              }
-              if ($content -match 'EXIT - No Claude in WSL') {
-                $sawNoClaude = $true
+              fi
+              if grep -qF 'EXIT - No Claude in WSL' "$log" 2>/dev/null; then
+                saw_no_claude=1
                 break
-              }
-            }
-            if ($proc.HasExited) { break }
-            Start-Sleep -Seconds 5
-          }
+              fi
+            fi
+            if ! kill -0 "$launcher_pid" 2>/dev/null; then
+              break
+            fi
+            sleep 5
+          done
 
-          if (-not $proc.HasExited) {
-            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
-          }
-          Get-Process | Where-Object { $_.ProcessName -in 'claude','wsl','bash','node' } |
-            ForEach-Object { try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {} }
+          kill -TERM "$launcher_pid" 2>/dev/null || true
+          for img in claude.exe wsl.exe bash.exe node.exe; do
+            taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
+          done
 
-          if ($sawNoClaude) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw | Write-Host
-            throw "FAIL: launcher hit :no_claude_exit despite claude being on PATH via .bashrc (v1.1.6 active-discovery regression)"
-          }
-          if (-not $sawPresent) {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Get-Content $log -Raw -ErrorAction SilentlyContinue | Write-Host
-            throw "FAIL: launcher never reached :claude_present"
-          }
-          Write-Host "PASS: launcher discovered claude at non-standard path via login-shell lookup"
+          if [ "$saw_no_claude" = "1" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log"
+            echo "FAIL: launcher hit :no_claude_exit despite claude being on PATH via .bashrc (v1.1.6 active-discovery regression)" >&2
+            exit 1
+          fi
+          if [ "$saw_present" = "0" ]; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log" 2>/dev/null || echo "(log missing)"
+            echo "FAIL: launcher never reached :claude_present" >&2
+            exit 1
+          fi
+          echo "PASS: launcher discovered claude at non-standard path via login-shell lookup"
 
       - name: Assert the discovery branch (not the standard-slot branch) fired
-        shell: pwsh
+        shell: bash
         run: |
-          $log = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          $content = Get-Content $log -Raw
+          set -e
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           # The v1.1.6 marker for the new login-shell fallback. If we
           # ever see SUCCESS without this line, that means the standard
           # slots somehow had claude and our test setup is broken.
-          if ($content -notmatch 'Claude found via login-shell PATH') {
-            Write-Host "----- LAUNCH_LOG.txt -----"
-            Write-Host $content
-            throw "FAIL: discovery branch did not fire -- standard slots had claude (test setup invalid)"
-          }
-          Write-Host "PASS: v1.1.6 discovery branch fired as expected"
+          if ! grep -qF 'Claude found via login-shell PATH' "$log"; then
+            echo "----- LAUNCH_LOG.txt -----"
+            cat "$log"
+            echo "FAIL: discovery branch did not fire -- standard slots had claude (test setup invalid)" >&2
+            exit 1
+          fi
+          echo "PASS: v1.1.6 discovery branch fired as expected"
 
       - name: Copy LAUNCH_LOG into workspace for upload
         if: always()
-        shell: pwsh
+        shell: bash
         run: |
-          $src = "$env:LOCALAPPDATA\Kivun-WSL\LAUNCH_LOG.txt"
-          if (Test-Path $src) {
-            Copy-Item $src -Destination "LAUNCH_LOG.txt"
-          } else {
-            "(LAUNCH_LOG was not created)" | Out-File -FilePath "LAUNCH_LOG.txt"
-          }
+          src="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ -e "$src" ]; then
+            cp "$src" LAUNCH_LOG.txt
+          else
+            echo "(LAUNCH_LOG was not created)" > LAUNCH_LOG.txt
+          fi
 
       - name: Upload artifacts
         if: always()
