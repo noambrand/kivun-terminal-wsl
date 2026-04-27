@@ -380,8 +380,8 @@ jobs:
           echo "===== /tmp/claude-installer.sh existence ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/claude-installer.sh /root/.local/bin/claude 2>&1 || true"
           echo
-          echo "===== bat lines we expect to be running (v1.1.30 sanity check) ====="
-          grep -nE 'setsid|kivun-install-claude\.sh|kivun-install-rc|_install_poll|install kicked off' payload/kivun-terminal.bat | head -15
+          echo "===== bat lines we expect to be running (v1.1.31 sanity check) ====="
+          grep -nE 'setsid|kivun-install-claude\.sh|install\.sh returned|Auto-installing|_INST_WSL' payload/kivun-terminal.bat | head -15
           echo "===== /tmp/kivun-install-rc (inside WSL — should exist if install completed) ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/kivun-install-rc 2>&1; cat /tmp/kivun-install-rc 2>/dev/null || echo '(no rc file)'"
           echo "===== payload/kivun-install-claude.sh (v1.1.24) ====="

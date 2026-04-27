@@ -656,75 +656,20 @@ if "%_INST_WSL%"=="" call :WIN_TO_WSL_PATH "%_INST_DIR%" _INST_WSL
 if not "%_INST_WSL:~-1%"=="/" set "_INST_WSL=%_INST_WSL%/"
 call :LOG "INFO - Install dir WSL path: %_INST_WSL%"
 
-REM Kick off the install. setsid -f forks a child that becomes session
-REM leader, then execs bash on the install script. wsl.exe sees the
-REM setsid parent exit (~immediately) and returns. The session-leader
-REM child runs detached, writes its exit code to /tmp/kivun-install-rc.
-wsl -d Ubuntu -- setsid -f bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    call :LOG "ERROR - setsid kickoff failed with exit %ERRORLEVEL%; install not started"
-    set "INSTALL_RC=%ERRORLEVEL%"
-    goto :_install_after
-)
-call :LOG "INFO - install kicked off via setsid; polling for /tmp/kivun-install-rc"
-
-REM Poll for completion. v1.1.25 fixed two things in the polling loop:
+REM v1.1.31: SYNCHRONOUS install via `setsid` (without -f). v1.1.21–v1.1.30
+REM tried backgrounded install + cmd-side polling — every cmd-side sleep
+REM mechanism hung in the `start /B`-detached context (timeout, ping,
+REM wsl-sleep, waitfor, even pure-cmd `for /L`). The detached cmd host
+REM can't run anything after the first wsl call returns.
 REM
-REM 1. Replaced `timeout /t 5 /nobreak > nul` with `ping 127.0.0.1 -n 6
-REM    > nul`. CI run 25016792585 revealed the real source of the
-REM    "ERROR: Input redirection is not supported" errors filling
-REM    launcher_stderr.txt across v1.1.21–v1.1.24 was NOT wsl.exe but
-REM    Windows' TIMEOUT.EXE — it requires a TTY for stdin and rejects
-REM    file-stdin (launcher inherits stdin from launcher_input.txt for
-REM    tests / from a redirected console for `start /B` real users).
-REM    `ping 127.0.0.1 -n 6` sleeps ~5s and works with any stdin source.
-REM
-REM 2. Polling checks the binary directly (`test -x /root/.local/bin/claude`)
-REM    in addition to the marker file. If `taskkill //IM wsl.exe` wipes
-REM    /tmp tmpfs before we read the marker, the binary still exists in
-REM    /root/.local (persistent), so we can verify install success.
-set /a INSTALL_WAIT=0
-:_install_poll
-REM v1.1.27: replaced `ping 127.0.0.1 -n 6 > nul` with `wsl ... sleep 5`.
-REM CI run 25017580692 (v1.1.26) showed polling fired exactly ONCE then
-REM hung 4 minutes — ping itself was the new hang point in `start /B`-
-REM detached context. WSL-side `sleep` is the same call pattern as every
-REM other working wsl invocation in this launcher.
-REM
-REM Also flattened the if-cap to goto-based flow to avoid cmd's
-REM if (...) block parsing edge cases.
-wsl -d Ubuntu -- bash -c "test -f /tmp/kivun-install-rc || test -x /root/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
-set "_POLL_RC=%ERRORLEVEL%"
-call :LOG "DEBUG - poll iter wait=%INSTALL_WAIT%s wsl_rc=%_POLL_RC%"
-if "%_POLL_RC%"=="0" goto :_install_check_rc
-set /a INSTALL_WAIT+=5
-if %INSTALL_WAIT% LSS 660 goto :_install_sleep
-call :LOG "WARNING - install.sh hit 660s cmd-side poll cap"
-set "INSTALL_RC=124"
-goto :_install_after
-:_install_sleep
-REM v1.1.30: pure-cmd busy wait via `for /L`. v1.1.29 confirmed waitfor
-REM ALSO hangs after about-to-sleep (third sleep mechanism that fails:
-REM ping → wsl-sleep → waitfor). The `start /B cmd /c "...launcher.bat..."`
-REM detached context leaves the launcher unable to call ANY external
-REM command after the first 1-2 wsl invocations succeed. Likely cause:
-REM cmd.exe with no console attached can't properly spawn-and-wait for
-REM child processes. The bracketing logs proved the problem is not the
-REM goto loop — it's the external sleep utility.
-REM
-REM `for /L` is a pure cmd-parser construct — no child process spawned.
-REM 100M iterations of rem ≈ 5s on typical CI hardware (CPU burn but
-REM the polling cap at 660s limits total burn to ~10 min worst case).
-call :LOG "DEBUG - about to sleep (wait=%INSTALL_WAIT%)"
-for /L %%I in (1,1,100000000) do rem
-call :LOG "DEBUG - sleep returned"
-goto :_install_poll
-
-:_install_check_rc
-REM If the marker file exists, read its exit code. Otherwise fall back
-REM to "0" — the binary check above already confirmed install success.
-set "INSTALL_RC=0"
-for /f "delims=" %%R in ('wsl -d Ubuntu -- bash -c "if [ -f /tmp/kivun-install-rc ]; then cat /tmp/kivun-install-rc; else echo 0; fi" 2^>nul') do set "INSTALL_RC=%%R"
+REM Drop polling entirely. Run the install in ONE wsl call inside a new
+REM session via `setsid` (no `-f`, so synchronous — setsid waits for its
+REM child to complete). install.sh's forked daemons inherit the new
+REM session, so when the install's main bash exits the session is
+REM cleanly disposable and wsl.exe returns. This is the architectural
+REM fix v1.1.20 was missing.
+wsl -d Ubuntu -- setsid bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
+set "INSTALL_RC=%ERRORLEVEL%"
 
 :_install_after
 call :LOG "INFO - install.sh returned exit code %INSTALL_RC%"
