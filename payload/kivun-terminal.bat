@@ -656,19 +656,24 @@ if "%_INST_WSL%"=="" call :WIN_TO_WSL_PATH "%_INST_DIR%" _INST_WSL
 if not "%_INST_WSL:~-1%"=="/" set "_INST_WSL=%_INST_WSL%/"
 call :LOG "INFO - Install dir WSL path: %_INST_WSL%"
 
-REM v1.1.31: SYNCHRONOUS install via `setsid` (without -f). v1.1.21–v1.1.30
-REM tried backgrounded install + cmd-side polling — every cmd-side sleep
+REM v1.1.31: SYNCHRONOUS install via `setsid -w`. v1.1.21–v1.1.30 tried
+REM backgrounded install + cmd-side polling — every cmd-side sleep
 REM mechanism hung in the `start /B`-detached context (timeout, ping,
-REM wsl-sleep, waitfor, even pure-cmd `for /L`). The detached cmd host
-REM can't run anything after the first wsl call returns.
+REM wsl-sleep, waitfor, even pure-cmd `for /L`).
 REM
-REM Drop polling entirely. Run the install in ONE wsl call inside a new
-REM session via `setsid` (no `-f`, so synchronous — setsid waits for its
-REM child to complete). install.sh's forked daemons inherit the new
-REM session, so when the install's main bash exits the session is
-REM cleanly disposable and wsl.exe returns. This is the architectural
-REM fix v1.1.20 was missing.
-wsl -d Ubuntu -- setsid bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
+REM v1.1.32: `-w` flag is critical. v1.1.31 used `setsid bash <script>`
+REM (no flags), which by default does NOT wait for the child program —
+REM setsid just creates a new session and exec's, returning immediately.
+REM CI run 25020006926 confirmed: install.sh "returned" exit 0 in
+REM 230ms, but /root/.local/bin/claude was absent (install hadn't
+REM actually run). `-w` (`--wait`) makes setsid wait for the child and
+REM propagate its exit code.
+REM
+REM `setsid -w` runs the install in a new session AND waits for it.
+REM install.sh's forked daemons inherit the new session, so they don't
+REM keep wsl.exe alive after install completes. wsl.exe sees setsid
+REM exit, returns. ERRORLEVEL captures install.sh exit code.
+wsl -d Ubuntu -- setsid -w bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
 set "INSTALL_RC=%ERRORLEVEL%"
 
 :_install_after
