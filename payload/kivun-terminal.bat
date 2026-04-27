@@ -703,7 +703,14 @@ call :LOG "WARNING - install.sh hit 660s cmd-side poll cap"
 set "INSTALL_RC=124"
 goto :_install_after
 :_install_sleep
+REM v1.1.28: bracket the wsl sleep call with DEBUG logs to localize the
+REM hang. v1.1.27 confirmed polling iter 1 fires (DEBUG log appears)
+REM then 4 min of silence — somewhere between poll iter 1 and iter 2 the
+REM launcher loses time. Either wsl-sleep itself hangs, or goto loops
+REM back too fast for the next poll wsl to respond.
+call :LOG "DEBUG - about to sleep (wait=%INSTALL_WAIT%)"
 wsl -d Ubuntu -- sleep 5 < nul 2>&1 >> "%LOG_FILE%"
+call :LOG "DEBUG - sleep returned el=%ERRORLEVEL%"
 goto :_install_poll
 
 :_install_check_rc
