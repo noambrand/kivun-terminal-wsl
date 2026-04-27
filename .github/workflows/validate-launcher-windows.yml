@@ -1118,7 +1118,7 @@ jobs:
           if ($out -notmatch 'Kivun direct-fallback is running as root') {
             throw "FAIL: refusal message missing — kivun-direct.sh let root through"
           }
-          if ($out -notmatch 'wsl --user root -- adduser') {
+          if ($out -notmatch 'wsl -d Ubuntu --user root -- adduser') {
             throw "FAIL: copy-paste-able fix instructions missing from refusal output"
           }
           Write-Host "PASS: kivun-direct.sh refused root with exit 1 + helpful instructions"
