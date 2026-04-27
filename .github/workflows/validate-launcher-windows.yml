@@ -874,20 +874,28 @@ jobs:
           REM context window without snapshotting.
           copy "%LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt" "LAUNCH_LOG_A.txt" >nul
 
-      - name: Assert v1.1.16 WSL_PATH=. fallback fired in run A
+      - name: 'Assert WSL_PATH="." was handled (v1.1.16 fallback OR v1.1.17 USERPROFILE upstream)'
         shell: bash
         run: |
           set -e
           echo "----- LAUNCH_LOG_A.txt (run with '.') -----"
           cat LAUNCH_LOG_A.txt
           echo "-------------------------------------------"
-          # The marker is the v1.1.16 log line. If this disappears, the
-          # bash launcher is back to cd'ing into the install dir.
-          if ! grep -qF "Path conversion returned '.'" LAUNCH_LOG_A.txt; then
-            echo "FAIL: v1.1.16 WSL_PATH=. fallback log line missing — bug back" >&2
+          # Two acceptable shapes for "the launcher handled `.` gracefully":
+          #   v1.1.16 — wslpath returns ".", post-wslpath check substitutes ~
+          #             marker: "Path conversion returned '.'"
+          #   v1.1.17+ — WORK_DIR is normalized to %USERPROFILE% BEFORE wslpath
+          #             marker: "WORK_DIR was '.', substituting USERPROFILE"
+          # Either proves the launcher won't `cd .` into the install dir.
+          # Neither = launcher is back to the v1.1.0 bug.
+          if grep -qF "Path conversion returned '.'" LAUNCH_LOG_A.txt; then
+            echo "PASS: v1.1.16 post-wslpath dot-fallback fired"
+          elif grep -qF "WORK_DIR was '.', substituting USERPROFILE" LAUNCH_LOG_A.txt; then
+            echo "PASS: v1.1.17 pre-wslpath USERPROFILE substitution fired"
+          else
+            echo "FAIL: neither v1.1.16 dot-fallback nor v1.1.17 USERPROFILE marker present — bug is back" >&2
             exit 1
           fi
-          echo "PASS: v1.1.16 dot-fallback fired"
 
       - name: 'Run B — launcher with normal path (v1.1.15 abort)'
         shell: cmd
