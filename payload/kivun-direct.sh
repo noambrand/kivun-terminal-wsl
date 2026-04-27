@@ -10,6 +10,35 @@
 # the .bat fallback would fail even when claude IS installed.
 set -u
 
+# v1.1.15: defense-in-depth root-user guard. The Windows .bat now passes
+# --user <non-root-user> to wsl, so this script should never run as root
+# in normal flow. But if upstream WSL changes break the .bat detection,
+# OR someone invokes this script directly via `wsl --user root -- bash
+# kivun-direct.sh`, refuse cleanly with the same fix-instructions that
+# kivun-launch.sh shows. Claude Code refuses to start with
+# --dangerously-skip-permissions when EUID==0; without this guard the
+# user just sees that cryptic error.
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    echo ""
+    echo "============================================================"
+    echo " ERROR: Kivun direct-fallback is running as root."
+    echo "============================================================"
+    echo " Claude Code refuses --dangerously-skip-permissions when"
+    echo " running as root for security reasons."
+    echo ""
+    echo " Fix: create a non-root user in Ubuntu and set it as the"
+    echo " default. From Windows cmd or PowerShell:"
+    echo ""
+    echo "   wsl -d Ubuntu --user root -- adduser yourname"
+    echo "   wsl -d Ubuntu --user root -- usermod -aG sudo yourname"
+    echo "   ubuntu config --default-user yourname"
+    echo "   wsl --terminate Ubuntu"
+    echo ""
+    echo " Then re-launch Kivun Terminal."
+    echo "============================================================"
+    exit 1
+fi
+
 cd "$1" 2>/dev/null || cd "$HOME"
 
 if [ -x "$HOME/.local/bin/claude" ]; then
