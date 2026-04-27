@@ -314,15 +314,19 @@ jobs:
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
 
-      - name: Wait for SUCCESS marker, then kill
+      - name: Wait for SUCCESS marker (fail-fast at 2 min) + diagnostic dump
         shell: bash
         run: |
-          # Don't `set -e` — the launcher is detached, the polling loop
-          # exits naturally, cleanup must run regardless of outcome.
+          # Per user feedback 2026-04-27: a healthy install completes in
+          # 30-90 seconds. If the launcher hasn't logged SUCCESS or ERROR
+          # within 2 minutes, treat it as a hang and dump everything we
+          # know — don't sit on the polling loop for 15 minutes pretending
+          # the install might still be going. Cap at 120s for clean fail.
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
-          end=$((SECONDS + 900))
+          end=$((SECONDS + 120))
           install_succeeded=0
           install_failed=0
+          install_timed_out=0
           while [ $SECONDS -lt $end ]; do
             if [ -e "$log" ]; then
               if grep -qF 'SUCCESS - Claude Code installed in WSL' "$log" 2>/dev/null; then
@@ -333,32 +337,53 @@ jobs:
                 install_failed=1
                 break
               fi
+              if grep -qF 'install.sh hit 600s timeout' "$log" 2>/dev/null; then
+                install_timed_out=1
+                break
+              fi
             fi
-            sleep 10
+            sleep 5
           done
 
-          # Kill the launcher's children. Don't kill cmd.exe / bash.exe /
-          # node.exe — those may belong to the GA runner. claude.exe and
-          # wsl.exe only get spawned by the launcher in this step.
+          # Cleanup: kill the launcher's children regardless of outcome.
           for img in claude.exe wsl.exe; do
             taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
           done
 
-          if [ "$install_failed" = "1" ]; then
-            echo "----- LAUNCH_LOG.txt -----"
-            cat "$log" 2>/dev/null || echo "(log missing)"
-            echo "----- WSL install log -----"
-            wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null || echo no-log"
-            echo "FAIL: launcher reported Claude auto-install failed" >&2
-            exit 1
+          if [ "$install_succeeded" = "1" ]; then
+            echo "PASS: launcher logged 'SUCCESS - Claude Code installed in WSL'"
+            exit 0
           fi
-          if [ "$install_succeeded" = "0" ]; then
-            echo "----- LAUNCH_LOG.txt -----"
-            cat "$log" 2>/dev/null || echo "(log missing)"
-            echo "FAIL: SUCCESS marker did not appear within 15 min" >&2
-            exit 1
-          fi
-          echo "PASS: launcher logged 'SUCCESS - Claude Code installed in WSL'"
+
+          # Anything else = fail. Dump every signal we have so the next
+          # iteration can diagnose without a 15-min wait.
+          echo "================================================================"
+          echo "FAIL: install did not reach SUCCESS within 120s"
+          echo "  install_failed=$install_failed install_timed_out=$install_timed_out"
+          echo "================================================================"
+          echo
+          echo "===== LAUNCH_LOG.txt ====="
+          cat "$log" 2>/dev/null || echo "(LAUNCH_LOG.txt missing)"
+          echo
+          echo "===== launcher_stdout.txt ====="
+          cat launcher_stdout.txt 2>/dev/null || echo "(launcher_stdout.txt missing)"
+          echo
+          echo "===== launcher_stderr.txt ====="
+          cat launcher_stderr.txt 2>/dev/null || echo "(launcher_stderr.txt missing)"
+          echo
+          echo "===== /tmp/kivun-claude.log (inside WSL) ====="
+          wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null || echo '(empty / missing)'"
+          echo
+          echo "===== /tmp/claude-installer.sh existence ====="
+          wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/claude-installer.sh /root/.local/bin/claude 2>&1 || true"
+          echo
+          echo "===== bat lines we expect to be running (v1.1.19 sanity check) ====="
+          grep -nE 'timeout 600|Auto-installing|install.sh returned|kivun-claude.log' payload/kivun-terminal.bat | head -10
+          echo
+          echo "===== Live processes (post-cleanup) ====="
+          tasklist //FI "IMAGENAME eq cmd.exe" //FI "IMAGENAME eq wsl.exe" //FI "IMAGENAME eq bash.exe" 2>&1 | head -20
+          echo "================================================================"
+          exit 1
 
       - name: Assert no [Y/N] prompt appeared (v1.1.3 default-yes UX)
         shell: bash
