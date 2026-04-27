@@ -326,7 +326,11 @@ jobs:
           rm -f "$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt" 2>/dev/null || true
           # Backgrounded with `&` so this same shell can poll the log.
           # cmd inherits the bash step's job (alive for the full step).
-          cmd //c "call payload\\kivun-terminal.bat C:\\temp < $RUNNER_TEMP/launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt" &
+          # cmd /c is correct (MSYS_NO_PATHCONV=1 prevents bash from
+          # mangling /c into a path). v1.1.33 first attempt used //c
+          # which made cmd start interactively and eat launcher_input.txt
+          # as commands — bat never ran, LAUNCH_LOG never appeared.
+          cmd /c "call payload\\kivun-terminal.bat C:\\temp < $RUNNER_TEMP/launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt" &
           LAUNCHER_PID=$!
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           end=$((SECONDS + 240))
