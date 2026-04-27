@@ -3,247 +3,43 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.1.27] - 2026-04-27
+## [1.2.0] - 2026-04-28
 
-Ninth iteration. v1.1.26's per-iteration logging revealed `ping 127.0.0.1 -n 6 > nul` itself was the hang point — polling fired exactly ONCE at `wait=0s` with rc=1, then silence for 4 minutes until the test killed it. Replaced with WSL-side `sleep`.
+Auto-install bulletproofing + CI hardening. Single user-visible change: the launcher's Claude auto-install path no longer hangs forever on the new `claude.ai/install.sh` ("native build") that Anthropic shipped 2026-04-27. Path completes in 30-90s and verifies on disk; falls through to npm fallback on failure.
 
-### Fixed: ping hang in `start /B`-detached context → use `wsl ... sleep 5` instead
+### Fixed: auto-install hang on Anthropic's new install.sh
 
-CI run 25017580692 (v1.1.26) LAUNCH_LOG showed:
-```
-[20:23:53.81] INFO - install kicked off via setsid; polling for /tmp/kivun-install-rc
-[20:23:53.95] DEBUG - poll iter wait=0s wsl_rc=1
-                              ← silence for 4 min until test gave up at 20:28:02
-```
+User-reported (2026-04-27): launcher froze indefinitely at "Auto-installing Claude" on a fresh WSL Ubuntu when AUTO_INSTALL_CLAUDE=yes. CI reproduced the same hang on the same day.
 
-Each polling iteration's `ping 127.0.0.1 -n 6 > nul` should take ~5 seconds. Instead it took 4+ minutes. Possible causes (all known to affect `ping` on Windows when stdin is a redirected file and stdout is detached): ICMP loopback denied, ping waiting for a console, ping reading stdin in some configurations.
+**Final architecture (after 14 working iterations on PR #60):**
 
-Replaced with `wsl -d Ubuntu -- sleep 5 < nul 2>&1 >> "%LOG_FILE%"`. Same call pattern as every other working wsl invocation in this launcher (line 34, 194, 199, 666). WSL's Linux `sleep` doesn't depend on Windows-side TTY/console state.
+- `payload/kivun-install-claude.sh` — static install runner (NEW). Runs `timeout 600 bash -c '<curl + bash install.sh>' > /tmp/kivun-claude.log 2>&1`, writes exit code to `/tmp/kivun-install-rc`.
+- `:_do_install` in `payload/kivun-terminal.bat` — invokes the runner via `wsl -d Ubuntu -- setsid -w bash <runner>`. The `setsid -w` (new session + wait) is the critical detail: `setsid` detaches install.sh's forked daemons from wsl.exe's interop relay session so wsl.exe returns cleanly when the install bash exits; `-w` makes setsid synchronous so `%ERRORLEVEL%` carries install.sh's actual exit code.
+- No polling, no cmd-side sleep, no detachment. ONE wsl call, blocks for 30-90s, returns.
 
-Also flattened the `if INSTALL_WAIT >= 660 (...)` cap block to goto-based flow to avoid cmd's known if-block parens-counting edge cases.
+**Why earlier attempts failed:** v1.1.20 ran the install synchronously without `setsid`, so install.sh's forked daemons (post-install hooks holding the parent stdout fd) kept wsl.exe alive forever. v1.1.21–v1.1.30 tried backgrounded install + cmd-side polling, but a separate root-cause showed up: GitHub Actions runner uses Windows job objects per workflow step, and the launcher cmd was being killed when the "start launcher" step ended. v1.1.31 used `setsid` (no `-w`) so the wsl call returned in 230ms without waiting for install. v1.1.32 added `-w`. v1.1.33 restructured the test to keep the launcher alive in a single bash step. Each false start added a useful piece of historical commentary in the .bat — see comments around `:_do_install` for the full chronology.
 
-### Lesson
+### CI coverage added in this release
 
-Tools that "should" work without a TTY don't always: `timeout.exe` (v1.1.25 fix), `ping.exe` (this fix). When polling from cmd.exe in a `start /B`-detached, file-stdin context, the safest sleep is to delegate it to a known-working subprocess — for this launcher, that's `wsl ... sleep N`. Adding to launcher-bulletproofing memory: **avoid Windows-native sleep utilities (timeout, ping) in detached cmd contexts; use `wsl ... sleep` instead.**
+PR #60 added 4 new jobs to `.github/workflows/validate-launcher-windows.yml`:
 
-## [1.1.26] - 2026-04-27
+- `test-no-claude-accept-install` — exercises auto-install end-to-end (the path that broke for the 2026-04-27 user)
+- `test-claude-discovery-from-bashrc` — v1.1.6 active-discovery (PATH from .bashrc/.profile)
+- `test-v1115-abort-and-v1116-dot-fallback` — root-refusal abort + WSL_PATH=. fallback
+- `test-v1115-routes-through-uid-1000` — UID 1000 fallback when WSLg owner is root/empty
+- `test-sh-scripts-refuse-root` — EUID guards in kivun-launch.sh + kivun-direct.sh
 
-Eighth iteration. v1.1.25's `ping`-based polling worked (launcher_stderr now empty, no more "Input redirection" errors), but the test STILL failed even though `/root/.local/bin/claude` was successfully installed. v1.1.26 adds per-iteration polling diagnostics + a longer test timeout.
+All 8 jobs green. Workflow path-triggers expanded to fire on changes to `payload/kivun-launch.sh` + `payload/kivun-direct.sh`.
 
-### Changed: per-iteration polling diagnostic + test timeout 120s → 240s
+### Documentation
 
-CI run 25017204704 (v1.1.25) confirmed:
-- launcher_stderr.txt is **empty** — `ping` fix solved the timeout-rejection issue
-- `/root/.local/bin/claude → versions/2.1.119` exists at install completion (timestamp 20:15)
-- Polling kickoff log fires: `INFO - install kicked off via setsid; polling for /tmp/kivun-install-rc`
-- Polling LOG line `INFO - install.sh returned exit code N` **never appears**
+- `docs/CHANGELOG.md` — collapses the v1.1.19–v1.1.33 development bumps into this single v1.2.0 release entry; the .bat's `:_do_install` comments preserve the full chronology of what was tried.
 
-The launcher's polling is silent — we can't tell if it's iterating, what wsl returns each time, or if it's stuck. v1.1.26 adds `DEBUG - poll iter wait=Xs wsl_rc=N` log line per iteration so we can diagnose without guessing.
+### Lessons added to launcher-bulletproofing memory
 
-Also bumped the test's polling cap from 120s to 240s. Real users on warm PCs are fine in 30-90s, but a cold CI runner has WSL-boot + curl + native-build + symlink overhead — could plausibly take 2-3 min total. The launcher's own cap is 660s so 240s for the test stays under that.
-
-### Match working redirect pattern in polling
-
-Switched polling line from `< nul >> "%LOG_FILE%" 2>&1` to `< nul 2>&1 >> "%LOG_FILE%"` — the former is what we wrote in v1.1.24/v1.1.25 but the latter is what every working `< nul`-using line in this launcher actually uses (lines 34, 194, 199, 666). Empirically the latter is reliable; the former may have parser-order edge cases.
-
-## [1.1.25] - 2026-04-27
-
-Seventh hot-fix in the same day. Found the real culprit: `timeout.exe`, NOT `wsl.exe`, was producing all the "Input redirection is not supported" errors across v1.1.21–v1.1.24's failed CI runs.
-
-### Fixed: replace `timeout /t 5 /nobreak` with `ping 127.0.0.1 -n 6` in polling loop
-
-CI run 25016792585 (v1.1.24) confirmed `setsid -f` install was actually working — `/root/.local/bin/claude → versions/2.1.119` was created. The polling loop was the only blocker. Detailed analysis of `launcher_stderr.txt` showed only ~9 "Input redirection" errors despite the polling loop running for 120 seconds at a 5s interval (which would produce ~24 if each iteration errored once). That mismatch led to the realization: the error was from **`timeout.exe`**, Windows' built-in sleep utility, NOT from `wsl.exe`. `timeout` requires a TTY for stdin and rejects file-stdin with the EXACT same error message as wsl.exe's known rejection.
-
-The launcher inherits stdin from `start /B cmd /c "... < launcher_input.txt"` (CI test) or from a redirected console (real `start /B` users), so `timeout`'s TTY check fails. cmd's classic workaround is `ping 127.0.0.1 -n 6 > nul` — `ping` does NOT require a TTY and waits ~5s for 6 echo replies (about 1s apart on localhost).
-
-Also: polling now checks the claude binary directly (`test -x /root/.local/bin/claude || ...`) in addition to the `/tmp/kivun-install-rc` marker. If `taskkill //IM wsl.exe` wipes /tmp (tmpfs) before we read the marker, the binary still exists in `/root/.local` (persistent), so we can verify success regardless. INSTALL_RC defaults to 0 if the marker is missing but the binary is present.
-
-### Lesson
-
-`timeout /t N /nobreak` is the Windows-cmd canonical sleep, but it requires a TTY for stdin. In any context where the launcher's stdin is a file (CI tests, `start /B`, redirected real-user invocations), `timeout` fails immediately with a confusing error message identical to one wsl.exe also produces. **Always use `ping 127.0.0.1 -n N+1 > nul` for cmd sleeps** — it works with any stdin source.
-
-Six wasted version bumps (v1.1.19 → v1.1.24) chasing wsl.exe behavior. The actual fix was a one-line swap in the polling loop. Lesson added to launcher-bulletproofing memory: when an error message is ambiguous about which binary produced it, audit ALL invocations near the error, not just the most-recently-changed one.
-
-## [1.1.24] - 2026-04-27
-
-Sixth hot-fix in the same day. v1.1.23's `setsid -f` detachment WORKED — `/root/.local/bin/claude` was actually installed in CI (run 25016464334 confirmed). But the polling loop's `wsl ... bash -c "test -f file" >> "%LOG_FILE%" 2>&1` was rejected by wsl.exe with `ERROR: Input redirection is not supported`. So polling never saw the marker, the launcher never logged SUCCESS, the test failed even though Claude WAS installed.
-
-### Fixed: polling needs `< nul`; setsid kickoff doesn't
-
-Discovered subtle wsl.exe 2.6.x rule: `bash -c` calls inherit launcher's stdin (a redirected file in CI / `start /B` contexts), and wsl.exe rejects file-stdin for `bash -c` even when stdout/stderr ARE redirected. The fix is `< nul` before the stdout redirect.
-
-But `wsl ... setsid -f bash <script>` (NOT via `bash -c`) does NOT trigger the same check — wsl.exe accepts file-stdin for non-bash-c commands.
-
-So the kickoff (line 663, `setsid -f bash <script>`) works without `< nul`. The polling (line 676, `bash -c "test -f file"`) needs `< nul`. Added it.
-
-### CI status after this fix
-
-If CI still fails, the next layer to check is whether `/tmp/kivun-install-rc` exists when polling fires. v1.1.24's diagnostic dump now also `cat`'s `/tmp/kivun-install-rc` so we can verify the install runner's output regardless of polling status.
-
-## [1.1.23] - 2026-04-27
-
-Fifth hot-fix in the same day for the auto-install path. v1.1.21 (detach + poll) was architecturally right but the implementation kept failing in different ways. v1.1.23 finally lands a working version by shipping a static install runner script and using `setsid -f` for true session detachment.
-
-### Fixed: auto-install actually runs in the background and survives wsl.exe exit
-
-CI run 25015901486 (v1.1.22) revealed two distinct bugs in the v1.1.21/v1.1.22 detach approach:
-
-1. **Detached subshell never executed.** Even though `wsl.exe` returned 0 from the kickoff call, `/root/.local/bin/claude` did not exist. WSL's interop relay (the process inside Ubuntu that wsl.exe communicates with) kills its cgroup descendants when wsl.exe exits. `& disown` only tells bash's job table not to send SIGHUP — it does NOT escape the cgroup. The detached subshell was killed before it could run install.sh.
-
-2. **Polling loop blocked by wsl.exe rejection.** `wsl ... bash -c "test -f file" < nul > nul 2>&1` was rejected with `ERROR: Input redirection is not supported, exiting the process immediately.` Only `< nul >> file 2>&1` is accepted by wsl.exe 2.6.x; `< nul > nul 2>&1` is not.
-
-**Fix:** ship `payload/kivun-install-claude.sh` as a static install runner, invoke via `wsl -d Ubuntu -- setsid -f bash <path>`:
-
-```sh
-# payload/kivun-install-claude.sh
-#!/bin/bash
-rm -f /tmp/kivun-claude.log /tmp/kivun-install-rc
-{
-  timeout 600 bash -c '
-    curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh \
-      && bash /tmp/claude-installer.sh
-    rc=$?
-    rm -f /tmp/claude-installer.sh
-    exit $rc
-  '
-} > /tmp/kivun-claude.log 2>&1
-echo $? > /tmp/kivun-install-rc
-```
-
-`setsid -f` forks AND creates a new session — the install becomes a session leader, fully orphaned from wsl.exe's session and cgroup, so it survives wsl.exe's exit. cmd polls `/tmp/kivun-install-rc` every 5s (cap 660s). `< nul` is dropped from the new wsl calls entirely — the inner commands don't read stdin so it's unnecessary.
-
-Also added `kivun-install-claude.sh` to the NSIS installer's File and Delete lists so it ships in the installed payload.
-
-### Lessons (added to launcher-bulletproofing memory)
-
-1. **`& disown` is not enough to detach from wsl.exe.** WSL's interop relay maintains cgroup ownership of all descendants. To survive wsl.exe exit, a process must escape the cgroup via `setsid` (new session) or `systemd-run` (new scope).
-2. **wsl.exe 2.6.x has unintuitive stdin-redirect rules.** `< nul >> "%LOG_FILE%" 2>&1` is accepted; `< nul > nul 2>&1` is rejected. Easiest workaround: avoid `< nul` entirely when the inner command doesn't need stdin closed.
-3. **Multi-line bash logic belongs in a static .sh, not inline in a `bash -c` string.** Five releases of debugging trace back to nested cmd→bash→bash quoting. A `payload/<name>.sh` file installed alongside the launcher avoids the entire quoting problem.
-
-## [1.1.22] - 2026-04-27
-
-Fourth hot-fix in the same day for the auto-install path. v1.1.21's detach + poll architecture was correct, but the new wsl kickoff call used a `< nul` stdin redirect without a paired stdout redirect — and `wsl.exe 2.6.x` rejects that combination with `ERROR: Input redirection is not supported, exiting the process immediately.` So the install never started.
-
-### Fixed: `< nul` without paired stdout redirect makes wsl.exe reject the call
-
-CI run 25015480190 was definitive:
-- LAUNCH_LOG ends at `INFO - Auto-installing Claude` (same place as before)
-- `/root/.local/bin/claude` does **not** exist (different from v1.1.20: install never ran)
-- `launcher_stderr.txt` contains ~30 lines of `ERROR: Input redirection is not supported, exiting the process immediately.` — one per polling iteration plus the kickoff call
-
-Every other `< nul` call in `payload/kivun-terminal.bat` pairs `< nul` with `2>&1 >> "%LOG_FILE%"` (lines 34, 133, 147, 194, 199, 666, 671). I missed that pattern when adding the v1.1.21 detach call (line 633) and polling call (line 640). v1.1.22 matches the established pattern:
-
-- Line 633 (kickoff): append `>> "%LOG_FILE%" 2>&1` after `< nul`
-- Line 640 (poll): change `< nul 2>nul` to `< nul > nul 2>&1`
-
-Also added an immediate `%ERRORLEVEL%` check after the kickoff: if wsl.exe rejects the call, fail fast in <1s via the npm fallback path instead of polling fruitlessly for 660s.
-
-### Lesson
-
-Cmd-side I/O patterns are non-orthogonal: stdin redirection alone (`< nul`) can be rejected by some Windows binaries (including `wsl.exe`) when stdout is left attached to a tty. Always pair `< nul` with explicit stdout/stderr redirection. Added to launcher-bulletproofing memory: **never use `< nul` without a paired `>> file 2>&1` (or `> nul 2>&1`) on Windows binaries that may check for tty.**
-
-## [1.1.21] - 2026-04-27
-
-Third hot-fix in the same day for the auto-install hang. v1.1.19 (added `timeout 600` + `tee`) and v1.1.20 (dropped `tee`, kept file redirect) both improved the path but neither made `wsl.exe` reliably return after install completes. CI artifact (run 25014868847) was definitive: claude binary on disk, install COMPLETE, but `wsl.exe` still alive 2 minutes later. v1.1.21 stops waiting for `wsl.exe` at all.
-
-### Fixed: launcher cannot hang on auto-install regardless of what install.sh does
-
-**Root cause analysis.** v1.1.20's diagnostic dump showed:
-- `/root/.local/bin/claude → versions/2.1.119` exists immediately after install (timestamped 19:23, install kicked off at 19:23:25 — install completes in seconds)
-- LAUNCH_LOG ends at `INFO - Auto-installing Claude (AUTO_INSTALL_CLAUDE=yes)` — the next expected line `INFO - install.sh returned exit code N` (line 629 of the .bat) is **never written**
-- launcher_stdout ends at `Installing Claude Code in Ubuntu (max 10 min)...` — also silent
-- `wsl.exe` was still alive when the test killed it at 2 min mark
-
-The bash subshell that runs the install **exits cleanly**, but `wsl.exe` doesn't follow it out. Possible causes (any one of which would block `wsl.exe`):
-1. `claude.ai/install.sh`'s "native build" execs a post-install hook that inherits the wsl-side pty fd
-2. install.sh forks a daemon in the same process group that wsl.exe is monitoring
-3. WSL's interop relay holds a reference until the orphan group exits
-
-We can't fix any of these from the launcher side, and they may evolve as Anthropic ships further install.sh changes.
-
-**Fix in `payload/kivun-terminal.bat` `:_do_install`:** stop relying on `wsl.exe` returning. Detach the install entirely:
-
-```
-wsl -d Ubuntu -- bash -c "rm -f /tmp/kivun-claude.log /tmp/kivun-install-rc; ( timeout 600 bash -c '...install...' > /tmp/kivun-claude.log 2>&1; echo $? > /tmp/kivun-install-rc ) </dev/null >/dev/null 2>&1 & disown"
-```
-
-The `( ... ) </dev/null >/dev/null 2>&1 & disown` runs the install in a backgrounded subshell whose stdin/stdout/stderr are all closed before `& disown` removes it from the outer bash's job table. The outer `bash -c` has nothing left to wait for, exits, `wsl.exe` returns to cmd in <1s.
-
-The detached subshell continues running:
-- `timeout 600 bash -c '...install...' > /tmp/kivun-claude.log 2>&1` runs the install with output captured
-- After it exits (success, failure, or 600s timeout = exit 124), `echo $? > /tmp/kivun-install-rc` writes the exit code
-
-cmd polls every 5s for the marker file (`wsl -- bash -c "test -f /tmp/kivun-install-rc"`), reads the exit code when it appears, and proceeds with verify or npm fallback. **No synchronous `wsl.exe` wait anywhere in the install path** — the launcher cannot hang regardless of what install.sh forks.
-
-Cap: 660s of polling (= 600s install + 60s slack), then assume the subshell is wedged and fall through to npm fallback.
-
-### Also: fixed CI diagnostic dump's `tasklist //FI` syntax
-
-With workflow-level `MSYS_NO_PATHCONV=1` and `MSYS2_ARG_CONV_EXCL='*'`, `//FI` is preserved literally instead of being collapsed by Git-Bash's MSYS layer to `/FI`. tasklist rejects `//FI` with `Invalid argument/option`. Changed to single `/FI`.
-
-### Lesson
-
-Three releases in one day — v1.1.19, v1.1.20, v1.1.21 — to chase a hang that turned out to need a fundamentally different approach (give up on `wsl.exe` returning) rather than tweaks to the same approach (drop pipe, drop redirect, etc.). Lesson added to launcher-bulletproofing memory: **for any wsl-invoked command that runs user-supplied installer scripts, assume `wsl.exe` may not return, and detach by default.** Trust nothing about pty/fd/process-group cleanup that depends on the inner script's good behavior.
-
-## [1.1.20] - 2026-04-27
-
-Follow-up to v1.1.19. The same `test-no-claude-accept-install` job that v1.1.19 was supposed to make pass kept failing — and the new fail-fast diagnostic dump revealed the actual reason: install COMPLETED on disk (`/root/.local/bin/claude` symlink existed) but `wsl.exe` never returned to cmd, so the launcher never logged `INFO - install.sh returned exit code N` and never reached `SUCCESS - Claude Code installed in WSL`. v1.1.19's `tee` was holding the launcher hostage to an orphaned grandchild process inside the install.
-
-### Fixed: launcher hangs AFTER auto-install completes successfully
-
-**Symptom:** identical user-visible behavior to v1.1.19's hang ("Auto-installing Claude" → silent freeze), but with a different cause and farther along the install process. CI artifact (run 25002708236):
-- `/root/.local/bin/claude → versions/2.1.119` exists on disk after install — install.sh **succeeded**.
-- LAUNCH_LOG ends abruptly at `Installing Claude Code native build latest...`.
-- Expected next launcher line `INFO - install.sh returned exit code N` **never written**.
-- `/tmp/kivun-claude.log` is **empty/missing** despite stdout flowing to terminal.
-- `wsl.exe` was still alive when the test killed the launcher 2 minutes later.
-
-**Cause:** `claude.ai/install.sh`'s "native build" path forks a post-install hook (npm-style daemon or similar) that **inherits the parent shell's stdout file descriptor**. v1.1.19's `... | tee /tmp/kivun-claude.log` keeps that pipe open as long as ANY process on the write-end is alive. When the install's main process exits, the orphaned grandchild keeps the pipe open, `tee` blocks indefinitely on read, the bash subshell waits for `tee`, and `wsl.exe` waits for bash. Net effect: the install succeeds but `wsl.exe` never returns to cmd, `%ERRORLEVEL%` is never set, and the launcher never advances to its post-install logging.
-
-**Fix in `payload/kivun-terminal.bat` `:_do_install`:** drop the pipe entirely. Replace `| tee /tmp/kivun-claude.log; exit ${PIPESTATUS[0]}` with `> /tmp/kivun-claude.log 2>&1 < /dev/null`. The redirection happens **inside** WSL, written by the install's bash subshell directly. `wsl.exe` returns as soon as the timeout subshell exits, regardless of any orphaned background processes that inherited stdout. Trade-off: install output no longer streams visibly to the user during the install — they see "Installing Claude Code in Ubuntu (max 10 min)..." then ~30-90 seconds of silence, then either `SUCCESS - Claude Code installed in WSL` or the npm fallback. Acceptable trade since the alternative is hang-forever.
-
-### Improved: CI diagnostic dump now covers `test-claude-discovery-from-bashrc` too
-
-`test-claude-discovery-from-bashrc` was hanging silently in the same v1.1.19 run with LAUNCH_LOG truncated at `Reading config.txt`. The 5-min wait + 1-line `FAIL` message it printed told us nothing useful. v1.1.20 mirrors the comprehensive dump pattern from `test-no-claude-accept-install` into the discovery test: 2-min fail-fast, then dump LAUNCH_LOG, launcher_stdout, launcher_stderr, the staged config.txt (via `od -c` to expose CR/LF/BOM issues), the WSL discovery probes re-run as root (so we see what the launcher SHOULD have seen), the relevant .bat lines (sanity check), and live tasklist. Future hangs in this job will be diagnosable in 2 minutes instead of 5.
-
-### Lesson
-
-v1.1.19 was diagnosed correctly (real install hang), but the fix introduced a new failure mode (pipe-held-open by orphaned grandchild). Two takeaways added to launcher-bulletproofing memory:
-
-1. **Don't pipe output of WSL-side commands that may fork**. If install/build/setup scripts can fork background processes that inherit stdout, the pipe will outlive the main process. Redirect to a file instead — the file gets the bytes, the fd gets closed when the subshell exits.
-2. **Every CI job that exercises the launcher needs a comprehensive failure dump, not just `cat $log`.** The single-line FAIL output from `test-claude-discovery-from-bashrc` cost us ~3 hours of guessing what hung; the comprehensive dump in `test-no-claude-accept-install` localized the v1.1.19 bug in 2 minutes.
-
-## [1.1.19] - 2026-04-27
-
-Real-user-reported hang: launcher freezes indefinitely at "Auto-installing Claude" when Anthropic's `claude.ai/install.sh` runs under the launcher's prior invocation pattern. CI reproduced the same hang on the same day, confirming user reports.
-
-### Fixed: launcher hangs forever during Claude auto-install
-
-**Symptom (real user, 2026-04-27):** running the launcher on a fresh WSL Ubuntu without Claude pre-installed: cmd window prints "Auto-installing Claude (AUTO_INSTALL_CLAUDE=yes)" and "Installing Claude Code via official installer (~1-2 min)..." then sits there forever. No further output, no error, no exit. User force-quit after waiting.
-
-**Cause:** Anthropic shipped a new "native build" `install.sh` today which behaves differently when invoked under the prior launcher pattern. The launcher ran:
-
-```
-wsl -d Ubuntu -- bash -c "curl ... | bash > /tmp/kivun-claude.log 2>&1" < nul
-```
-
-— output redirected to a file (so user sees nothing happening), stdin closed via `< nul`. The new install.sh under that combination of `[ -t 0 ]`/`[ -t 1 ]` conditions hangs indefinitely. Confirmed via CI artifact: LAUNCH_LOG.txt ended at "Auto-installing Claude" with NO further launcher progress for 15+ minutes; `/tmp/kivun-claude.log` inside Ubuntu stayed empty even though wsl was still alive — curl never wrote a byte. Other CI jobs that pre-install Claude OUT OF the launcher (with output visible, no `< nul`) finish in ~30 seconds, so install.sh itself is fine; only the launcher's specific invocation triggered the hang.
-
-**Fix in `payload/kivun-terminal.bat` `:_do_install`:**
-
-1. **`timeout 600`** wraps the install — if anything hangs, the launcher recovers cleanly after 10 minutes (exit 124) and falls through to the npm fallback. The launcher can never freeze indefinitely on this path again.
-2. **`| tee /tmp/kivun-claude.log`** replaces `> /tmp/... 2>&1`. Install output streams visibly to the user (so they see progress and know the launcher hasn't frozen) AND is captured for postmortem. The invisible-redirect was the proximal trigger for the new install.sh's hang behavior.
-3. **Removed `< nul`**. install.sh doesn't read stdin in any version we've tested, but `< nul` may have been tickling the new version's interactive-vs-non-tty detection. With cmd's stdin already inherited from the .bat console (no fresh prompt fires until later), this is safe.
-4. **`PIPESTATUS[0]`** propagates the timeout/install exit code through tee (tee always exits 0; without PIPESTATUS we'd never see install failures).
-5. **Logged `INFO - install.sh returned exit code N`** AFTER the install command, plus a dedicated `WARNING - install.sh hit 600s timeout` line on exit 124. So future LAUNCH_LOG postmortems will show whether the install completed, failed, or timed out.
-
-### CI coverage
-
-PR #60's `test-no-claude-accept-install` job exercises this path end-to-end: fresh Ubuntu, no Claude, AUTO_INSTALL_CLAUDE=yes default, launcher runs, Claude auto-install must complete in <15 min and the launcher must log `SUCCESS - Claude Code installed in WSL`. With v1.1.18 + the new install.sh that test hung at 15 min and was marked `continue-on-error`. v1.1.19 removes the `continue-on-error` and the test must pass.
-
-### Lesson
-
-Real-user hangs that "happen at my user's PC" are not always reproducible elsewhere — but on the same day Anthropic shipped behavior changes to `install.sh`, CI started reproducing the exact same hang. The proximal cause was upstream behavior change; the launcher's defense (visible output + bounded timeout + clean fallback) had to be hardened to survive future upstream changes too. Updated launcher-bulletproofing memory: every external command the launcher invokes needs a timeout cap and visible output streaming, regardless of how reliable the external command was historically.
+1. `setsid` without `-w` does NOT wait for the program — silent footgun if you want a synchronous wsl call.
+2. GitHub Actions runner kills processes per step via Windows job objects. Detached `start /B` children die when the spawning step ends. For tests with slow paths, combine launch + poll into one shell step so the bash job stays alive.
+3. `cmd /c "..."` from `shell: bash` works when `MSYS_NO_PATHCONV=1`; never write `cmd //c "..."` (cmd starts interactively, eats stdin).
 
 ## [1.1.18] - 2026-04-27
 
