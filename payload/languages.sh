@@ -14,7 +14,7 @@ kivun_lang_prompt() {
     # the language key in $1. Usage:
     #   LANG_PROMPT=$(kivun_lang_prompt "$RESPONSE_LANGUAGE")
     case "$1" in
-        hebrew)                  echo "Always respond in Hebrew." ;;
+        hebrew)                  echo "Always respond in Hebrew. When mixing Hebrew with English words, code identifiers, paths, or numbers, always insert a space between the Hebrew text and the foreign token (write 'הקובץ src/index.ts' not 'הקובץsrc/index.ts'). Place demonstratives like הזה / הזאת / האלה AFTER the foreign noun with a space (write 'ה-endpoint הזה' not 'הזה-endpoint'). The 'ה-' prefix attaches to a single foreign noun directly via hyphen with no space (e.g. 'ה-API', 'ה-backend'); other Hebrew words must be space-separated from foreign tokens." ;;
         arabic)                  echo "Always respond in Arabic." ;;
         persian)                 echo "Always respond in Persian (Farsi)." ;;
         urdu)                    echo "Always respond in Urdu." ;;

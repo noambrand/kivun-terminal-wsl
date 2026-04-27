@@ -461,7 +461,7 @@ REM the `●`-prefixed line 1 is affected.
 set "RLM_SUFFIX="
 set "LANG=%~1"
 if /i "%LANG:~0,7%"=="english"     set "CLAUDE_PROMPT=Always respond in English." & exit /b
-if /i "%LANG:~0,6%"=="hebrew"      set "CLAUDE_PROMPT=Always respond in Hebrew.%RLM_SUFFIX%" & exit /b
+if /i "%LANG:~0,6%"=="hebrew"      set "CLAUDE_PROMPT=Always respond in Hebrew. When mixing Hebrew with English words, code identifiers, paths, or numbers, always insert a space between the Hebrew text and the foreign token (write 'הקובץ src/index.ts' not 'הקובץsrc/index.ts'). Place demonstratives like הזה / הזאת / האלה AFTER the foreign noun with a space (write 'ה-endpoint הזה' not 'הזה-endpoint'). The 'ה-' prefix attaches to a single foreign noun directly via hyphen with no space (e.g. 'ה-API', 'ה-backend'); other Hebrew words must be space-separated from foreign tokens.%RLM_SUFFIX%" & exit /b
 if /i "%LANG:~0,6%"=="arabic"      set "CLAUDE_PROMPT=Always respond in Arabic.%RLM_SUFFIX%" & exit /b
 if /i "%LANG:~0,7%"=="persian"     set "CLAUDE_PROMPT=Always respond in Persian (Farsi).%RLM_SUFFIX%" & exit /b
 if /i "%LANG:~0,4%"=="urdu"        set "CLAUDE_PROMPT=Always respond in Urdu.%RLM_SUFFIX%" & exit /b
