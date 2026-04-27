@@ -5,19 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.1.10] - 2026-04-27
 
-Debug-only diagnostic counterpart to v1.1.9 strip-incoming. Adds a way to capture the raw upstream byte stream to a side file so we can inspect exactly what Claude is emitting, even when the v1.1.9 strip log shows zero detections (or shows a count without enough surrounding context to debug).
+The mixed-content positioning fix we said was "blocked on Konsole 24+" turned out to be possible from the wrapper after all, once we identified the actual root cause. Plus a debug-only diagnostic for future investigation.
+
+### The architectural finding (April 2026 A/B test on Konsole 23.08.5)
+
+User's earlier screenshots showed English/code runs landing at the visual LEFT edge inside Hebrew sentences (e.g., `React 19` in `אנחנו עובדים עם React 19 ו-Next.js 15` ended up at column 1 from the right instead of the logical column 4). v1.1.9 strip-incoming proved Claude's stream wasn't the cause (no upstream bidi controls in real sessions). That left two hypotheses for what Konsole was doing wrong, distinguishable by an A/B test:
+
+1. **Konsole's BiDi is broken across the line** — no wrapper trick can fix this; we'd be stuck waiting for newer Konsole.
+2. **Konsole's BiDi is broken at color/SGR boundaries** — the wrapper can fix this by stripping SGR escapes from RTL lines so the whole line is a single attribute run.
+
+The test (run via `Kivun-BiDi-Color-Test.bat`, available on request): same Hebrew/English mixed text rendered (a) plain — no SGR escapes — and (b) with Claude-style syntax-color SGR around the English runs. **The plain version positioned LTR runs correctly; the colored version misplaced them to the visual left.** Hypothesis #2 confirmed.
+
+This matches what the freedesktop.org Terminal Working Group documented for Konsole upstream:
+
+> "Applies BiDi on continuous runs of identical attributes. Any change in e.g. color (or even highlight with the mouse, or the cursor being positioned inside) stops and starts it anew, often resulting in a confusing and incorrect visual behavior." — [terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html](https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html)
+
+So Konsole has no real BiDi engine; it just hands continuous-attribute regions to Qt's text layout, and Qt has no idea where a colored fragment logically belongs in the surrounding RTL paragraph. This is **not** a "newer Konsole fixes it" problem — it's architectural and KDE has shown no signs of changing it. Earlier docs/changelog notes saying "wait for Konsole 24.04+" were a wrong guess on my part.
 
 ### Added
 
-- **`KIVUN_BIDI_DUMP_RAW` config option** (default `off`) — when `on`, the wrapper appends every chunk it receives from Claude to `~/.local/state/kivun-terminal/bidi-raw-dump.bin` BEFORE the strip-incoming pass touches it. Per-session `=== session start TIMESTAMP ===` and `=== session end TIMESTAMP ===` markers delineate runs in the file. File auto-rotates to `.bin.old` when its size crosses 5 MiB at session start, bounding total disk use to roughly 10 MiB regardless of how long it's left on.
+- **`KIVUN_BIDI_FLATTEN_COLORS_RTL` config option** (default `on`) — strips ANSI SGR sequences (CSI sequences ending in `m`) from any line whose first strong char is Hebrew. Result: the whole RTL line is a single attribute run, Konsole's BiDi gets a clean line to work with, and LTR runs (English, code paths, numbers) land at their correct UAX #9 logical positions. Cursor positioning, screen clear, OSC window-title, and other non-SGR CSI sequences pass through unchanged. LTR lines are never touched. Trade-off: visible loss of syntax color on Hebrew lines. Most Hebrew-focused users prefer correct positioning over color; set this to `off` if your workflow is mostly English code and you want color back at the cost of broken positioning when Hebrew appears.
+- **`KIVUN_BIDI_DUMP_RAW` config option** (default `off`) — debug-only counterpart to v1.1.9 strip-incoming. When `on`, every chunk Claude sends gets appended to `~/.local/state/kivun-terminal/bidi-raw-dump.bin` BEFORE strip-incoming/flatten-colors processing runs. Per-session `=== session start TIMESTAMP ===` and `=== session end TIMESTAMP ===` markers delineate runs. File auto-rotates to `.bin.old` when its size crosses 5 MiB at session start (bounds total disk use to ~10 MiB regardless of how long it's left on). Useful for diagnosing future render bugs where you need raw byte context, not just the strip log's count.
 - **`KIVUN_BIDI_DUMP_RAW_FILE` env override** — points the dump at an alternate path. Used by the regression test suite to keep dumps off the user's real `~/.local/state` directory.
-- **Regression test suite** (`kivun-claude-bidi/test/dump-raw.test.js`, 7 tests) covering off/on modes, verbatim pre-strip byte capture, session marker placement, multi-chunk arrival order, the 5 MiB rotation guard, and the no-rotate-below-threshold case.
+- **Regression test suite for flatten-colors** (`kivun-claude-bidi/test/flatten-colors-rtl.test.js`, 12 tests) covering on/off modes, single + multi-param SGR, mid-Hebrew SGR (the "color one word" pattern), the "React 19" inline-English-in-Hebrew pattern, no-touch on LTR lines, no-touch on non-SGR CSI (cursor/clear), no-touch on OSC, chunk-boundary-mid-CSI handling, multi-line direction switching, and integration with v1.1.8 strip-bullet.
+- **Regression test suite for dump-raw** (`kivun-claude-bidi/test/dump-raw.test.js`, 7 tests) covering off/on modes, verbatim pre-strip byte capture, session marker placement, multi-chunk arrival order, the 5 MiB rotation guard, and the no-rotate-below-threshold case.
 
-### Why this is a separate v1.1.10 from v1.1.9
+### Changed
 
-The strip log alone answers "is the upstream stream polluted?" with a count. Sometimes you need more — context around the polluted bytes, exact escape sequences, or proof for a render bug where the count is zero but something is still off. `DUMP_RAW` is intentionally a separate opt-in feature so the disk write isn't paid by every user; the v1.1.9 strip log is enough for the common diagnostic question.
+- **Pre-existing tests in `core.test.js`, `extended.test.js`, and `strip-bullet.test.js` opt out of FLATTEN_COLORS_RTL** by setting `process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL = 'off'` at the top of each file. Those tests pre-date v1.1.10 and assert the legacy SGR-passthrough behavior; the new on-by-default behavior is exercised in the new flatten-colors-rtl.test.js suite.
+- **`_stepAfterLineStart` restructured to buffer-and-decide for CSI sequences** instead of byte-by-byte passthrough. Required so SGR sequences can be dropped as a unit (we don't know it's SGR until the final byte; without buffering we'd already have emitted ESC + [ + params before knowing).
 
-### Inspection cookbook
+### Updated honest framing
+
+Earlier v1.1.8 and v1.1.9 changelog entries described the mixed-content positioning issue as "pending Konsole 24.04+ from a future Ubuntu LTS." That framing was incorrect — the bug is architectural in Konsole and the fix needed to be wrapper-side. v1.1.10 ships that fix.
+
+### Inspection cookbook for KIVUN_BIDI_DUMP_RAW
 
 Once `KIVUN_BIDI_DUMP_RAW=on` and a Kivun session has run, useful one-liners (in WSL):
 

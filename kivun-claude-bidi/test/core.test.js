@@ -1,5 +1,12 @@
 'use strict';
 
+// Pre-v1.1.10 wrapper assumed SGR codes always passed through. With the
+// v1.1.10 FLATTEN_COLORS_RTL feature defaulting on, SGR codes get stripped
+// from RTL lines. These core algorithm tests were written against the
+// passthrough behavior, so we explicitly opt out of FLATTEN here. The new
+// FLATTEN-on assertions live in test/flatten-colors-rtl.test.js.
+process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL = 'off';
+
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { Injector, RLE, PDF, RLM } = require('../lib/injector');

@@ -195,6 +195,45 @@ KIVUN_BIDI_STRIP_INCOMING=auto
 KIVUN_BIDI_DUMP_RAW=off
 
 # =================================================================
+# FLATTEN COLORS on RTL lines (v1.1.10) - the actual mixed-content fix
+# =================================================================
+# Empirically confirmed via Konsole 23.08.5 A/B test (April 2026):
+# Konsole's BiDi engine only operates on continuous-attribute regions.
+# Any color change inside a Hebrew sentence splits the BiDi run, and
+# Qt's text layout positions the resulting fragments incorrectly --
+# typically pushing English/code runs to the visual LEFT instead of
+# their correct UAX #9 logical position inside the sentence.
+#
+# This is also documented at the upstream Terminal Working Group:
+#   https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html
+# > "Applies BiDi on continuous runs of identical attributes. Any
+# > change in e.g. color [...] stops and starts it anew, often
+# > resulting in a confusing and incorrect visual behavior."
+#
+# Stripping SGR escapes from RTL lines makes the whole line one
+# attribute run -- Konsole's BiDi gets a clean line to work with and
+# LTR runs (English, code, numbers) land in their correct positions.
+#
+# Modes:
+#   off - passthrough; SGR codes reach Konsole as-is on every line
+#         (positioning will be broken on mixed Hebrew lines)
+#   on  - strip SGR (CSI...m) sequences from any line whose first
+#         strong char is Hebrew; LTR lines unaffected (default)
+#
+# Trade-off: visible loss of syntax color on Hebrew lines. If your
+# workflow is mostly English code with occasional Hebrew, you may
+# prefer color over positioning -- set this to "off". For users
+# whose Claude conversation is mostly Hebrew, "on" is the right
+# default (positioning correctness > color).
+#
+# Important: this strips ONLY SGR sequences (CSI sequences ending
+# in 'm'). Cursor positioning, screen clear, OSC window-title, etc.
+# all pass through unchanged. LTR lines are NEVER touched.
+#
+# Default: on
+KIVUN_BIDI_FLATTEN_COLORS_RTL=on
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information
