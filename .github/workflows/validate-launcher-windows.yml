@@ -287,31 +287,27 @@ jobs:
             exit 1
           fi
 
-      - name: Run launcher (accept install), wait for SUCCESS, then kill
+      - name: Build stdin and start launcher in background
+        shell: cmd
+        # Build the CRLF-terminated stdin file (Y + 4 blanks for any
+        # subsequent set/p or pause prompts), then `start /B` the launcher
+        # detached so this step returns immediately and the launcher keeps
+        # running. Output redirected to files for postmortem + assertions.
+        # Backgrounding via Git Bash's `&` proved unreliable on
+        # windows-latest — cmd.exe was reaped before producing output.
+        run: |
+          (echo Y) > "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
+
+      - name: Wait for SUCCESS marker, then kill
         shell: bash
         run: |
-          set -e
-          # Build stdin: Y to accept install, then a bunch of empty lines
-          # to satisfy any subsequent set/p or pause prompts the launcher
-          # may emit before we kill it.
-          # MUST be CRLF: cmd's set /p reads stdin a "line" at a time and
-          # bare-LF input gets consumed as a single token. printf with
-          # explicit \r\n matches what cmd's own echo writer produces.
-          input_file="$RUNNER_TEMP/launcher_input.txt"
-          printf 'Y\r\n\r\n\r\n\r\n\r\n' > "$input_file"
-          echo "Input file bytes:"
-          od -c "$input_file" | head -3
-
-          # Start the launcher in the background. We can't just block on it
-          # because after install, the launcher tries to exec the claude
-          # TUI which would hang forever in CI.
-          # `cmd //c` is the Git Bash idiom that escapes MSYS path
-          # translation of `/c`; the double slash stays a single slash
-          # inside cmd.
-          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
-            > launcher_stdout.txt 2> launcher_stderr.txt &
-          launcher_pid=$!
-
+          # Don't `set -e` — the launcher is detached, the polling loop
+          # exits naturally, cleanup must run regardless of outcome.
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           end=$((SECONDS + 900))
           install_succeeded=0
@@ -327,19 +323,13 @@ jobs:
                 break
               fi
             fi
-            if ! kill -0 "$launcher_pid" 2>/dev/null; then
-              break
-            fi
             sleep 10
           done
 
-          # Kill the launcher (and any TUI children) so we can move on.
-          if kill -0 "$launcher_pid" 2>/dev/null; then
-            echo "Launcher still running after install signal; terminating tree."
-            kill -TERM "$launcher_pid" 2>/dev/null || true
-          fi
-          # Belt and suspenders: kill stray claude/wsl/bash held by launcher.
-          for img in claude.exe wsl.exe bash.exe node.exe; do
+          # Kill the launcher's children. Don't kill cmd.exe / bash.exe /
+          # node.exe — those may belong to the GA runner. claude.exe and
+          # wsl.exe only get spawned by the launcher in this step.
+          for img in claude.exe wsl.exe; do
             taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
           done
 
@@ -398,14 +388,11 @@ jobs:
         shell: bash
         run: |
           # The strongest signal: claude --version returns 0 and prints
-          # a version string. Use the absolute path to the user-local
-          # install (where the launcher's curl-based installer puts
-          # claude). Cannot rely on PATH here for the same reason the
-          # launcher cannot: $PATH inherited from windows-latest contains
-          # /mnt/c/Program Files (x86)/... entries with literal `(` and
-          # `)` that bash word-splits and chokes on.
-          ver=$(wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1 || /usr/local/bin/claude --version 2>&1") || true
-          rc=$?
+          # a version string. Use bash -lc so .bashrc/.profile populate
+          # PATH for the native build's node-shebang interpreter (without
+          # this we hit exit 127). bash -lc inside `wsl -- bash` doesn't
+          # inherit Windows PATH so the (x86) parens problem doesn't apply.
+          ver=$(wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1") && rc=0 || rc=$?
           echo "claude --version output: $ver"
           echo "claude --version exit code: $rc"
           if [ "$rc" != "0" ]; then
@@ -495,32 +482,34 @@ jobs:
           # break and force the resolver to be updated alongside.
           wsl -d Ubuntu --user root -- bash -c \
             "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
-          # Sanity check via absolute path — same way the v1.1.5 launcher
-          # check works, so we know what the launcher will see.
-          ver=$(wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1")
+          # Sanity check via login-shell PATH. The native build's binary
+          # at ~/.local/bin/claude has a node-shebang interpreter; without
+          # bash -lc, PATH doesn't include node and we hit exit 127.
+          # bash -lc sources .bashrc/.profile so PATH is populated.
+          ver=$(wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1")
           echo "Pre-installed claude: $ver"
 
-      - name: Run launcher, wait for claude-present marker, kill
-        shell: bash
-        # If the v1.1.5 presence check works, the launcher sees claude
-        # already there, skips the install branch, then heads into the
-        # Konsole stage. In CI Konsole launch fails (no GUI), the
-        # launcher falls into :run_direct and tries to spawn the claude
-        # TUI, which would hang. So we run it in the background, watch
-        # LAUNCH_LOG.txt for the claude-present marker, then kill.
+      - name: Build stdin and start launcher in background
+        shell: cmd
+        # AUTO_INSTALL_CLAUDE=no makes a regression LOUD: if the check
+        # ever falsely reports "not found" again, the launcher exits 2
+        # via :no_claude_exit instead of silently reinstalling.
+        # `start /B` detaches so this step returns immediately.
         run: |
-          set -e
-          # AUTO_INSTALL_CLAUDE=no makes a regression LOUD: if the check
-          # ever falsely reports "not found" again, the launcher exits 2
-          # via :no_claude_exit instead of silently reinstalling.
-          printf 'AUTO_INSTALL_CLAUDE=no\r\n' > payload/config.txt
-          input_file="$RUNNER_TEMP/launcher_input.txt"
-          printf '\r\n\r\n\r\n' > "$input_file"
+          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
+          (echo.) > "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
 
-          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
-            > launcher_stdout.txt 2> launcher_stderr.txt &
-          launcher_pid=$!
-
+      - name: Wait for claude-present marker, then kill
+        # The launcher should see claude already installed, skip install,
+        # head into Konsole stage. In CI Konsole launch fails (no GUI),
+        # launcher falls into :run_direct and tries to spawn claude TUI
+        # (which would hang). We poll LAUNCH_LOG for the claude-present
+        # marker, then taskkill the children.
+        shell: bash
+        run: |
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           end=$((SECONDS + 300))
           saw_present=0
@@ -536,14 +525,10 @@ jobs:
                 break
               fi
             fi
-            if ! kill -0 "$launcher_pid" 2>/dev/null; then
-              break
-            fi
             sleep 5
           done
 
-          kill -TERM "$launcher_pid" 2>/dev/null || true
-          for img in claude.exe wsl.exe bash.exe node.exe; do
+          for img in claude.exe wsl.exe; do
             taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
           done
 
@@ -650,7 +635,12 @@ jobs:
           # Linux machine — no Win32 cmdline-quoting middleware to fight.
           # Single-quote the whole `export PATH=` line so $PATH stays
           # literal on disk and expands at .bashrc-source time.
-          tmp_script="$RUNNER_TEMP/kivun-stub-setup.sh"
+          # $RUNNER_TEMP is a Windows path with BACKSLASHES (e.g.
+          # D:\a\_temp\...). Normalize to forward slashes BEFORE handing
+          # the path to `wsl wslpath` — wsl.exe's Win32 cmdline parsing
+          # eats backslashes in args, turning "D:\a\_temp\..." into
+          # "D:a_temp..." and breaking wslpath.
+          tmp_script="${RUNNER_TEMP//\\//}/kivun-stub-setup.sh"
           # Convert CRLF→LF as we write — Git Bash's printf may emit
           # CRLF on Windows runners depending on how heredocs are read.
           cat > "$tmp_script" <<'OUTER'
@@ -694,18 +684,18 @@ jobs:
           done
           echo "Setup OK: claude only at /opt/kivun-test, none of the standard slots."
 
-      - name: Run launcher with AUTO_INSTALL_CLAUDE=no
+      - name: Build stdin and start launcher in background
+        shell: cmd
+        run: |
+          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
+          (echo.) > "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
+
+      - name: Wait for claude-present marker, then kill
         shell: bash
         run: |
-          set -e
-          printf 'AUTO_INSTALL_CLAUDE=no\r\n' > payload/config.txt
-          input_file="$RUNNER_TEMP/launcher_input.txt"
-          printf '\r\n\r\n\r\n' > "$input_file"
-
-          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
-            > launcher_stdout.txt 2> launcher_stderr.txt &
-          launcher_pid=$!
-
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           end=$((SECONDS + 300))
           saw_present=0
@@ -721,14 +711,10 @@ jobs:
                 break
               fi
             fi
-            if ! kill -0 "$launcher_pid" 2>/dev/null; then
-              break
-            fi
             sleep 5
           done
 
-          kill -TERM "$launcher_pid" 2>/dev/null || true
-          for img in claude.exe wsl.exe bash.exe node.exe; do
+          for img in claude.exe wsl.exe; do
             taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
           done
 
@@ -848,7 +834,9 @@ jobs:
           # check and reaches the v1.1.15 user-detection block. Without
           # Claude, the launcher exits earlier with EXIT - No Claude in WSL.
           wsl -d Ubuntu --user root -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
-          ver=$(wsl -d Ubuntu --user root -- bash -c "/root/.local/bin/claude --version 2>&1")
+          # bash -lc sources .bashrc/.profile so the node-shebang claude
+          # binary's interpreter is on PATH (avoids exit 127).
+          ver=$(wsl -d Ubuntu --user root -- bash -lc "claude --version 2>&1")
           echo "Pre-installed claude: $ver"
 
       - name: 'Run A — launcher with "." arg (v1.1.16 dot-fallback)'
@@ -996,23 +984,18 @@ jobs:
           wsl -d Ubuntu --user kivuntest -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh && rm -f /tmp/c.sh"
           wsl -d Ubuntu --user root -- bash -c "ln -sf /home/kivuntest/.local/bin/claude /usr/local/bin/claude && /usr/local/bin/claude --version"
 
-      - name: 'Run launcher, wait for Will-run-as kivuntest marker, then kill'
+      - name: Build stdin and start launcher in background
+        shell: cmd
+        run: |
+          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
+          (echo.) > "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
+
+      - name: 'Wait for Will-run-as kivuntest marker, then kill'
         shell: bash
         run: |
-          set -e
-          # Match what the .bat's Out-File ASCII produced: CRLF-terminated
-          # AUTO_INSTALL_CLAUDE=no on its own line.
-          printf 'AUTO_INSTALL_CLAUDE=no\r\n' > payload/config.txt
-          input_file="$RUNNER_TEMP/launcher_input.txt"
-          printf '\r\n\r\n\r\n' > "$input_file"
-
-          # Run cmd.exe in background; redirect to files for post-mortem.
-          # `cmd //c` is the Git Bash idiom that escapes MSYS path translation
-          # of `/c`. The double slash stays a single slash inside cmd.
-          cmd //c "call payload\\kivun-terminal.bat C:\\temp < \"$input_file\"" \
-            > launcher_stdout.txt 2> launcher_stderr.txt &
-          launcher_pid=$!
-
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           end=$((SECONDS + 300))
           saw_marker=0
@@ -1028,15 +1011,10 @@ jobs:
                 break
               fi
             fi
-            if ! kill -0 "$launcher_pid" 2>/dev/null; then
-              break
-            fi
             sleep 5
           done
 
-          # Cleanup: terminate the cmd.exe wrapper and any TUI children.
-          kill -TERM "$launcher_pid" 2>/dev/null || true
-          for img in claude.exe wsl.exe bash.exe node.exe; do
+          for img in claude.exe wsl.exe; do
             taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
           done
 
@@ -1126,10 +1104,10 @@ jobs:
         shell: bash
         run: |
           # The script intentionally exits 1 (the v1.1.15 EUID-as-root guard).
-          # Capture stdout/stderr and the exit code without letting `set -e`
-          # abort us — we WANT the non-zero exit, then assert on it.
-          out=$(wsl -d Ubuntu --user root -- bash "$WSL_PAYLOAD/kivun-direct.sh" /tmp "test-prompt" 2>&1) || true
-          rc=$?
+          # `cmd && rc=0 || rc=$?` captures the actual non-zero exit
+          # without `|| true` overwriting it (which the previous attempt
+          # did, making rc always 0).
+          out=$(wsl -d Ubuntu --user root -- bash "$WSL_PAYLOAD/kivun-direct.sh" /tmp "test-prompt" 2>&1) && rc=0 || rc=$?
           echo "----- kivun-direct.sh stdout/stderr -----"
           echo "$out"
           echo "----- exit code: $rc -----"
@@ -1153,8 +1131,7 @@ jobs:
           # 7 positional args, all with defaults — the EUID guard fires
           # before they're consumed, so dummy values are fine.
           out=$(wsl -d Ubuntu --user root -- bash "$WSL_PAYLOAD/kivun-launch.sh" \
-            "/tmp" "test-prompt" "hebrew" "false" "/tmp/k.log" "rtl" "0 0 1024 768" 2>&1) || true
-          rc=$?
+            "/tmp" "test-prompt" "hebrew" "false" "/tmp/k.log" "rtl" "0 0 1024 768" 2>&1) && rc=0 || rc=$?
           echo "----- kivun-launch.sh stdout/stderr -----"
           echo "$out"
           echo "----- exit code: $rc -----"
