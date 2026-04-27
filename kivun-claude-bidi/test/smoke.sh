@@ -29,7 +29,14 @@ KIVUN_CLAUDE_BIN="$NODE_BIN" \
 KIVUN_BIDI_FORCE=1 \
 KONSOLE_VERSION=230400 \
 TERM=xterm-256color \
+KIVUN_BIDI_FLATTEN_COLORS_RTL=off \
+KIVUN_BIDI_BRACKET_RTL_RUNS=on \
   "$NODE_BIN" "$ROOT/bin/kivun-claude-bidi" "$SCRIPT_DIR/fake-claude.cjs" < /dev/null > "$tmp" 2>&1
+# ^^^ Smoke fixtures pre-date v1.1.10 FLATTEN_COLORS_RTL and v1.1.11
+# no-RTL-bracket. Opt back to the legacy combination so the assertions
+# below (which check for RLE/PDF + SGR around Hebrew) keep matching.
+# New behavior is exercised in the unit-test suites
+# (flatten-colors-rtl.test.js, no-bracket-rtl-runs.test.js).
 
 fail=0
 
