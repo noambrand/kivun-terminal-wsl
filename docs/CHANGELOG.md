@@ -3,6 +3,38 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.19] - 2026-04-27
+
+Real-user-reported hang: launcher freezes indefinitely at "Auto-installing Claude" when Anthropic's `claude.ai/install.sh` runs under the launcher's prior invocation pattern. CI reproduced the same hang on the same day, confirming user reports.
+
+### Fixed: launcher hangs forever during Claude auto-install
+
+**Symptom (real user, 2026-04-27):** running the launcher on a fresh WSL Ubuntu without Claude pre-installed: cmd window prints "Auto-installing Claude (AUTO_INSTALL_CLAUDE=yes)" and "Installing Claude Code via official installer (~1-2 min)..." then sits there forever. No further output, no error, no exit. User force-quit after waiting.
+
+**Cause:** Anthropic shipped a new "native build" `install.sh` today which behaves differently when invoked under the prior launcher pattern. The launcher ran:
+
+```
+wsl -d Ubuntu -- bash -c "curl ... | bash > /tmp/kivun-claude.log 2>&1" < nul
+```
+
+— output redirected to a file (so user sees nothing happening), stdin closed via `< nul`. The new install.sh under that combination of `[ -t 0 ]`/`[ -t 1 ]` conditions hangs indefinitely. Confirmed via CI artifact: LAUNCH_LOG.txt ended at "Auto-installing Claude" with NO further launcher progress for 15+ minutes; `/tmp/kivun-claude.log` inside Ubuntu stayed empty even though wsl was still alive — curl never wrote a byte. Other CI jobs that pre-install Claude OUT OF the launcher (with output visible, no `< nul`) finish in ~30 seconds, so install.sh itself is fine; only the launcher's specific invocation triggered the hang.
+
+**Fix in `payload/kivun-terminal.bat` `:_do_install`:**
+
+1. **`timeout 600`** wraps the install — if anything hangs, the launcher recovers cleanly after 10 minutes (exit 124) and falls through to the npm fallback. The launcher can never freeze indefinitely on this path again.
+2. **`| tee /tmp/kivun-claude.log`** replaces `> /tmp/... 2>&1`. Install output streams visibly to the user (so they see progress and know the launcher hasn't frozen) AND is captured for postmortem. The invisible-redirect was the proximal trigger for the new install.sh's hang behavior.
+3. **Removed `< nul`**. install.sh doesn't read stdin in any version we've tested, but `< nul` may have been tickling the new version's interactive-vs-non-tty detection. With cmd's stdin already inherited from the .bat console (no fresh prompt fires until later), this is safe.
+4. **`PIPESTATUS[0]`** propagates the timeout/install exit code through tee (tee always exits 0; without PIPESTATUS we'd never see install failures).
+5. **Logged `INFO - install.sh returned exit code N`** AFTER the install command, plus a dedicated `WARNING - install.sh hit 600s timeout` line on exit 124. So future LAUNCH_LOG postmortems will show whether the install completed, failed, or timed out.
+
+### CI coverage
+
+PR #60's `test-no-claude-accept-install` job exercises this path end-to-end: fresh Ubuntu, no Claude, AUTO_INSTALL_CLAUDE=yes default, launcher runs, Claude auto-install must complete in <15 min and the launcher must log `SUCCESS - Claude Code installed in WSL`. With v1.1.18 + the new install.sh that test hung at 15 min and was marked `continue-on-error`. v1.1.19 removes the `continue-on-error` and the test must pass.
+
+### Lesson
+
+Real-user hangs that "happen at my user's PC" are not always reproducible elsewhere — but on the same day Anthropic shipped behavior changes to `install.sh`, CI started reproducing the exact same hang. The proximal cause was upstream behavior change; the launcher's defense (visible output + bounded timeout + clean fallback) had to be hardened to survive future upstream changes too. Updated launcher-bulletproofing memory: every external command the launcher invokes needs a timeout cap and visible output streaming, regardless of how reliable the external command was historically.
+
 ## [1.1.18] - 2026-04-27
 
 CI coverage added in PR #60 (the `validate-launcher-windows.yml` jobs that exercise the v1.1.14/v1.1.15/v1.1.16 launcher paths) caught a real production bug that no prior release surfaced: **the direct-fallback path runs with empty environment variables when Konsole apt-install fails.**

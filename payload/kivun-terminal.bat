@@ -606,8 +606,31 @@ REM resolves to /root/.local/bin which the regular user (= every other
 REM wsl invocation in this launcher) can't see. CI proved this: the
 REM install logged "Claude Code successfully installed" but the verify
 REM step couldn't find it.
-wsl -d Ubuntu -- bash -c "curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh > /tmp/kivun-claude.log 2>&1 && bash /tmp/claude-installer.sh >> /tmp/kivun-claude.log 2>&1; rm -f /tmp/claude-installer.sh" < nul
-if %ERRORLEVEL% NEQ 0 call :_NPM_FALLBACK
+REM
+REM v1.1.19: three changes to fix a real-user hang reported 2026-04-27.
+REM Anthropic shipped a new "native build" install.sh which hangs
+REM indefinitely under the prior invocation pattern (output redirected
+REM to /tmp/kivun-claude.log + < nul). LAUNCH_LOG showed the launcher
+REM stuck at "Auto-installing Claude" with zero further progress for
+REM 15+ minutes; /tmp/kivun-claude.log stayed empty.
+REM   1. `timeout 600` bounds the install — after 10 min, exit 124 and
+REM      we fall through to the npm fallback. Launcher can never hang
+REM      forever again on this path.
+REM   2. `| tee /tmp/...` instead of `> /tmp/... 2>&1` so install
+REM      output streams visibly to the user AND is captured for
+REM      postmortem. The invisible-redirect was the proximal trigger
+REM      for the new install.sh's hang behavior.
+REM   3. Removed `< nul`. install.sh doesn't read stdin in any version
+REM      we've tested, but `< nul` may tickle interactive-vs-non-tty
+REM      detection ([ -t 0 ]) in the new install.sh.
+REM PIPESTATUS[0] propagates the timeout/install exit code through tee
+REM (tee always exits 0; without PIPESTATUS we'd never see the failure).
+echo Installing Claude Code in Ubuntu (max 10 min)...
+wsl -d Ubuntu -- bash -c "timeout 600 bash -c 'curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh && bash /tmp/claude-installer.sh; rc=$?; rm -f /tmp/claude-installer.sh; exit $rc' 2>&1 | tee /tmp/kivun-claude.log; exit ${PIPESTATUS[0]}"
+set "INSTALL_RC=%ERRORLEVEL%"
+call :LOG "INFO - install.sh returned exit code %INSTALL_RC%"
+if "%INSTALL_RC%"=="124" call :LOG "WARNING - install.sh hit 600s timeout"
+if not "%INSTALL_RC%"=="0" call :_NPM_FALLBACK
 REM Verify by checking the three known install locations directly.
 REM Earlier attempts used `PATH=$HOME/.local/bin:$PATH command -v claude`
 REM which seemed cleaner, but on Windows-WSL the inherited $PATH contains

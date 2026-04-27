@@ -1,6 +1,6 @@
-# Kivun Terminal v1.1.18
+# Kivun Terminal v1.1.19
 
-[![Version](https://img.shields.io/badge/version-1.1.18-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.19-brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
 
@@ -77,6 +77,11 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 | **Install footprint** | ~150 MB | ~2 GB (WSL + Ubuntu) |
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
+
+### What's new in v1.1.19
+
+- **Auto-install no longer hangs forever.** Real-user-reported: launcher froze at "Auto-installing Claude" when Anthropic shipped a new `claude.ai/install.sh` whose behavior under the launcher's prior `> file 2>&1` + `< nul` invocation pattern was indefinite hang. v1.1.19 wraps the install in `timeout 600`, streams output visibly via `tee`, and removes the `< nul` stdin redirect. If install ever hangs again the launcher recovers cleanly via the 10-min cap → npm fallback → final `:_install_failed` path with copy-pasteable manual instructions.
+- Inherits v1.1.18 (Konsole-install-fail-fallback bulletproofing — path conversion + WSLg-user detection now happen BEFORE the Konsole check).
 
 ### What's new in v1.1.18
 
