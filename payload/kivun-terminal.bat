@@ -703,13 +703,19 @@ call :LOG "WARNING - install.sh hit 660s cmd-side poll cap"
 set "INSTALL_RC=124"
 goto :_install_after
 :_install_sleep
-REM v1.1.28: bracket the wsl sleep call with DEBUG logs to localize the
-REM hang. v1.1.27 confirmed polling iter 1 fires (DEBUG log appears)
-REM then 4 min of silence — somewhere between poll iter 1 and iter 2 the
-REM launcher loses time. Either wsl-sleep itself hangs, or goto loops
-REM back too fast for the next poll wsl to respond.
+REM v1.1.29: use `waitfor` for cmd-side sleep. v1.1.28 confirmed scenario
+REM (a) — `wsl -d Ubuntu -- sleep 5` itself hangs forever as the 2nd wsl
+REM call after the setsid'd install kickoff (same wsl.exe-doesn't-return
+REM symptom from v1.1.20). Subsequent wsl invocations seem to deadlock on
+REM something the setsid'd install holds inside WSL's interop layer.
+REM
+REM `waitfor /t 5 <signal>` waits N seconds for a signal that never
+REM arrives, then exits with errorlevel 1. It's a native Windows utility
+REM (built into Windows since Vista), doesn't require a TTY (unlike
+REM timeout.exe), doesn't need network (unlike ping.exe), and doesn't
+REM touch WSL.
 call :LOG "DEBUG - about to sleep (wait=%INSTALL_WAIT%)"
-wsl -d Ubuntu -- sleep 5 < nul 2>&1 >> "%LOG_FILE%"
+waitfor /t 5 KivunDummySignal > nul 2>&1
 call :LOG "DEBUG - sleep returned el=%ERRORLEVEL%"
 goto :_install_poll
 
