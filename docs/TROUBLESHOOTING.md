@@ -1,4 +1,4 @@
-# Kivun Terminal v1.1.13 - Troubleshooting
+# Kivun Terminal v1.1.14 - Troubleshooting
 
 ## First: collect the logs
 
@@ -179,6 +179,30 @@ KIVUN_BIDI_STRIP_BULLET=on
 Restart Kivun Terminal. The wrapper will now strip the leading `●` from any line whose first strong char is RTL before passing it to the terminal. Hebrew becomes the first visible char on the line, BiDi flips paragraph direction to RTL automatically, and the line renders right-aligned the way you'd expect.
 
 **Trade-off:** the visible `●` marker disappears on Hebrew bullet lines (the indentation stays, so you still see lines as visually grouped). English bullet lines are not touched - their `●` continues to render normally. If you'd rather keep the bullet visible at the cost of the LTR layout on Konsole 23.x, leave `KIVUN_BIDI_STRIP_BULLET=off` (the default).
+
+## Symptom: Konsole opens, then Claude immediately exits with `--dangerously-skip-permissions cannot be used with root/sudo privileges`
+
+**Cause:** Your WSL Ubuntu's default user is `root` (or WSLg's runtime-dir is owned by root, which usually means the same thing). Kivun detects the WSLg owner and runs as that user — when that user is `root`, Claude Code refuses to start because of its `--dangerously-skip-permissions` security guard. The launcher path you'll see in the error is `/root/.local/share/kivun-terminal/kivun-claude-bidi/...` — the `/root/` prefix confirms the diagnosis.
+
+**Fixed in v1.1.14:** the launcher now auto-detects this case, looks up the first non-root user (UID 1000), and uses that user instead. If no non-root user exists, the launcher aborts before ever reaching Claude with copy-paste instructions for creating one.
+
+**Manual fix on v1.1.13 and earlier** (or if v1.1.14's auto-detect doesn't find a UID-1000 user):
+
+```cmd
+wsl -d Ubuntu --user root -- adduser yourname
+wsl -d Ubuntu --user root -- usermod -aG sudo yourname
+ubuntu config --default-user yourname
+wsl --terminate Ubuntu
+```
+
+Then re-launch Kivun Terminal.
+
+If `ubuntu config` doesn't exist (older Ubuntu image), use:
+
+```cmd
+wsl -d Ubuntu --user root -- bash -c "echo -e '[user]\ndefault=yourname' >> /etc/wsl.conf"
+wsl --terminate Ubuntu
+```
 
 ## Symptom: Hebrew lines render right-aligned BUT English/code/numbers land at the wrong column inside Hebrew sentences
 

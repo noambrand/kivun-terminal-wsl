@@ -326,6 +326,45 @@ REM created via cloud images). Passing that to `wsl --user UNKNOWN`
 REM makes wsl reject the launch with error 1 and Konsole never starts.
 REM Treat UNKNOWN exactly like "not detected".
 if /i "%WSLG_USER%"=="UNKNOWN" set "WSLG_USER="
+
+REM v1.1.14: Claude Code refuses --dangerously-skip-permissions when
+REM running as root. Some users have WSLg initialized as root (fresh
+REM Ubuntu where the default user is root, or distro images from cloud-
+REM init). If we let WSLG_USER stay as "root", Konsole launches, the
+REM wrapper deploys to /root/.local/share/, and Claude immediately exits
+REM with "--dangerously-skip-permissions cannot be used with root/sudo
+REM privileges". Instead, look up the conventional first non-root user
+REM (UID 1000) and use that. If no UID-1000 user exists, abort with
+REM clear instructions to create one.
+if /i "%WSLG_USER%"=="root" (
+    call :LOG "WARNING - WSLg owned by root; looking for a non-root user (UID 1000)"
+    set "WSLG_USER="
+    for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
+    if defined WSLG_USER (
+        call :LOG "INFO - Found non-root user: %WSLG_USER%"
+    ) else (
+        call :LOG "ERROR - No non-root user (UID 1000) in Ubuntu; cannot run Claude as root"
+        echo.
+        echo ============================================================
+        echo  ERROR: WSL Ubuntu has no non-root user.
+        echo ============================================================
+        echo  Claude Code refuses to run as root for security reasons
+        echo  ^(--dangerously-skip-permissions is incompatible with root^).
+        echo.
+        echo  Fix: create a non-root user inside Ubuntu and set it as
+        echo  the default. From Windows cmd or PowerShell:
+        echo.
+        echo    wsl -d Ubuntu --user root -- adduser yourname
+        echo    wsl -d Ubuntu --user root -- usermod -aG sudo yourname
+        echo    ubuntu config --default-user yourname
+        echo    wsl --terminate Ubuntu
+        echo.
+        echo  Then re-launch Kivun Terminal.
+        echo ============================================================
+        pause
+        exit /b 1
+    )
+)
 if defined WSLG_USER (
     call :LOG "INFO - WSLg runtime dir owner: %WSLG_USER% - will run as this user"
     set "WSL_USER_FLAG=--user %WSLG_USER%"
