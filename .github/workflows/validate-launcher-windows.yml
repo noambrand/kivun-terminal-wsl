@@ -298,33 +298,36 @@ jobs:
             exit 1
           fi
 
-      - name: Build stdin and start launcher in background
+      - name: Stage stdin file (separate cmd step — files persist across steps)
         shell: cmd
-        # Build the CRLF-terminated stdin file (Y + 4 blanks for any
-        # subsequent set/p or pause prompts), then `start /B` the launcher
-        # detached so this step returns immediately and the launcher keeps
-        # running. Output redirected to files for postmortem + assertions.
-        # Backgrounding via Git Bash's `&` proved unreliable on
-        # windows-latest — cmd.exe was reaped before producing output.
         run: |
           (echo Y) > "%RUNNER_TEMP%\launcher_input.txt"
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
           (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
-          start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt"
 
-      - name: Wait for SUCCESS marker (fail-fast at 4 min) + diagnostic dump
+      - name: Run launcher + wait for SUCCESS marker (in same step, fail-fast at 4 min)
         shell: bash
         run: |
-          # v1.1.26: bumped from 120s to 240s. v1.1.25 confirmed launcher
-          # polling works (no more "Input redirection" errors), but a cold
-          # CI runner takes longer than 120s for: WSL boot + install.sh
-          # download + native-build extraction + symlink. Real-user PCs are
-          # typically faster, but CI runner first-launch is the worst case.
-          # 240s gives 4 min headroom; healthy install still completes in
-          # 30-90s. The launcher's own internal cap is 660s so this stays
-          # under that.
+          # v1.1.32: combined launcher-launch + poll into ONE bash step.
+          # The previous split (separate `start /B` step + poll step) hit a
+          # GitHub Actions runner job-object cleanup: when the start-step
+          # ended, its job object closed and KILLED the detached launcher
+          # cmd along with its still-running install. Discovery test worked
+          # because launcher exits in <1s; install test failed because
+          # install takes 30s+ — far longer than the start-step's grace
+          # period. CI runs 25018621910–25020283248 (v1.1.28–v1.1.32) all
+          # confirmed: any sleep/wait mechanism in the launcher "hangs" not
+          # because the mechanism itself is broken, but because the launcher
+          # cmd is dead. Putting both launch + poll in ONE step keeps the
+          # job alive for the full 5min and lets the launcher's setsid -w
+          # install actually finish.
+          rm -f "$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt" 2>/dev/null || true
+          # Backgrounded with `&` so this same shell can poll the log.
+          # cmd inherits the bash step's job (alive for the full step).
+          cmd //c "call payload\\kivun-terminal.bat C:\\temp < $RUNNER_TEMP/launcher_input.txt > launcher_stdout.txt 2> launcher_stderr.txt" &
+          LAUNCHER_PID=$!
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
           end=$((SECONDS + 240))
           install_succeeded=0
@@ -348,9 +351,12 @@ jobs:
             sleep 5
           done
 
-          # Cleanup: kill the launcher's children regardless of outcome.
-          for img in claude.exe wsl.exe; do
-            taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
+          # Cleanup: kill the launcher cmd (now a direct bash child) and
+          # its WSL children. With launcher in this step's job, killing
+          # bash's child cmd cascades to wsl/bash.
+          kill $LAUNCHER_PID 2>/dev/null || true
+          for img in claude.exe wsl.exe cmd.exe; do
+            taskkill /F /IM "$img" /T >/dev/null 2>&1 || true
           done
 
           if [ "$install_succeeded" = "1" ]; then
@@ -361,7 +367,7 @@ jobs:
           # Anything else = fail. Dump every signal we have so the next
           # iteration can diagnose without a 15-min wait.
           echo "================================================================"
-          echo "FAIL: install did not reach SUCCESS within 120s"
+          echo "FAIL: install did not reach SUCCESS within 240s"
           echo "  install_failed=$install_failed install_timed_out=$install_timed_out"
           echo "================================================================"
           echo
@@ -380,7 +386,7 @@ jobs:
           echo "===== /tmp/claude-installer.sh existence ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/claude-installer.sh /root/.local/bin/claude 2>&1 || true"
           echo
-          echo "===== bat lines we expect to be running (v1.1.32 sanity check) ====="
+          echo "===== bat lines we expect to be running (v1.1.33 sanity check) ====="
           grep -nE 'setsid|kivun-install-claude\.sh|install\.sh returned|Auto-installing|_INST_WSL' payload/kivun-terminal.bat | head -15
           echo "===== /tmp/kivun-install-rc (inside WSL — should exist if install completed) ====="
           wsl -d Ubuntu --user root -- bash -c "ls -la /tmp/kivun-install-rc 2>&1; cat /tmp/kivun-install-rc 2>/dev/null || echo '(no rc file)'"
