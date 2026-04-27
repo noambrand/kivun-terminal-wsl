@@ -1,5 +1,10 @@
 'use strict';
 
+// See note in core.test.js: these tests pre-date FLATTEN_COLORS_RTL and
+// assume SGR codes pass through unchanged on RTL lines. Opt out of
+// FLATTEN here so they keep asserting the legacy passthrough behavior.
+process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL = 'off';
+
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { Injector, RLE, PDF, RLM } = require('../lib/injector');

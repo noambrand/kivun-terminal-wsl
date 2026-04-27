@@ -423,6 +423,37 @@ fi
 export KIVUN_BIDI_STRIP_INCOMING
 log "INFO - KIVUN_BIDI_STRIP_INCOMING=$KIVUN_BIDI_STRIP_INCOMING"
 
+# Raw upstream byte dump. Off by default — debug-only feature for cases
+# where the strip log alone isn't enough to diagnose a render bug. When
+# on, every chunk Claude sends is appended to
+# ~/.local/state/kivun-terminal/bidi-raw-dump.bin BEFORE strip-incoming
+# touches it. File auto-rotates to .old at 5 MiB to bound growth.
+KIVUN_BIDI_DUMP_RAW="off"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_DUMP_RAW[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_DUMP_RAW[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_DUMP_RAW="$val"
+fi
+export KIVUN_BIDI_DUMP_RAW
+log "INFO - KIVUN_BIDI_DUMP_RAW=$KIVUN_BIDI_DUMP_RAW"
+
+# Flatten ANSI SGR (color/style) sequences inside RTL lines. ON by default
+# (v1.1.10). Konsole 23.x's BiDi only spans continuous-attribute regions;
+# any color change splits the run and Qt mis-positions the resulting LTR
+# fragments to the visual left instead of their UAX #9 logical position.
+# Stripping SGR escapes from RTL lines makes the whole line one attribute
+# run and gets correct positioning -- at the cost of syntax color on
+# Hebrew lines. Turn off if you'd rather keep colors at the cost of
+# broken positioning.
+KIVUN_BIDI_FLATTEN_COLORS_RTL="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_BIDI_FLATTEN_COLORS_RTL[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_BIDI_FLATTEN_COLORS_RTL[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_BIDI_FLATTEN_COLORS_RTL="$val"
+fi
+export KIVUN_BIDI_FLATTEN_COLORS_RTL
+log "INFO - KIVUN_BIDI_FLATTEN_COLORS_RTL=$KIVUN_BIDI_FLATTEN_COLORS_RTL"
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates

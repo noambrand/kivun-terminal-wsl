@@ -61,6 +61,27 @@ const BULLET_STRIP_RE = /[●•·∗•●]\s*/g;
 // ~/.local/state/kivun-terminal/bidi-strip.log). Test override via
 // KIVUN_BIDI_LOG_FILE keeps unit tests off the user's real log.
 const STRIP_INCOMING_MODE = (process.env.KIVUN_BIDI_STRIP_INCOMING || 'auto').toLowerCase();
+
+// Flatten ANSI SGR (color/style) sequences inside RTL lines. ON by default
+// (v1.1.10). Empirically confirmed via Konsole 23.08.5 A/B test (April 2026)
+// that mixed-content LTR-run positioning inside Hebrew sentences is broken
+// because Konsole's BiDi runs only span continuous-attribute regions — any
+// color change splits the run and Qt mis-positions the resulting fragments.
+// Stripping SGR escapes from RTL lines means the whole line is one
+// attribute run and Konsole positions the LTR runs (English, code,
+// numbers) at their correct UAX #9 logical positions.
+//
+// Trade-off: visible loss of syntax highlighting on Hebrew lines. Most
+// Hebrew-focused users prefer correct positioning over color; users with
+// English-dominant workflows can set this off to get color back at the
+// cost of broken positioning when Hebrew appears.
+//
+// Modes (KIVUN_BIDI_FLATTEN_COLORS_RTL):
+//   off — passthrough; SGR codes reach Konsole as-is on every line
+//   on  — strip SGR codes from any line whose first strong char is Hebrew
+//         (default — Hebrew users gain positioning, lose color)
+const FLATTEN_COLORS_MODE = (process.env.KIVUN_BIDI_FLATTEN_COLORS_RTL || 'on').toLowerCase();
+const CP_M = 0x6D;
 // Char class covers U+202A LRE, U+202B RLE, U+202C PDF, U+202D LRO, U+202E RLO,
 // U+2066 LRI, U+2067 RLI, U+2068 FSI, U+2069 PDI. Does NOT touch U+200E LRM
 // or U+200F RLM (we keep those — RLM is what the wrapper itself injects).
@@ -82,6 +103,67 @@ function _logBidiStrip(message) {
     fs.appendFileSync(STRIP_LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
   } catch (_) {
     // Logging is best-effort; never let a write failure crash the wrapper.
+  }
+}
+
+// Raw upstream byte dump — debugging-only counterpart to strip-incoming.
+// Off by default. When on, the wrapper appends every chunk it receives
+// from Claude to a side file BEFORE the strip pass runs, so a hex/text
+// inspection of the file shows exactly what was on the wire — bidi
+// controls included. Useful for "the strip log says 0 detections but
+// rendering looks bidi-confused" cases, and for proving that stream
+// pollution we suspected really exists (or really doesn't).
+//
+// Modes (KIVUN_BIDI_DUMP_RAW):
+//   off — no dump (default)
+//   on  — append every chunk to the dump file with a timestamp marker
+//
+// Dump file: $KIVUN_BIDI_DUMP_RAW_FILE if set, else
+// $XDG_STATE_HOME/kivun-terminal/bidi-raw-dump.bin (XDG default
+// ~/.local/state/kivun-terminal/bidi-raw-dump.bin). At session start
+// (constructor), if the existing dump file is larger than 5 MiB it gets
+// renamed to .old so the new session always has a known starting point
+// instead of running away in unbounded growth.
+const DUMP_RAW_MODE = (process.env.KIVUN_BIDI_DUMP_RAW || 'off').toLowerCase();
+const DUMP_RAW_FILE = (function _resolveDumpRawPath() {
+  if (process.env.KIVUN_BIDI_DUMP_RAW_FILE) return process.env.KIVUN_BIDI_DUMP_RAW_FILE;
+  const stateRoot = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+  return path.join(stateRoot, 'kivun-terminal', 'bidi-raw-dump.bin');
+})();
+const DUMP_RAW_ROTATE_BYTES = 5 * 1024 * 1024;
+
+function _rotateDumpIfLarge() {
+  if (DUMP_RAW_MODE === 'off') return;
+  try {
+    const st = fs.statSync(DUMP_RAW_FILE);
+    if (st.size > DUMP_RAW_ROTATE_BYTES) {
+      fs.renameSync(DUMP_RAW_FILE, DUMP_RAW_FILE + '.old');
+    }
+  } catch (_) {
+    // File doesn't exist yet — that's fine, nothing to rotate.
+  }
+}
+
+function _appendDumpRaw(chunk) {
+  if (DUMP_RAW_MODE === 'off') return;
+  try {
+    fs.mkdirSync(path.dirname(DUMP_RAW_FILE), { recursive: true });
+    // Buffer chunks pass through as bytes; string chunks get utf8-encoded.
+    // This matches what the wrapper actually saw on the wire.
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf8');
+    fs.appendFileSync(DUMP_RAW_FILE, buf);
+  } catch (_) {
+    // Best-effort; never let dump failure crash the wrapper.
+  }
+}
+
+function _writeDumpMarker(label) {
+  if (DUMP_RAW_MODE === 'off') return;
+  try {
+    fs.mkdirSync(path.dirname(DUMP_RAW_FILE), { recursive: true });
+    fs.appendFileSync(DUMP_RAW_FILE, `\n=== ${label} ${new Date().toISOString()} ===\n`);
+  } catch (_) {
+    // Best-effort.
   }
 }
 
@@ -159,6 +241,20 @@ class Injector {
     // tests can assert on it directly without parsing the side log.
     this.stripIncomingCount = 0;
     this._stripLoggedFirst = false;
+    // FLATTEN_COLORS_RTL state. lineIsRTL is set in _flushLineStartBuffer
+    // based on whether the line's first strong char is Hebrew. _csiBuf
+    // accumulates ESC...final-byte sequences so we can drop SGR ones on
+    // RTL lines instead of byte-by-byte emit (v1.1.10).
+    this.lineIsRTL = false;
+    this._csiBuf = '';
+    // Public counter — number of SGR sequences this Injector dropped.
+    // Useful for tests + diagnostic output.
+    this.flattenedSgrCount = 0;
+    // Per-session raw-dump bookkeeping. Rotate any leftover oversized dump
+    // file from a prior session, then write a session-start marker so each
+    // run is delineated in the file when the user inspects it later.
+    _rotateDumpIfLarge();
+    _writeDumpMarker('session start');
   }
 
   // Best-effort strip + accounting on raw upstream text. Runs before any
@@ -183,6 +279,7 @@ class Injector {
   }
 
   write(chunk) {
+    _appendDumpRaw(chunk);
     const raw = typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
     const text = this._stripIncoming(raw);
     let out = this._process(text);
@@ -191,6 +288,7 @@ class Injector {
   }
 
   end(chunk) {
+    if (chunk !== undefined && chunk !== null) _appendDumpRaw(chunk);
     let raw = '';
     if (chunk !== undefined && chunk !== null) {
       raw += typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
@@ -205,6 +303,7 @@ class Injector {
     if (this.stripIncomingCount > 0 && STRIP_INCOMING_MODE !== 'off') {
       _logBidiStrip(`session end — total ${this.stripIncomingCount} bidi control char(s) stripped this session`);
     }
+    _writeDumpMarker('session end');
     return out;
   }
 
@@ -286,6 +385,10 @@ class Injector {
     this._lsInOsc = false;
     this._lsOscSawEsc = false;
     this._lsAfterEsc = false;
+    // FLATTEN_COLORS_RTL: set lineIsRTL BEFORE re-feeding the buffered
+    // content so SGR escapes inside the line-start region get the same
+    // flatten treatment as SGR escapes after the first strong char.
+    this.lineIsRTL = injectRlm;
     let buffered_processed = buffered;
     if (injectRlm && STRIP_BULLET) {
       buffered_processed = buffered_processed.replace(BULLET_STRIP_RE, '');
@@ -298,9 +401,23 @@ class Injector {
   }
 
   _stepAfterLineStart(cp, ch) {
+    // CSI buffer-and-decide: accumulate the whole ESC[...final-byte
+    // sequence so we can drop it as a unit if it turns out to be SGR
+    // (final byte 'm') on an RTL line. Without buffering we'd already
+    // have emitted ESC + [ + params before knowing it was SGR.
     if (this.inCsi) {
-      if (isCsiFinal(cp)) this.inCsi = false;
-      return ch;
+      this._csiBuf += ch;
+      if (isCsiFinal(cp)) {
+        this.inCsi = false;
+        const seq = this._csiBuf;
+        this._csiBuf = '';
+        if (cp === CP_M && this.lineIsRTL && FLATTEN_COLORS_MODE === 'on') {
+          this.flattenedSgrCount += 1;
+          return '';
+        }
+        return seq;
+      }
+      return '';
     }
     if (this.inOsc) {
       if (cp === CP_BEL) {
@@ -316,9 +433,18 @@ class Injector {
     }
     if (this.afterEsc) {
       this.afterEsc = false;
-      if (cp === CP_LBRACKET) this.inCsi = true;
-      else if (cp === CP_RBRACKET) this.inOsc = true;
-      return ch;
+      this._csiBuf += ch;
+      if (cp === CP_LBRACKET) {
+        this.inCsi = true;
+        return '';
+      }
+      // Not a CSI — flush whatever we accumulated. OSC (ESC ]) gets the
+      // accumulated bytes flushed and resumes per-byte from here on; any
+      // other ESC + char (e.g., ESC 7 / ESC =) also flushes immediately.
+      const seq = this._csiBuf;
+      this._csiBuf = '';
+      if (cp === CP_RBRACKET) this.inOsc = true;
+      return seq;
     }
     if (cp === CP_ESC) {
       let out = '';
@@ -327,7 +453,8 @@ class Injector {
         this.pending = [];
       }
       this.afterEsc = true;
-      return out + ch;
+      this._csiBuf = ch;
+      return out;
     }
     const out = this._stepText(cp, ch);
     if (cp === CP_LF || cp === CP_CR) {
@@ -400,6 +527,15 @@ class Injector {
     if (this.insideRun) {
       out += PDF;
       this.insideRun = false;
+    }
+    // FLATTEN_COLORS: if the stream ended mid-CSI (orphan ESC + [ + params
+    // with no final byte ever arriving), emit what we buffered so the
+    // bytes don't get silently lost.
+    if (force && this._csiBuf.length > 0) {
+      out += this._csiBuf;
+      this._csiBuf = '';
+      this.afterEsc = false;
+      this.inCsi = false;
     }
     return out;
   }

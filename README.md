@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/version-1.1.9-brightgreen" alt="v1.1.9">
+  <img src="https://img.shields.io/badge/version-1.1.10-brightgreen" alt="v1.1.10">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
   <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?color=purple&label=downloads" alt="Total Downloads"></a>
@@ -47,7 +47,7 @@
 
 ## Why Kivun Terminal?
 
-|  | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.9 |
+|  | Launchpad CLI v2.4.2 | Kivun Terminal v1.1.10 |
 |---|---|---|
 | **Runtime (Windows)** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
 | **RTL/BiDi rendering** | LTR only (Windows Terminal has no BiDi engine) | ✅ Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
@@ -120,15 +120,21 @@ Disable via `TERMINAL_COLOR=default` in your config to fall back to the terminal
 
 ## BiDi Wrapper
 
-v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's output through a state machine doing two complementary fixes:
+v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's output through a state machine doing five complementary fixes for known Konsole BiDi limitations:
 
-| Fix | What it does | Solves |
-|---|---|---|
-| **RLE/PDF bracketing** | Wraps every Hebrew run in U+202B / U+202C | Forces RTL direction within each run regardless of terminal BiDi profile |
-| **Line-start RLM injection** | Inserts U+200F at the start of any line whose first strong char is RTL | Fixes Claude's `● שלום` first-line LTR bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
-| **Bullet-strip workaround** (opt-in) | Removes the leading `●` from Hebrew bullet lines so the line's first visible char is RTL | Konsole 23.x (Ubuntu 24.04 default) treats the bullet as a direction-anchoring neutral and refuses to flip the line RTL even with line-start RLM; Konsole 24.04+ should resolve this upstream |
+| Fix | What it does | Solves | Default |
+|---|---|---|---|
+| **RLE/PDF bracketing** | Wraps every Hebrew run in `U+202B` / `U+202C` | Forces RTL direction within each run regardless of terminal BiDi profile | on |
+| **Line-start RLM injection** | Inserts `U+200F` at the start of any line whose first strong char is RTL | Fixes Claude's `● שלום` first-line LTR bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) | on |
+| **Bullet-strip** (v1.1.8) | Removes the leading `●` from Hebrew bullet lines so the line's first visible char is Hebrew | Konsole 23.x classifies `●` as a direction-anchoring neutral; without strip, lines stay LTR even with line-start RLM | on |
+| **Strip-incoming bidi controls** (v1.1.9) | Strips embedding (`U+202A`–`U+202E`) and isolate (`U+2066`–`U+2069`) marks from Claude's stream; preserves LRM/RLM | Stops upstream-emitted bidi controls from compounding with wrapper-injected RLM and producing nondeterministic positioning | auto |
+| **Flatten colors on RTL lines** (v1.1.10) | Strips ANSI SGR (CSI`...m`) sequences from any line whose first strong char is Hebrew so the line is one attribute run | Mixed-content positioning: Konsole only runs BiDi on continuous-attribute regions (documented architectural limit per [terminal-wg.pages.freedesktop.org](https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html)); without this, color changes split the BiDi run and Qt mispositions LTR fragments to the visual left | on |
 
-Default-on across all three platforms. Toggle via `KIVUN_BIDI_WRAPPER=on|off` in your config. Set `KIVUN_BIDI_STRIP_BULLET=on` (default `off`) to enable the bullet-strip workaround if you're on Konsole 23.x and Hebrew bullet lines still render LTR after the line-start RLM fix - trade-off: the visible `●` marker disappears on Hebrew lines (indentation stays). Test coverage: 18 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
+**Trade-off for the v1.1.10 flatten:** loss of syntax color on Hebrew lines. Most Hebrew-focused users prefer correct positioning over color; users whose workflow is mostly English code with occasional Hebrew can set `KIVUN_BIDI_FLATTEN_COLORS_RTL=off` to keep colors at the cost of broken positioning.
+
+**Why this isn't fixable upstream:** Konsole has no real BiDi engine — it hands continuous-attribute regions to Qt's text layout, and Qt has no idea where a colored fragment logically belongs in the surrounding RTL paragraph. This is architectural, not a "wait for newer Konsole" fix; KDE has shown no signs of changing it. The wrapper's job is to feed Konsole what it can render correctly: a single attribute run per RTL line.
+
+Toggle the wrapper itself via `KIVUN_BIDI_WRAPPER=on|off` in your config. Each individual fix has its own toggle (`KIVUN_BIDI_STRIP_BULLET`, `KIVUN_BIDI_STRIP_INCOMING`, `KIVUN_BIDI_FLATTEN_COLORS_RTL`). Test coverage as of v1.1.10: 60 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
 
 ## Architecture
 

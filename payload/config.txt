@@ -154,6 +154,86 @@ KIVUN_BIDI_STRIP_BULLET=on
 KIVUN_BIDI_STRIP_INCOMING=auto
 
 # =================================================================
+# DUMP RAW upstream bytes for debugging (v1.1.10)
+# =================================================================
+# Off by default. Debug-only — turn this on when you have a render
+# bug you suspect involves stream pollution but the strip log shows
+# zero detections (or you want to see the full byte context around
+# what was stripped).
+#
+# When set to "on", the wrapper appends every chunk Claude sends
+# to a side file BEFORE the strip-incoming pass touches it:
+#
+#     ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+#
+# The file is appended-to across writes and gets a "session start"
+# / "session end" marker line per Kivun launch. To prevent
+# unbounded growth, when an existing dump file is larger than
+# 5 MiB at session start it gets renamed to .bin.old and a fresh
+# .bin file starts. So at any time you have at most the current
+# session's dump plus the previous session's rollover.
+#
+# Performance: writing every chunk to disk adds ~0 ms per chunk
+# in normal use because the file is small and Linux page cache
+# absorbs writes. Don't leave this on indefinitely though — it
+# fills disk over time even with the rotation cap.
+#
+# To inspect what was on the wire (after running a Kivun session
+# with this on):
+#
+#     # full dump (warning: contains ANSI escapes — use less -R):
+#     less -R ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+#
+#     # just the bidi control chars and surrounding context:
+#     grep -aPo '.{0,20}[\x{202A}-\x{202E}\x{2066}-\x{2069}].{0,20}' \
+#         ~/.local/state/kivun-terminal/bidi-raw-dump.bin
+#
+#     # hex view of the bidi bytes (RLE = e2 80 ab, etc.):
+#     xxd ~/.local/state/kivun-terminal/bidi-raw-dump.bin | head -40
+#
+# Default: off
+KIVUN_BIDI_DUMP_RAW=off
+
+# =================================================================
+# FLATTEN COLORS on RTL lines (v1.1.10) - the actual mixed-content fix
+# =================================================================
+# Empirically confirmed via Konsole 23.08.5 A/B test (April 2026):
+# Konsole's BiDi engine only operates on continuous-attribute regions.
+# Any color change inside a Hebrew sentence splits the BiDi run, and
+# Qt's text layout positions the resulting fragments incorrectly --
+# typically pushing English/code runs to the visual LEFT instead of
+# their correct UAX #9 logical position inside the sentence.
+#
+# This is also documented at the upstream Terminal Working Group:
+#   https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html
+# > "Applies BiDi on continuous runs of identical attributes. Any
+# > change in e.g. color [...] stops and starts it anew, often
+# > resulting in a confusing and incorrect visual behavior."
+#
+# Stripping SGR escapes from RTL lines makes the whole line one
+# attribute run -- Konsole's BiDi gets a clean line to work with and
+# LTR runs (English, code, numbers) land in their correct positions.
+#
+# Modes:
+#   off - passthrough; SGR codes reach Konsole as-is on every line
+#         (positioning will be broken on mixed Hebrew lines)
+#   on  - strip SGR (CSI...m) sequences from any line whose first
+#         strong char is Hebrew; LTR lines unaffected (default)
+#
+# Trade-off: visible loss of syntax color on Hebrew lines. If your
+# workflow is mostly English code with occasional Hebrew, you may
+# prefer color over positioning -- set this to "off". For users
+# whose Claude conversation is mostly Hebrew, "on" is the right
+# default (positioning correctness > color).
+#
+# Important: this strips ONLY SGR sequences (CSI sequences ending
+# in 'm'). Cursor positioning, screen clear, OSC window-title, etc.
+# all pass through unchanged. LTR lines are NEVER touched.
+#
+# Default: on
+KIVUN_BIDI_FLATTEN_COLORS_RTL=on
+
+# =================================================================
 # For more information:
 # - SECURITY.txt - Password security explained
 # - CREDENTIALS.txt - Login information
