@@ -703,20 +703,21 @@ call :LOG "WARNING - install.sh hit 660s cmd-side poll cap"
 set "INSTALL_RC=124"
 goto :_install_after
 :_install_sleep
-REM v1.1.29: use `waitfor` for cmd-side sleep. v1.1.28 confirmed scenario
-REM (a) — `wsl -d Ubuntu -- sleep 5` itself hangs forever as the 2nd wsl
-REM call after the setsid'd install kickoff (same wsl.exe-doesn't-return
-REM symptom from v1.1.20). Subsequent wsl invocations seem to deadlock on
-REM something the setsid'd install holds inside WSL's interop layer.
+REM v1.1.30: pure-cmd busy wait via `for /L`. v1.1.29 confirmed waitfor
+REM ALSO hangs after about-to-sleep (third sleep mechanism that fails:
+REM ping → wsl-sleep → waitfor). The `start /B cmd /c "...launcher.bat..."`
+REM detached context leaves the launcher unable to call ANY external
+REM command after the first 1-2 wsl invocations succeed. Likely cause:
+REM cmd.exe with no console attached can't properly spawn-and-wait for
+REM child processes. The bracketing logs proved the problem is not the
+REM goto loop — it's the external sleep utility.
 REM
-REM `waitfor /t 5 <signal>` waits N seconds for a signal that never
-REM arrives, then exits with errorlevel 1. It's a native Windows utility
-REM (built into Windows since Vista), doesn't require a TTY (unlike
-REM timeout.exe), doesn't need network (unlike ping.exe), and doesn't
-REM touch WSL.
+REM `for /L` is a pure cmd-parser construct — no child process spawned.
+REM 100M iterations of rem ≈ 5s on typical CI hardware (CPU burn but
+REM the polling cap at 660s limits total burn to ~10 min worst case).
 call :LOG "DEBUG - about to sleep (wait=%INSTALL_WAIT%)"
-waitfor /t 5 KivunDummySignal > nul 2>&1
-call :LOG "DEBUG - sleep returned el=%ERRORLEVEL%"
+for /L %%I in (1,1,100000000) do rem
+call :LOG "DEBUG - sleep returned"
 goto :_install_poll
 
 :_install_check_rc
