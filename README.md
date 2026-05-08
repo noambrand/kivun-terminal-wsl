@@ -65,6 +65,12 @@
 
 > Technical details (BiDi wrapper, RLM injection, Konsole 23.x workarounds, etc.) live in the rest of this README and in [`docs/`](docs/) for anyone who wants them.
 
+<p align="center">
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe"><img src="https://img.shields.io/badge/⬇_Download_for_Windows-a78bfa?style=for-the-badge" alt="Download for Windows"></a>
+  &nbsp;
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/badge/🐧_Linux_(apt/dnf/pacman/zypper)-c084fc?style=for-the-badge" alt="Linux installer"></a>
+</p>
+
 ## What's included out of the box
 
 <p align="center">
