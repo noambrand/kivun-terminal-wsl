@@ -3,6 +3,15 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.7] - 2026-05-08
+
+### Bigger collapsed window so the update banner doesn't cause scrollbars
+
+User feedback right after v1.4.6 shipped: the new update-banner pushed the picker content past the 615 px collapsed-window floor, triggering vertical scrollbars and pushing the Launch button below the fold. *"the window needs to be a little higher, like the button size times 1.5 so no scroll bars show"*.
+
+- **`payload/folder-picker.hta`** — collapsed-window floor and initial `resizeTo` bumped from 615 px to 690 px (≈ +75 px, roughly 1.5 × the Launch button height). Both the initial `window.resizeTo(1040, 690)` and the `if (h < 690) h = 690;` clamp inside `autoSizeToContent()` were updated. No effect when Advanced is expanded — that branch already sized to actual content height.
+
+
 ## [1.4.6] - 2026-05-08
 
 ### Update-available banner in the picker + cross-table fix

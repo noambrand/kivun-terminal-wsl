@@ -415,7 +415,7 @@
   // layout settles, so different DPI / font-render heights still get a
   // scroll-free dialog. Caps at the screen size minus a small margin so
   // the title bar + Windows taskbar stay visible on small displays.
-  window.resizeTo(1040, 615);
+  window.resizeTo(1040, 690);
   function autoSizeToContent() {
     try {
       var availW = window.screen.availWidth;
@@ -428,12 +428,13 @@
         // Expanded: size to actual content (capped so we don't overflow
         // off-screen below the taskbar).
         h = Math.min(document.body.scrollHeight + 60, availH - 60);
-        if (h < 615) h = 615;
+        if (h < 690) h = 690;
       } else {
         // Collapsed: fixed compact height. scrollHeight in HTA is not
         // always reliable when content is display:none, so we hardcode
-        // instead of measuring.
-        h = 615;
+        // instead of measuring. Sized to fit the optional update-banner
+        // without triggering scrollbars.
+        h = 690;
       }
       window.resizeTo(w, h);
       // Center the dialog so the bottom (Launch button + actions) stays
@@ -552,7 +553,7 @@
   // installs that predate the file). The picker fetches the latest tag
   // from the GitHub API on launch and shows a banner if newer.
   var GITHUB_REPO = "noambrand/kivun-terminal-wsl";
-  var FALLBACK_VERSION = "1.4.6";
+  var FALLBACK_VERSION = "1.4.7";
   var ASSET_NAME_RE = /^Kivun_Terminal_Setup\.exe$/i;
   var resultFile = kivunDir + "\\kivun-workdir.txt";
   var startupFile = kivunDir + "\\kivun-startup-cmds.txt";
