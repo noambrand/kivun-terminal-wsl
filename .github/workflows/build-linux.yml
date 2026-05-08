@@ -156,3 +156,51 @@ jobs:
           files: build/kivun-terminal-linux-${{ steps.version.outputs.version }}.tar.gz
           prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') }}
           fail_on_unmatched_files: true
+
+  # Hardening matrix added 2026-05-08 per the integration-test audit.
+  # The build-linux job above already covers the apt/Ubuntu path (ubuntu-latest
+  # = 24.04 LTS, which ships Konsole 24.x). This job adds Fedora/dnf coverage
+  # so the rpm-based installer branch is exercised on every push, not just by
+  # users in the field. Runs in parallel; doesn't gate the release tarball.
+  verify-install-fedora:
+    name: verify-install (fedora-40)
+    runs-on: ubuntu-latest
+    container: fedora:40
+    permissions:
+      contents: read
+    steps:
+      - name: Install system deps via dnf
+        run: |
+          # Konsole pulls a chunk of KDE; node-pty needs gcc/c++/make/python3.
+          # `which` and `findutils` are needed by install.sh's PATH probes.
+          dnf install -y -q \
+            sudo git curl ca-certificates \
+            konsole nodejs npm zenity \
+            gcc gcc-c++ make python3 \
+            findutils which
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Dry-run installer (rpm/dnf path)
+        run: |
+          chmod +x linux/install.sh linux/uninstall.sh linux/kivun-launch.sh
+          # CI=1 skips sudo-keepalive + system package install — those would
+          # be redundant since we just installed them above.
+          CI=1 ./linux/install.sh || true
+          # Verify the same user-file artifacts the apt path checks.
+          test -x "$HOME/.local/bin/kivun-terminal" \
+            || (echo "fedora: launcher missing"; exit 1)
+          test -f "$HOME/.local/share/kivun-terminal/statusline.mjs" \
+            || (echo "fedora: statusline missing"; exit 1)
+          test -d "$HOME/.local/share/kivun-terminal/kivun-claude-bidi" \
+            || (echo "fedora: wrapper source missing"; exit 1)
+          test -d "$HOME/.local/share/kivun-terminal/kivun-claude-bidi/node_modules/node-pty" \
+            || (echo "fedora: node-pty native dep missing — npm install failed under glibc/gcc on dnf-based system"; exit 1)
+          echo "fedora install verification passed"
+      - name: Run BiDi wrapper unit tests under Fedora
+        run: |
+          # Same suite the Ubuntu job runs. Cross-checks the node-pty native
+          # binary built with Fedora's gcc/glibc against the same fixtures.
+          WRAPPER_DIR="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
+          cd "$WRAPPER_DIR"
+          npm install --no-audit --no-fund
+          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js

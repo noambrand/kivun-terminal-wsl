@@ -220,9 +220,20 @@ See `docs/CHANGELOG.md` for the full list of supported languages and config keys
 
 Contributions welcome. Areas where help is especially useful:
 
-- **Wayland keyboard toggle** - `setxkbmap` is X11-only; Wayland needs DE-specific layout switching.
-- **More RTL language coverage** - N'Ko, Adlam, Mandaic, and a few others currently fall back to Hebrew xkb layouts.
-- **Integration testing** - different distros, different DEs, different Konsole versions.
+- **Wayland keyboard toggle** — `setxkbmap` is X11-only; Wayland needs DE-specific layout switching (KWin: `qdbus org.kde.keyboard`, GNOME: `gsettings input-sources`, Sway: per-config). No CI for Wayland; needs a contributor with the hardware.
+- **More RTL language coverage** — N'Ko, Adlam, Mandaic, Samaritan, and a few others currently fall back to Hebrew xkb layouts. PRs adding entries to `payload/languages.sh` welcome.
+- **Konsole 25.x bring-up** — the BiDi wrapper's RLE/PDF/RLM workarounds were tuned against Konsole 23.08 and re-validated on 24.x. If you're on a 25.x preview and see Hebrew misrendering, file an issue with `KONSOLE_VERSION` + a paste of the broken line.
+- **Pacman / zypper installer paths** — Arch / openSUSE branches in `linux/install.sh` are written but only manually tested. CI covers apt (Ubuntu 24.04) and dnf (Fedora 40) automatically; pacman/zypper are field-tested only.
+
+### What CI already covers
+
+| Surface | Tested by CI | Workflow |
+|---|---|---|
+| apt installer + Konsole 24.x + node-pty (glibc 2.39) | ✅ | `build-linux.yml` (ubuntu-latest container) |
+| dnf installer + Konsole 24.x + node-pty (Fedora gcc) | ✅ | `build-linux.yml` (fedora:40 container, added v1.4.8+) |
+| Windows + WSL2 Ubuntu launcher path | ✅ | `validate-launcher-windows.yml` |
+| BiDi wrapper unit suite (36 fixtures, capability detection, smoke vs fake-claude) | ✅ | both above |
+| Wayland / multi-DE / Konsole 25.x / pacman / zypper | ❌ | needs manual contributor testing |
 
 Fork the repo, make your changes, and open a PR.
 
@@ -355,9 +366,23 @@ CLAUDE_FLAGS=                    # למשל --continue
 
 מוזמנים לעזור. תחומים שעזרה בהם תהיה שימושית במיוחד:
 
-- **מתג מקלדת ל-Wayland** - `setxkbmap` עובד רק ב-X11; Wayland צריך החלפת layout ספציפית לסביבת השולחן.
-- **כיסוי שפות RTL נוספות** - N'Ko, Adlam, Mandaic ועוד מספר שפות נופלות כרגע ל-fallback של מפת ה-xkb של עברית.
-- **בדיקות אינטגרציה** - distro-ים שונים, סביבות שולחן עבודה שונות, גרסאות Konsole שונות.
+- **מתג מקלדת ל-Wayland** — `setxkbmap` עובד רק ב-X11; Wayland דורש החלפת layout ספציפית לסביבת השולחן (KWin: `qdbus org.kde.keyboard`, GNOME: `gsettings input-sources`, Sway: ב-config). אין CI ל-Wayland; דרוש contributor עם החומרה.
+- **כיסוי שפות RTL נוספות** — N'Ko, Adlam, Mandaic, Samaritan ועוד מספר שפות נופלות כרגע ל-fallback של מפת ה-xkb של עברית. PRs שמוסיפים ערכים ל-`payload/languages.sh` מתקבלים בברכה.
+- **התאמה ל-Konsole 25.x** — workarounds של ה-BiDi wrapper (RLE/PDF/RLM) כויילו מול Konsole 23.08 ואומתו מחדש על 24.x. אם אתם על preview של 25.x ורואים תקלות בהצגת עברית, פתחו issue עם `KONSOLE_VERSION` ושורת דוגמה.
+- **התקנה דרך pacman / zypper** — ענפי Arch / openSUSE ב-`linux/install.sh` כתובים אבל נבדקו רק ידנית. ה-CI מכסה apt (Ubuntu 24.04) ו-dnf (Fedora 40) אוטומטית; pacman ו-zypper נבדקים רק בשטח.
+
+### מה ה-CI כבר מכסה
+
+<table dir="rtl" align="right">
+<thead><tr><th>סביבה</th><th>נבדק ב-CI</th><th>Workflow</th></tr></thead>
+<tbody>
+<tr><td>התקנת apt + Konsole 24.x + node-pty (glibc 2.39)</td><td>✅</td><td><code>build-linux.yml</code> (ubuntu-latest)</td></tr>
+<tr><td>התקנת dnf + Konsole 24.x + node-pty (gcc של Fedora)</td><td>✅</td><td><code>build-linux.yml</code> (fedora:40 container, נוסף ב-v1.4.8+)</td></tr>
+<tr><td>נתיב launcher של Windows + WSL2 Ubuntu</td><td>✅</td><td><code>validate-launcher-windows.yml</code></td></tr>
+<tr><td>סוויטת unit-tests של ה-BiDi wrapper (36 fixtures + capability + smoke מול fake-claude)</td><td>✅</td><td>שני האזורים מעלה</td></tr>
+<tr><td>Wayland / DEs נוספים / Konsole 25.x / pacman / zypper</td><td>❌</td><td>דורש בדיקה ידנית של contributor</td></tr>
+</tbody>
+</table>
 
 עשו fork לריפו, בצעו את השינויים, ופתחו PR.
 
