@@ -3,6 +3,36 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.9] - 2026-05-08
+
+### Security fixes from internal audit
+
+A security audit of the v1.4.8 codebase surfaced two HIGH-severity issues in the picker (both reachable via a malicious `profiles.json`) plus one MEDIUM in the BiDi wrapper. All fixed in this release.
+
+#### Fixed (HIGH)
+
+- **`payload/folder-picker.hta` — JScript injection via profile chip onclick (audit #2).** v1.4.1–v1.4.8's `populateProfileChips()` HTML-escaped profile names with `&#39;` for the single quote, then interpolated them into `onclick="switchToProfile('NAME')"`. IE/HTA HTML-decodes attributes **before** evaluating the JS, so `&#39;` becomes `'` again and a profile name like `x'); evil(); //` survives the escape and runs as JScript with full ActiveX privileges. Fixed by passing a profile **index** (a literal integer, no interpolation risk) and looking up the name from trusted state inside a new `switchToProfileByIndex()` handler.
+- **`payload/folder-picker.hta` — `WshShell.Run` trusted attacker-controllable URL in update banner (audit #3).** v1.4.6's update-check feature interpolated GitHub's `browser_download_url` into `onclick="openUpdateUrl('URL')"`. Two layers of risk: (a) `escapeHtml` did not escape `'` (only `<`, `>`, `&`, `"`), so a hostile JSON response with `'` in the URL could break out of the JS string; (b) under a corp-MITM root CA, the JSON itself can be rewritten to point `browser_download_url` at any URL and ride the user's click into arbitrary download/run. Fixed two ways: (1) URLs are now stashed in module-scope `__pendingReleaseUrl`/`__pendingDownloadUrl` and the click handlers (`openLatestRelease()`, `openLatestDownload()`) read them from there — no string interpolation; (2) new `isTrustedUpdateUrl()` allowlists the URL prefix to `https://github.com/noambrand/kivun-terminal-wsl/`, `https://api.github.com/repos/noambrand/kivun-terminal-wsl/`, and `https://objects.githubusercontent.com/` (GitHub's release-asset CDN); anything else is silently rejected.
+
+#### Fixed (MEDIUM)
+
+- **`kivun-claude-bidi/lib/resolve-claude-bin.js` — `KIVUN_CLAUDE_BIN` validation (audit #4).** The env-var override for the claude binary path was passed through to `node-pty` spawn unchecked. A profile env-var `KIVUN_CLAUDE_BIN=/tmp/evil` would silently run that binary as if it were claude. Added `isAllowedClaudeBinPath()` that requires the path to (a) resolve under one of `~/.local/bin`, `~/.nvm`, `~/.bun`, `/usr/local/bin`, `/usr/bin`, `/opt`, `/snap`, and (b) be executable (`fs.accessSync(p, X_OK)`). Untrusted paths fall through to standard discovery rather than failing loudly, so malicious profile env can't even DoS the wrapper.
+
+#### Not fixed in this release (deferred)
+
+- **MEDIUM #5 — synchronous WinHttp call hangs picker UI ≤ 5 s on hostile networks.** The 5-second timeout caps worst-case unresponsiveness; converting to async (`http.Open(..., true)` + `onreadystatechange`) is invasive in HTA and not worth destabilising a working feature for a soft-DoS. Marked as known limitation.
+- **MEDIUM #6 — quote/space injection if `installDir` contains `"` or `&`.** Theoretical; NTFS forbids `"` in paths, so unreachable in practice.
+
+#### Confirmed clean (negative findings)
+
+- ✅ `npm audit` on `kivun-claude-bidi`: 0 vulnerabilities
+- ✅ No hardcoded secrets — `docs/CREDENTIALS.txt` is documentation, not key material
+- ✅ Bash launchers correctly double-quote all user paths
+- ✅ NSIS installer is `RequestExecutionLevel user` (per-user); no DLL search-order hijacking
+- ✅ Linux launcher's `printf %q` hardening of `CLAUDE_FLAGS` is correct
+- ✅ `:ADDENV` regex validates env-var keys before WSLENV propagation
+
+
 ## [1.4.8] - 2026-05-08
 
 ### Doc/version consistency sweep across bundled .txt and .md files

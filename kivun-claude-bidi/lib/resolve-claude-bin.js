@@ -79,8 +79,52 @@ function tryLoginShellLookup(env) {
   }
 }
 
+// SECURITY (v1.4.9, audit #4): KIVUN_CLAUDE_BIN is a manual escape hatch
+// (e.g. for users running Claude from a non-standard install slot), but
+// it's also propagated through the picker's per-profile env-vars feature.
+// A malicious profiles.json could set it to /tmp/evil and we'd silently
+// run that as if it were claude. Restrict to executable files under one
+// of a small set of trusted prefixes (the same slots tryAbsoluteSlots
+// would have considered, plus the user's home — power users who need
+// custom paths can symlink into ~/.local/bin).
+function isAllowedClaudeBinPath(p, env) {
+  if (typeof p !== 'string' || p.length === 0) return false;
+  if (p.indexOf('\0') !== -1) return false;
+  let abs;
+  try {
+    abs = path.resolve(p);
+  } catch (_) { return false; }
+  const home = env.HOME || env.USERPROFILE || '';
+  const allowedPrefixes = [
+    home && path.join(home, '.local', 'bin') + path.sep,
+    home && path.join(home, '.nvm') + path.sep,
+    home && path.join(home, '.bun') + path.sep,
+    '/usr/local/bin/',
+    '/usr/bin/',
+    '/opt/',
+    '/snap/',
+  ].filter(Boolean);
+  let prefixOk = false;
+  for (const pref of allowedPrefixes) {
+    if (abs === pref.replace(/[\\/]$/, '') || abs.indexOf(pref) === 0) {
+      prefixOk = true;
+      break;
+    }
+  }
+  if (!prefixOk) return false;
+  try {
+    fs.accessSync(abs, fs.constants.X_OK);
+  } catch (_) { return false; }
+  return true;
+}
+
 function resolveClaudeBin(env = process.env) {
-  if (env.KIVUN_CLAUDE_BIN) return env.KIVUN_CLAUDE_BIN;
+  if (env.KIVUN_CLAUDE_BIN) {
+    if (isAllowedClaudeBinPath(env.KIVUN_CLAUDE_BIN, env)) return env.KIVUN_CLAUDE_BIN;
+    // Untrusted path — fall through to standard discovery rather than
+    // failing loudly, so a malicious profile env-var can't even DoS the
+    // wrapper. Standard slots are searched next.
+  }
 
   const absolute = tryAbsoluteSlots(env);
   if (absolute) return absolute;
