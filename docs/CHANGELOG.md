@@ -3,6 +3,24 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.8] - 2026-05-08
+
+### Doc/version consistency sweep across bundled .txt and .md files
+
+User feedback: *"the txt has the old version noted, all txt should have the updated txt version number to prevent confusion. every release needs to check consistency for all documents and github notes on read me and release notes."*
+
+- **`docs/CREDENTIALS.txt`** — header bumped from `Kivun Terminal v1.1.1` to `v1.4.8`. Stale since v1.2.0.
+- **`docs/SECURITY.txt`** — header bumped from `Kivun Terminal v1.1.1` to `v1.4.8`. Same drift.
+- **`docs/README.md`** — title bumped `v1.4.3` → `v1.4.8`; the comparison row at line 75 bumped from `Launchpad CLI v2.4.2 | Kivun Terminal v1.4.3` to `v2.6.3 | v1.4.8`; "What's new" section header bumped to v1.4.8 with new bullets summarising v1.4.4–v1.4.7 (collapsible Advanced, sticky `--continue` fix, in-picker update check).
+- **`docs/README_INSTALLATION.md`** — title bumped `v1.4.3` → `v1.4.8`.
+- **`README.md`** — version cachebust query string `cb=v1.4.7` → `v1.4.8` so shields.io re-fetches version + downloads badges.
+- **`payload/folder-picker.hta`** — `FALLBACK_VERSION = "1.4.7"` → `"1.4.8"`.
+
+### Process change
+
+Going forward: every release scans `git ls-files` for stale version refs (any `v1.X.Y` older than the upcoming tag) in `*.txt` and `*.md` files BEFORE the tag is pushed. CI doesn't enforce this yet — it's a manual checklist item until a workflow validates it. The reason this slipped on v1.4.7: I bumped `VERSION` and `docs/CHANGELOG.md` at release time but never grep'd the rest of the tree.
+
+
 ## [1.4.7] - 2026-05-08
 
 ### Bigger collapsed window so the update banner doesn't cause scrollbars
