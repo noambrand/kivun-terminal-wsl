@@ -14,10 +14,10 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen&cb=v1.4.5" alt="Latest release"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen&cb=v1.4.6" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?label=downloads&color=blue&cb=v1.4.5" alt="Total Downloads"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?label=downloads&color=blue&cb=v1.4.6" alt="Total Downloads"></a>
 </p>
 
 <h3 align="center">Real RTL Claude Code terminal. Hebrew, Arabic, Persian, Urdu and 8 more - rendered correctly, on Windows and Linux.</h3>
@@ -57,7 +57,7 @@
 | **Live status bar** (model, context %, usage) | ✅ | ✅ |
 | **Light-blue Kivun theme** | ✅ Windows Terminal | ✅ Konsole |
 | **Right-click "Open with…" on a folder** | ✅ Windows Explorer | ✅ Windows Explorer + Linux file managers |
-| **Named profiles per project** (folder + model + flags + env vars + startup slash-commands) | ❌ | ✅ **🆕 v1.4.0** — chip row at top of picker; per-profile `ANTHROPIC_API_KEY`/`DEBUG`/`MCP_*` propagated via `WSLENV`; masked in preview by default |
+| **Named profiles per project** (folder + model + flags + env vars + startup slash-commands) | ✅ v2.6.0 — chip row at top of picker, click to switch; `ANTHROPIC_API_KEY` etc. masked in preview by default | ✅ **🆕 v1.4.0** — chip row at top of picker; per-profile `ANTHROPIC_API_KEY`/`DEBUG`/`MCP_*` propagated via `WSLENV`; masked in preview by default |
 | **Startup time** | ~2 s | ~6 s |
 | **Install size on Windows** | ~150 MB | ~2 GB (includes Ubuntu + Konsole) |
 | **macOS support** | ✅ | ❌ Deprecated as of v1.2.4 (no Mac terminal handles mixed Hebrew+English — see [`mac/README.md`](mac/README.md)) |

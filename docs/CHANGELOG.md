@@ -3,6 +3,21 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.6] - 2026-05-08
+
+### Update-available banner in the picker + cross-table fix
+
+User feedback after v1.4.5: *"in github the table needs update… בדף html של ה folder picker היה רצוי שיהיה בדיקה האם יש גרסה חדשה זמינה עם כפתור להורדה ועדכון לגרסה האחרונה"* — wanted (a) the comparison table in the README to stay accurate vs the sister Launchpad CLI repo, and (b) the picker to detect when a newer release is available and offer one-click download.
+
+- **`payload/folder-picker.hta`** — new yellow banner at the top of the picker (above the profile chip row) that reads *"🆕 Update available: vX.Y.Z (you have vA.B.C) — release notes — [Download vX.Y.Z]"*. Banner appears only when `compareVersions(latestTag, installed) > 0`. Hidden by default; rendered only after a successful API check. Has a `✕` dismiss button (hides until next launch) and a "release notes" link to the GitHub release page. The `Download` button shells out via `WSHShell.Run` to the asset URL — opens in the user's default browser, which starts downloading `Kivun_Terminal_Setup.exe` immediately.
+- **`payload/folder-picker.hta`** — new helpers: `readInstalledVersion()` (reads `installDir\VERSION`, falls back to a hardcoded `FALLBACK_VERSION = "1.4.6"` if missing — older installs that predate the file write); `compareVersions(a, b)` (numeric tuple compare, handles `1.4.6` vs `1.4.10` correctly); `checkForUpdate()` (synchronous `WinHttp.WinHttpRequest.5.1` GET against `https://api.github.com/repos/noambrand/kivun-terminal-wsl/releases/latest` with 5 s timeouts, picks the asset matching `/^Kivun_Terminal_Setup\.exe$/i`). All errors (offline, GitHub down, rate-limited, antivirus blocking the COM call, malformed JSON) are swallowed silently — the banner just doesn't appear. The check is deferred via `setTimeout(checkForUpdate, 100)` from `init()` so the picker renders before the sync HTTP call blocks the UI thread.
+- **`README.md`** — comparison table at line 60 corrected. Pre-v1.4.6 it claimed Launchpad CLI didn't have named profiles (❌); the sister project shipped them in v2.6.0. Both columns now read `✅` with their respective release tags, keeping the cross-repo comparison honest.
+
+### Why the version-fallback dance
+
+The picker reads `VERSION` from `installDir` to know what's installed. v1.2.x installs predate the `VERSION` file (the `.nsi` started writing it in a later release), so on those machines the file is missing and `readInstalledVersion()` falls back to `FALLBACK_VERSION` baked into the HTA at build time. That's not a true reflection of what's installed (it'll match the picker version, not the original installer version), but it's the best we can do without a registry probe — and on those legacy machines, the picker file is whatever shipped most recently anyway, so the fallback usually agrees with the actual install. v1.4.6+ writes `VERSION` reliably, so this drift only affects the upgrade window.
+
+
 ## [1.4.5] - 2026-05-07
 
 ### Collapse Advanced section in picker + fix sticky `--continue` bug
