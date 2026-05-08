@@ -47,6 +47,8 @@
 <td valign="middle"><a href="#english"><b>English</b></a></td>
 <td valign="middle"><img src="https://flagcdn.com/20x15/il.png" alt="IL" width="20" height="15"></td>
 <td valign="middle"><a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a></td>
+<td valign="middle"><img src="https://flagcdn.com/20x15/ps.png" alt="PS" width="20" height="15"></td>
+<td valign="middle"><a href="README.ar.md"><b>العربية</b></a></td>
 </tr></table>
 
 ## English
