@@ -278,6 +278,13 @@ else
     exit 1
 fi
 
+OPTIMIZER_HELPER="$KT_BIN/kivun-optimizer"
+if [ -f "$SCRIPT_DIR/kivun-optimizer" ]; then
+    cp "$SCRIPT_DIR/kivun-optimizer" "$OPTIMIZER_HELPER"
+    chmod +x "$OPTIMIZER_HELPER"
+    log "Optimizer helper copied to $OPTIMIZER_HELPER"
+fi
+
 # Ensure $HOME/.local/bin is on PATH — add to shell rc if missing
 SHELL_RC="$HOME/.bashrc"
 [ -f "$HOME/.zshrc" ] && SHELL_RC="$HOME/.zshrc"
@@ -372,6 +379,24 @@ CLAUDE_FLAGS=
 # retries on first launch. Set to "off" to fall back to unwrapped claude.
 # Default: on
 KIVUN_BIDI_WRAPPER=on
+
+# =================================================================
+# RTL COST OPTIMIZER (optional prompt compression)
+# =================================================================
+# Converts verbose RTL developer requests into compact English technical
+# prompts before Claude Code receives them. This reduces cost by sending
+# less verbose RTL text into the agent loop; it does not change tokenizer
+# pricing for RTL languages. Default: off
+KIVUN_RTL_COST_OPTIMIZER=off
+KIVUN_RTL_COST_OPTIMIZER_MODE=prompt
+KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW=on
+KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE=on
+KIVUN_RTL_COST_OPTIMIZER_AUDIT=on
+
+# Converts cursor-forward padding on RTL output into literal spaces to work
+# around Konsole 23.x BiDi positioning. If you see strange spaces, run:
+#   kivun-optimizer spaces-off
+KIVUN_BIDI_FLATTEN_COLORS_RTL=on
 CONFIG
     log "Config created at $CONFIG_FILE"
 fi
@@ -582,6 +607,7 @@ log "To launch:"
 log "  * App menu   : search for 'Kivun Terminal'"
 log "  * Desktop    : double-click 'Kivun Terminal.desktop'"
 log "  * Terminal   : kivun-terminal    (after restarting your shell, or: export PATH=\"\$HOME/.local/bin:\$PATH\")"
+log "  * Optimizer  : kivun-optimizer status | on | off | log | spaces-off"
 log "  * Right-click: in Nautilus → Scripts → Open with Kivun Terminal"
 log "                 in Dolphin  → Open with Kivun Terminal"
 log ""

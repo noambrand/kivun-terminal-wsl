@@ -128,6 +128,29 @@ KIVUN_BIDI_DUMP_RAW=off
 
 
 # =================================================================
+# RTL COST OPTIMIZER — optional prompt compression (advanced)
+# =================================================================
+# Converts verbose RTL developer requests into compact English technical
+# prompts before they enter Claude Code's agent loop. This does NOT make
+# RTL languages cheaper at the tokenizer level; it reduces cost by
+# minimizing how much verbose RTL text is sent into the loop.
+# Default: off
+KIVUN_RTL_COST_OPTIMIZER=off
+
+# Current mode: prompt (line-oriented prompt optimization). Default: prompt
+KIVUN_RTL_COST_OPTIMIZER_MODE=prompt
+
+# Show the optimized prompt before it is sent to Claude. Default: on
+KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW=on
+
+# Show the heuristic token estimate before sending. Default: on
+KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE=on
+
+# Write safe optimizer metrics (no prompt text) to optimizer.log. Default: on
+KIVUN_RTL_COST_OPTIMIZER_AUDIT=on
+
+
+# =================================================================
 # REFERENCE: 23 supported languages for RESPONSE_LANGUAGE
 # =================================================================
 #

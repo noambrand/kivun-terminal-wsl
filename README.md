@@ -78,6 +78,7 @@
 </p>
 
 - **🆕 Named profiles (v1.4.0+)** — save folder + model + flags + startup slash-commands + environment variables per project. The chip row at the top of the picker lets you switch between profiles in one click; the active profile is highlighted blue. Per-profile env vars (`ANTHROPIC_API_KEY`, `DEBUG`, custom `MCP_*`, …) are propagated through `WSLENV` on Windows / `export` on Linux so they reach the Claude Code session. Values are masked in the resolved-command preview by default for screenshot safety; click `👁 show values` to reveal.
+- **Optional RTL Cost Optimizer** — off by default. When enabled, verbose Hebrew/Arabic/Persian/Urdu developer requests are locally normalized and compressed into compact English technical prompts before they enter Claude Code's agent loop, with the final summary requested in the user's RTL language. See [`docs/RTL_COST_OPTIMIZER.md`](docs/RTL_COST_OPTIMIZER.md).
 - **Folder picker dialog** on the desktop shortcut (screenshot above) — browse the folder tree **or** type/paste a Windows path, plus inline radio-button model selection (Opus / Sonnet / Haiku), one-click flag chips (Respond in Hebrew, High effort, Auto-accept file edits, Read-only, etc.), and a textarea for startup slash commands like `/voicemode:converse`.
 - **Right-click "Open with Kivun Terminal"** on any folder in File Explorer — launches straight into that folder, skipping the picker.
 - **Live two-line statusline** at the bottom of every Claude Code session — model, context %, total tokens, session duration, and 5-hour / 7-day usage with countdown to reset.
@@ -197,7 +198,24 @@ TEXT_DIRECTION=rtl               # rtl or ltr
 KIVUN_BIDI_WRAPPER=on            # on (default) or off
 FOLDER_PICKER=true               # show the picker dialog from the desktop shortcut
 CLAUDE_FLAGS=                    # default Claude flags applied to every launch
+KIVUN_RTL_COST_OPTIMIZER=off     # optional local RTL prompt compression
 ```
+
+The RTL Cost Optimizer does not make RTL tokenization cheaper; it saves cost by
+sending a shorter English technical prompt into the Claude Code agent loop. Turn
+it on from the picker via **RTL Cost Optimizer**, or set
+`KIVUN_RTL_COST_OPTIMIZER=on` manually. Interactive Claude Code TUI sessions
+skip optimizer replacement to protect terminal rendering; non-interactive
+optimized input writes safe metrics (token estimates only, no prompt text) to
+`~/.local/share/kivun-terminal/optimizer.log` unless
+`KIVUN_RTL_COST_OPTIMIZER_AUDIT=off`. Full operating instructions:
+[`docs/RTL_COST_OPTIMIZER.md`](docs/RTL_COST_OPTIMIZER.md).
+
+On Linux, use `kivun-optimizer status`, `kivun-optimizer on`,
+`kivun-optimizer off`, and `kivun-optimizer log`. If you see extra spaces in
+RTL terminal output, use `kivun-optimizer spaces-off` and restart Kivun. If
+mixed Hebrew/English layout is still poor, use `kivun-optimizer native` to
+disable the wrapper and rely on Konsole's native BiDi engine.
 
 ### Default Claude flags
 

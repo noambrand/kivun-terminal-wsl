@@ -27,6 +27,12 @@ KEYBOARD_TOGGLE="true"
 FOLDER_PICKER="false"
 CLAUDE_FLAGS=""
 KIVUN_BIDI_WRAPPER="on"
+KIVUN_RTL_COST_OPTIMIZER="off"
+KIVUN_RTL_COST_OPTIMIZER_MODE="prompt"
+KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="on"
+KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="on"
+KIVUN_RTL_COST_OPTIMIZER_AUDIT="on"
+KIVUN_BIDI_FLATTEN_COLORS_RTL="on"
 trim() {
     # Pure-bash whitespace trim. Avoids `xargs` which both strips quotes
     # and globs unquoted special characters against the CWD (so a config
@@ -52,10 +58,22 @@ if [ -f "$CONFIG_FILE" ]; then
             FOLDER_PICKER)       FOLDER_PICKER="$value" ;;
             CLAUDE_FLAGS)        CLAUDE_FLAGS="$value" ;;
             KIVUN_BIDI_WRAPPER)  KIVUN_BIDI_WRAPPER="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER)               KIVUN_RTL_COST_OPTIMIZER="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_MODE)          KIVUN_RTL_COST_OPTIMIZER_MODE="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW)  KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE) KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_AUDIT)         KIVUN_RTL_COST_OPTIMIZER_AUDIT="$value" ;;
+            KIVUN_BIDI_FLATTEN_COLORS_RTL)          KIVUN_BIDI_FLATTEN_COLORS_RTL="$value" ;;
         esac
     done < "$CONFIG_FILE"
 fi
-log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER"
+export KIVUN_RTL_COST_OPTIMIZER
+export KIVUN_RTL_COST_OPTIMIZER_MODE
+export KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW
+export KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE
+export KIVUN_RTL_COST_OPTIMIZER_AUDIT
+export KIVUN_BIDI_FLATTEN_COLORS_RTL
+log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER optimizer=$KIVUN_RTL_COST_OPTIMIZER spaces=$KIVUN_BIDI_FLATTEN_COLORS_RTL"
 
 # Decide which binary the tmp launch script will invoke. Wrapper is
 # default-on in v1.1.0. Resolution order:
@@ -77,17 +95,17 @@ ensure_wrapper_installed() {
     local stamp="$dst/node_modules/.kivun-install-stamp"
     if [ ! -f "$stamp" ] || [ "$dst/package.json" -nt "$stamp" ]; then
         if command -v npm >/dev/null 2>&1; then
-            log "Installing wrapper deps (one-time, ~5-15s) — npm install --production"
+            log "Installing wrapper deps (one-time, ~5-15s) — npm install --production" >&2
             (cd "$dst" && npm install --production --no-audit --no-fund) >> "$LOG_FILE" 2>&1
             local rc=$?
             if [ $rc -ne 0 ]; then
-                log "ERROR: npm install failed (rc=$rc); see $LOG_FILE"
+                log "ERROR: npm install failed (rc=$rc); see $LOG_FILE" >&2
                 return 1
             fi
             mkdir -p "$(dirname "$stamp")"
             touch "$stamp"
         else
-            log "ERROR: npm not on PATH; cannot install wrapper deps. Install Node.js + npm and relaunch."
+            log "ERROR: npm not on PATH; cannot install wrapper deps. Install Node.js + npm and relaunch." >&2
             return 1
         fi
     fi

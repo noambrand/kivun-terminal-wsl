@@ -1,0 +1,107 @@
+#!/bin/bash
+# Kivun Terminal optimizer control helper.
+# Usage: kivun-optimizer on|off|start|stop|status|log|spaces-on|spaces-off
+
+set -u
+
+CONFIG_FILE="${KIVUN_CONFIG:-$HOME/.config/kivun-terminal/config.txt}"
+LOG_FILE="${KIVUN_OPTIMIZER_LOG:-$HOME/.local/share/kivun-terminal/optimizer.log}"
+
+mkdir -p "$(dirname "$CONFIG_FILE")" 2>/dev/null || true
+touch "$CONFIG_FILE" 2>/dev/null || true
+
+trim() {
+    local s="$1"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    printf '%s' "$s"
+}
+
+get_key() {
+    local key="$1"
+    local line
+    line=$(grep -E "^[[:space:]]*$key[[:space:]]*=" "$CONFIG_FILE" 2>/dev/null | tail -1 || true)
+    [ -n "$line" ] || return 1
+    trim "${line#*=}"
+}
+
+set_key() {
+    local key="$1"
+    local value="$2"
+    if grep -qE "^[[:space:]]*$key[[:space:]]*=" "$CONFIG_FILE" 2>/dev/null; then
+        sed -i -E "s|^[[:space:]]*$key[[:space:]]*=.*|$key=$value|" "$CONFIG_FILE"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$CONFIG_FILE"
+    fi
+}
+
+status() {
+    echo "Kivun RTL Cost Optimizer"
+    echo "  config:    $CONFIG_FILE"
+    echo "  optimizer: $(get_key KIVUN_RTL_COST_OPTIMIZER || echo off)"
+    echo "  wrapper:   $(get_key KIVUN_BIDI_WRAPPER || echo on)  (BiDi output wrapper)"
+    echo "  audit:     $(get_key KIVUN_RTL_COST_OPTIMIZER_AUDIT || echo on)"
+    echo "  preview:   $(get_key KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW || echo off)"
+    echo "  estimate:  $(get_key KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE || echo off)"
+    echo "  spaces:    $(get_key KIVUN_BIDI_FLATTEN_COLORS_RTL || echo on)  (BiDi cursor-spacing workaround)"
+    echo "  log:       $LOG_FILE"
+    echo "  note:      interactive Claude TUI optimization is disabled; metrics apply to non-interactive/piped input"
+    echo ""
+    echo "Commands:"
+    echo "  kivun-optimizer on          # enable optimizer"
+    echo "  kivun-optimizer off         # disable optimizer"
+    echo "  kivun-optimizer log         # show saved cost metrics"
+    echo "  kivun-optimizer native      # disable wrapper; use Konsole native BiDi"
+    echo "  kivun-optimizer wrapper     # re-enable wrapper BiDi processing"
+    echo "  kivun-optimizer spaces-off  # disable visible-space workaround"
+    echo "  kivun-optimizer spaces-on   # restore visible-space workaround"
+    echo "Restart Kivun Terminal after changing settings."
+}
+
+case "${1:-status}" in
+    on|start)
+        set_key KIVUN_RTL_COST_OPTIMIZER on
+        set_key KIVUN_RTL_COST_OPTIMIZER_MODE prompt
+        # Keep TUI clean; metrics go to optimizer.log instead.
+        set_key KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW off
+        set_key KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE off
+        set_key KIVUN_RTL_COST_OPTIMIZER_AUDIT on
+        echo "Optimizer enabled for non-interactive/piped input. Interactive Claude TUI replacement is disabled to protect rendering. Restart Kivun Terminal."
+        ;;
+    off|stop)
+        set_key KIVUN_RTL_COST_OPTIMIZER off
+        echo "Optimizer disabled. Restart Kivun Terminal."
+        ;;
+    spaces-off)
+        set_key KIVUN_BIDI_FLATTEN_COLORS_RTL off
+        echo "Visible-space workaround disabled. Restart Kivun Terminal."
+        ;;
+    spaces-on)
+        set_key KIVUN_BIDI_FLATTEN_COLORS_RTL on
+        echo "Visible-space workaround enabled. Restart Kivun Terminal."
+        ;;
+    native|wrapper-off|bidi-native)
+        set_key KIVUN_BIDI_WRAPPER off
+        set_key KIVUN_RTL_COST_OPTIMIZER off
+        set_key KIVUN_BIDI_FLATTEN_COLORS_RTL off
+        echo "BiDi wrapper disabled; using Konsole native BiDi. Optimizer disabled because it runs inside the wrapper. Restart Kivun Terminal."
+        ;;
+    wrapper|wrapper-on|bidi-wrapper)
+        set_key KIVUN_BIDI_WRAPPER on
+        echo "BiDi wrapper enabled. Restart Kivun Terminal."
+        ;;
+    log)
+        if [ -f "$LOG_FILE" ]; then
+            tail -20 "$LOG_FILE"
+        else
+            echo "No optimizer log yet: $LOG_FILE"
+        fi
+        ;;
+    status)
+        status
+        ;;
+    *)
+        status
+        exit 2
+        ;;
+esac

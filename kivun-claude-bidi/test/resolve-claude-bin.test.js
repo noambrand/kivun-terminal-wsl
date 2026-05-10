@@ -30,9 +30,21 @@ describe('resolveClaudeBin', () => {
     fs.rmSync(sandbox, { recursive: true, force: true });
   });
 
-  it('honours KIVUN_CLAUDE_BIN env override above all else', () => {
-    const env = { KIVUN_CLAUDE_BIN: '/nope/explicit/claude', HOME: sandbox };
-    assert.equal(resolveClaudeBin(env), '/nope/explicit/claude');
+  it('ignores untrusted KIVUN_CLAUDE_BIN overrides', () => {
+    const env = { KIVUN_CLAUDE_BIN: '/nope/explicit/claude', HOME: sandbox, PATH: '/nonexistent' };
+    assert.equal(resolveClaudeBin(env), 'claude');
+  });
+
+  it('honours trusted executable KIVUN_CLAUDE_BIN overrides', () => {
+    const home = fs.mkdtempSync(path.join(sandbox, 'override-home-'));
+    const binDir = path.join(home, '.local/bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const target = path.join(binDir, 'claude-custom');
+    fs.writeFileSync(target, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(target, 0o755);
+
+    const env = { KIVUN_CLAUDE_BIN: target, HOME: home, PATH: '/nonexistent' };
+    assert.equal(resolveClaudeBin(env), target);
   });
 
   it('returns absolute ~/.local/bin/claude when it exists+executable', () => {

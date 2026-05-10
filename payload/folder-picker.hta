@@ -251,6 +251,56 @@
     padding: 1px 6px;
     border-radius: 3px;
   }
+  .optimizer-card {
+    background: #f4fbff;
+    border: 1px solid #b8daf0;
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .optimizer-card .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .optimizer-card h2 {
+    margin: 0;
+    font-size: 15px;
+    color: #003e6b;
+  }
+  .optimizer-card .switch-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .optimizer-card label { cursor: pointer; }
+  .optimizer-card input { margin-right: 6px; vertical-align: middle; }
+  .optimizer-card .explain {
+    margin-top: 9px;
+    color: #404040;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .optimizer-card .cost-table {
+    margin-top: 8px;
+    border-collapse: collapse;
+    font-size: 11px;
+    width: 100%;
+  }
+  .optimizer-card .cost-table th,
+  .optimizer-card .cost-table td {
+    border: 1px solid #cfe5f3;
+    padding: 5px 7px;
+    text-align: left;
+  }
+  .optimizer-card .cost-table th { background: #e3f3fd; color: #003e6b; }
+  .optimizer-card .status {
+    font-size: 11px;
+    color: #2e7d32;
+    white-space: nowrap;
+  }
   .flag-preview {
     margin-top: 10px;
     padding: 8px 11px;
@@ -410,12 +460,12 @@
   }
 </style>
 <script language="JScript">
-  // Resize to fit all four sections WITHOUT scrolling. We use a generous
-  // 1040x980 baseline and then re-fit to actual content height after
-  // layout settles, so different DPI / font-render heights still get a
-  // scroll-free dialog. Caps at the screen size minus a small margin so
-  // the title bar + Windows taskbar stay visible on small displays.
-  window.resizeTo(1040, 690);
+  // Resize to fit the main sections WITHOUT hiding the optimizer card.
+  // We use a generous baseline and then re-fit to actual content height
+  // after layout settles, so different DPI / font-render heights still
+  // get a readable dialog. Caps at the screen size minus a small margin
+  // so the title bar + Windows taskbar stay visible on small displays.
+  window.resizeTo(1040, 900);
   function autoSizeToContent() {
     try {
       var availW = window.screen.availWidth;
@@ -428,13 +478,13 @@
         // Expanded: size to actual content (capped so we don't overflow
         // off-screen below the taskbar).
         h = Math.min(document.body.scrollHeight + 60, availH - 60);
-        if (h < 690) h = 690;
+        if (h < 900) h = 900;
       } else {
-        // Collapsed: fixed compact height. scrollHeight in HTA is not
-        // always reliable when content is display:none, so we hardcode
-        // instead of measuring. Sized to fit the optional update-banner
-        // without triggering scrollbars.
-        h = 690;
+        // Collapsed: still includes the visible RTL optimizer card, so
+        // measure the actual height instead of using the old compact
+        // pre-optimizer height.
+        h = Math.min(document.body.scrollHeight + 60, availH - 60);
+        if (h < 900) h = 900;
       }
       window.resizeTo(w, h);
       // Center the dialog so the bottom (Launch button + actions) stays
@@ -655,6 +705,63 @@
       return;
     }
     wshShell.Run("notepad.exe \"" + configFile + "\"", 1, false);
+  }
+
+  function readConfigValue(key, fallback) {
+    var content = readUtf8(configFile);
+    if (!content) return fallback;
+    var re = new RegExp("^" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=(.*)$", "m");
+    var match = content.match(re);
+    if (!match) return fallback;
+    return match[1].replace(/^\s+|\s+$/g, "");
+  }
+
+  function writeConfigValue(key, value) {
+    var content = readUtf8(configFile);
+    if (!content) return;
+    var nl = (content.indexOf("\r\n") >= 0) ? "\r\n" : "\n";
+    var safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    var re = new RegExp("^" + safeKey + "=.*$", "m");
+    if (re.test(content)) {
+      content = content.replace(re, key + "=" + value);
+    } else {
+      if (content.length && content.charAt(content.length - 1) !== "\n") content += nl;
+      content += key + "=" + value + nl;
+    }
+    writeUtf8NoBom(configFile, content);
+  }
+
+  function setCheckbox(id, on) {
+    var el = document.getElementById(id);
+    if (el) el.checked = !!on;
+  }
+
+  function loadOptimizerSettings() {
+    setCheckbox("opt-enable", readConfigValue("KIVUN_RTL_COST_OPTIMIZER", "off").toLowerCase() === "on");
+    setCheckbox("opt-preview", readConfigValue("KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW", "on").toLowerCase() === "on");
+    setCheckbox("opt-estimate", readConfigValue("KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE", "on").toLowerCase() === "on");
+    updateOptimizerStatus(false);
+  }
+
+  function saveOptimizerSettings() {
+    clearError();
+    try {
+      writeConfigValue("KIVUN_RTL_COST_OPTIMIZER", document.getElementById("opt-enable").checked ? "on" : "off");
+      writeConfigValue("KIVUN_RTL_COST_OPTIMIZER_MODE", "prompt");
+      writeConfigValue("KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW", document.getElementById("opt-preview").checked ? "on" : "off");
+      writeConfigValue("KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE", document.getElementById("opt-estimate").checked ? "on" : "off");
+      updateOptimizerStatus(true);
+    } catch (e) {
+      showError("Could not save optimizer setting: " + (e.message || e.description || e));
+    }
+  }
+
+  function updateOptimizerStatus(saved) {
+    var s = document.getElementById("optimizer-status");
+    if (!s) return;
+    var enabled = document.getElementById("opt-enable") && document.getElementById("opt-enable").checked;
+    s.innerText = (enabled ? "Optimizer: ON" : "Optimizer: OFF") + (saved ? " — saved" : "");
+    s.style.color = enabled ? "#2e7d32" : "#707070";
   }
 
   // ---- Flag picker ---------------------------------------------------
@@ -1299,6 +1406,8 @@
       var active = getActiveProfile();
       currentDialogProfile = active.name;
       applyProfileToDialog(active);
+      loadOptimizerSettings();
+      autoExpandAdvancedIfDirty();
       autoSizeToContent();
       var p = document.getElementById("path");
       if (p && p.focus) p.focus();
@@ -1341,6 +1450,33 @@
     <button type="button" class="browse" onclick="browseFolder()">Browse Folder Tree...</button>
   </div>
 
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label"><span class="opt-num">3</span> RTL Cost Optimizer:</div>
+    <div class="optimizer-card">
+      <div class="title-row">
+        <h2>Kivun RTL Cost Optimizer</h2>
+        <span id="optimizer-status" class="status">Optimizer: OFF</span>
+      </div>
+      <div class="explain">
+        <b>What it does:</b> lets Hebrew, Arabic, Persian, Urdu and other RTL users write naturally, then locally converts verbose RTL developer requests into compact English technical prompts before Claude Code receives them.<br />
+        <b>What it does not do:</b> it does not make RTL tokenization cheaper. It saves cost by sending less verbose RTL text into the Claude Code agent loop.<br />
+        <b>Rule of thumb:</b> raw RTL prose is often about 1.4x-2x English. The optimizer can be worse for very short prompts, near break-even for medium prompts, and save about 40%-70% on long verbose RTL prompts.
+      </div>
+      <table class="cost-table" cellspacing="0" cellpadding="0">
+        <tr><th>Prompt type</th><th>Recommended setting</th><th>Why</th></tr>
+        <tr><td>1 short sentence</td><td>Off</td><td>Safety-template overhead can exceed savings.</td></tr>
+        <tr><td>2-4 sentences</td><td>Maybe</td><td>Usually close to break-even.</td></tr>
+        <tr><td>Long RTL task description</td><td>On</td><td>Compression usually beats overhead.</td></tr>
+      </table>
+      <div class="switch-row">
+        <label><input type="checkbox" id="opt-enable" onclick="saveOptimizerSettings()" /> Enable optimizer</label>
+        <label><input type="checkbox" id="opt-preview" onclick="saveOptimizerSettings()" /> Show optimized prompt preview</label>
+        <label><input type="checkbox" id="opt-estimate" onclick="saveOptimizerSettings()" /> Show token estimate</label>
+      </div>
+      <div class="flag-help">Saved immediately to config.txt. Restart/relaunch Kivun Terminal after changing this setting.</div>
+    </div>
+  </div>
+
   <button type="button" id="advanced-toggle" class="advanced-toggle" title="Click to expand: model, conversation flags, startup slash commands, environment variables" onclick="toggleAdvanced()">
     <span class="arrow">▶</span>
     <span>Advanced options</span>
@@ -1349,7 +1485,7 @@
   <div id="advanced-body" class="advanced-body">
 
   <div class="option" style="margin-top:12px">
-    <div class="opt-label"><span class="opt-num">3</span> Claude flags (optional):</div>
+    <div class="opt-label"><span class="opt-num">4</span> Claude flags (optional):</div>
     <div class="flag-grid">
 
       <div class="lbl">Model:</div>
@@ -1398,14 +1534,14 @@
   </div>
 
   <div class="option" style="margin-top:12px">
-    <div class="opt-label"><span class="opt-num">4</span> Startup slash commands (optional):</div>
+    <div class="opt-label"><span class="opt-num">5</span> Startup slash commands (optional):</div>
     <textarea id="startup-cmds" rows="3" onkeyup="updateFlagPreview()" placeholder="One per line, e.g.&#10;/voicemode:converse&#10;/model opus"></textarea>
     <div class="flag-help">Each line is typed into Claude after the session opens. Use this to auto-launch voice mode, switch to a specific model, etc. Leave empty for normal launch.</div>
   </div>
 
   <div class="option" style="margin-top:12px">
     <div class="opt-label">
-      <span class="opt-num">5</span> Environment variables (optional):
+      <span class="opt-num">6</span> Environment variables (optional):
       <button type="button" id="mask-toggle" style="margin-left:auto; padding:4px 10px; font-size:11px; min-width:0;" onclick="toggleMaskEnv()" title="Toggle whether env-var values are shown in the preview below. Values are always masked by default — click to reveal.">👁 show values</button>
     </div>
     <div class="env-row">

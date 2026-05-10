@@ -490,6 +490,54 @@ fi
 export KIVUN_BIDI_DUMP_RAW
 log "INFO - KIVUN_BIDI_DUMP_RAW=$KIVUN_BIDI_DUMP_RAW"
 
+# Optional RTL cost optimizer. Default OFF: users opt in explicitly.
+# The wrapper performs the transformation locally before forwarding a
+# completed prompt line to Claude. No text is sent to external services.
+KIVUN_RTL_COST_OPTIMIZER="off"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER
+log "INFO - KIVUN_RTL_COST_OPTIMIZER=$KIVUN_RTL_COST_OPTIMIZER"
+
+KIVUN_RTL_COST_OPTIMIZER_MODE="prompt"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_MODE[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_MODE[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_MODE="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_MODE
+log "INFO - KIVUN_RTL_COST_OPTIMIZER_MODE=$KIVUN_RTL_COST_OPTIMIZER_MODE"
+
+KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW
+log "INFO - KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW=$KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW"
+
+KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE
+log "INFO - KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE=$KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE"
+
+KIVUN_RTL_COST_OPTIMIZER_AUDIT="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_AUDIT[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_AUDIT[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_AUDIT="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_AUDIT
+log "INFO - KIVUN_RTL_COST_OPTIMIZER_AUDIT=$KIVUN_RTL_COST_OPTIMIZER_AUDIT"
+
 # Flatten ANSI SGR (color/style) sequences inside RTL lines. ON by default
 # (v1.1.10). Konsole 23.x's BiDi only spans continuous-attribute regions;
 # any color change splits the run and Qt mis-positions the resulting LTR
