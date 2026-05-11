@@ -233,16 +233,29 @@ if [ "$KEYBOARD_TOGGLE" = "true" ] && [ -n "${DISPLAY:-}" ] && command -v setxkb
 fi
 
 # --- Build language prompt for Claude ---
-# Shared map lives at ~/.local/share/kivun-terminal/languages.sh — one
-# source of truth across Linux + macOS. If sourcing fails (deleted file,
-# older install), fall through with LANG_PROMPT="" and Claude runs in
-# English — no user-visible crash.
+# Shared map normally lives at ~/.local/share/kivun-terminal/languages.sh.
+# When running directly from a source checkout during local testing, fall
+# back to ../payload/languages.sh so a missing installed map does not
+# silently drop the Hebrew/RTL-safe prompt.
 LANG_PROMPT=""
-LANG_MAP="$HOME/.local/share/kivun-terminal/languages.sh"
-if [ -f "$LANG_MAP" ]; then
+SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd || printf '%s' '')"
+LANG_MAP=""
+for candidate in \
+    "$HOME/.local/share/kivun-terminal/languages.sh" \
+    "$SOURCE_DIR/../payload/languages.sh" \
+    "$SOURCE_DIR/payload/languages.sh"
+do
+    if [ -f "$candidate" ]; then
+        LANG_MAP="$candidate"
+        break
+    fi
+done
+if [ -n "$LANG_MAP" ]; then
     # shellcheck disable=SC1090
     . "$LANG_MAP"
     LANG_PROMPT=$(kivun_lang_prompt "$RESPONSE_LANGUAGE")
+else
+    log "WARNING: language prompt map not found; Claude will not receive localized response instructions"
 fi
 
 # Note: we intentionally do NOT kill the user's existing Konsole windows.
