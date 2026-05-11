@@ -1,6 +1,6 @@
 #!/bin/bash
 # Kivun Terminal optimizer control helper.
-# Usage: kivun-optimizer on|off|start|stop|status|log|spaces-on|spaces-off
+# Usage: kivun-optimizer on|off|start|stop|status|log|native|rtl|spaces-on|spaces-off
 
 set -u
 
@@ -40,6 +40,7 @@ status() {
     echo "  config:    $CONFIG_FILE"
     echo "  optimizer: $(get_key KIVUN_RTL_COST_OPTIMIZER || echo off)"
     echo "  wrapper:   $(get_key KIVUN_BIDI_WRAPPER || echo on)  (BiDi output wrapper)"
+    echo "  strip:     $(get_key KIVUN_BIDI_STRIP_BULLET || echo on)  (remove LTR-leading bullets on Hebrew lines)"
     echo "  audit:     $(get_key KIVUN_RTL_COST_OPTIMIZER_AUDIT || echo on)"
     echo "  preview:   $(get_key KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW || echo off)"
     echo "  estimate:  $(get_key KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE || echo off)"
@@ -51,6 +52,7 @@ status() {
     echo "  kivun-optimizer on          # enable optimizer"
     echo "  kivun-optimizer off         # disable optimizer"
     echo "  kivun-optimizer log         # show saved cost metrics"
+    echo "  kivun-optimizer rtl         # best RTL rendering: wrapper on, optimizer off, spaces off"
     echo "  kivun-optimizer native      # disable wrapper; use Konsole native BiDi"
     echo "  kivun-optimizer wrapper     # re-enable wrapper BiDi processing"
     echo "  kivun-optimizer spaces-off  # disable visible-space workaround"
@@ -85,6 +87,16 @@ case "${1:-status}" in
         set_key KIVUN_RTL_COST_OPTIMIZER off
         set_key KIVUN_BIDI_FLATTEN_COLORS_RTL off
         echo "BiDi wrapper disabled; using Konsole native BiDi. Optimizer disabled because it runs inside the wrapper. Restart Kivun Terminal."
+        ;;
+    rtl|best|bidi-best)
+        set_key TEXT_DIRECTION rtl
+        set_key KIVUN_BIDI_WRAPPER on
+        set_key KIVUN_RTL_COST_OPTIMIZER off
+        set_key KIVUN_BIDI_FLATTEN_COLORS_RTL off
+        set_key KIVUN_BIDI_STRIP_BULLET on
+        set_key KIVUN_BIDI_STRIP_INCOMING auto
+        set_key KIVUN_BIDI_BRACKET_RTL_RUNS off
+        echo "Best RTL rendering mode enabled: wrapper on, optimizer off, visible-space workaround off. Restart Kivun Terminal."
         ;;
     wrapper|wrapper-on|bidi-wrapper)
         set_key KIVUN_BIDI_WRAPPER on

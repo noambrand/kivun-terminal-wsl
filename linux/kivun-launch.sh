@@ -32,7 +32,11 @@ KIVUN_RTL_COST_OPTIMIZER_MODE="prompt"
 KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="on"
 KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="on"
 KIVUN_RTL_COST_OPTIMIZER_AUDIT="on"
+KIVUN_BIDI_STRIP_BULLET="on"
+KIVUN_BIDI_STRIP_INCOMING="auto"
 KIVUN_BIDI_FLATTEN_COLORS_RTL="on"
+KIVUN_BIDI_BRACKET_RTL_RUNS="off"
+KIVUN_BIDI_DUMP_RAW="off"
 trim() {
     # Pure-bash whitespace trim. Avoids `xargs` which both strips quotes
     # and globs unquoted special characters against the CWD (so a config
@@ -63,7 +67,11 @@ if [ -f "$CONFIG_FILE" ]; then
             KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW)  KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="$value" ;;
             KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE) KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="$value" ;;
             KIVUN_RTL_COST_OPTIMIZER_AUDIT)         KIVUN_RTL_COST_OPTIMIZER_AUDIT="$value" ;;
+            KIVUN_BIDI_STRIP_BULLET)                KIVUN_BIDI_STRIP_BULLET="$value" ;;
+            KIVUN_BIDI_STRIP_INCOMING)              KIVUN_BIDI_STRIP_INCOMING="$value" ;;
             KIVUN_BIDI_FLATTEN_COLORS_RTL)          KIVUN_BIDI_FLATTEN_COLORS_RTL="$value" ;;
+            KIVUN_BIDI_BRACKET_RTL_RUNS)            KIVUN_BIDI_BRACKET_RTL_RUNS="$value" ;;
+            KIVUN_BIDI_DUMP_RAW)                    KIVUN_BIDI_DUMP_RAW="$value" ;;
         esac
     done < "$CONFIG_FILE"
 fi
@@ -72,8 +80,13 @@ export KIVUN_RTL_COST_OPTIMIZER_MODE
 export KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW
 export KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE
 export KIVUN_RTL_COST_OPTIMIZER_AUDIT
+export KIVUN_BIDI_STRIP_BULLET
+export KIVUN_BIDI_STRIP_INCOMING
 export KIVUN_BIDI_FLATTEN_COLORS_RTL
+export KIVUN_BIDI_BRACKET_RTL_RUNS
+export KIVUN_BIDI_DUMP_RAW
 log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER optimizer=$KIVUN_RTL_COST_OPTIMIZER spaces=$KIVUN_BIDI_FLATTEN_COLORS_RTL"
+log "BiDi tuning: strip_bullet=$KIVUN_BIDI_STRIP_BULLET strip_incoming=$KIVUN_BIDI_STRIP_INCOMING bracket_rtl_runs=$KIVUN_BIDI_BRACKET_RTL_RUNS dump_raw=$KIVUN_BIDI_DUMP_RAW"
 
 # Decide which binary the tmp launch script will invoke. Wrapper is
 # default-on in v1.1.0. Resolution order:
@@ -291,6 +304,16 @@ ENV_FILE="$CACHE_DIR/launch-env.sh"
     printf 'LANG_PROMPT=%q\n'   "$LANG_PROMPT"
     printf 'CLAUDE_FLAGS=%q\n'  "$CLAUDE_FLAGS"
     printf 'CLAUDE_EXEC=%q\n'   "$CLAUDE_EXEC"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER=%q\n'               "$KIVUN_RTL_COST_OPTIMIZER"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_MODE=%q\n'          "$KIVUN_RTL_COST_OPTIMIZER_MODE"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW=%q\n'  "$KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE=%q\n' "$KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_AUDIT=%q\n'         "$KIVUN_RTL_COST_OPTIMIZER_AUDIT"
+    printf 'export KIVUN_BIDI_STRIP_BULLET=%q\n'                "$KIVUN_BIDI_STRIP_BULLET"
+    printf 'export KIVUN_BIDI_STRIP_INCOMING=%q\n'              "$KIVUN_BIDI_STRIP_INCOMING"
+    printf 'export KIVUN_BIDI_FLATTEN_COLORS_RTL=%q\n'          "$KIVUN_BIDI_FLATTEN_COLORS_RTL"
+    printf 'export KIVUN_BIDI_BRACKET_RTL_RUNS=%q\n'            "$KIVUN_BIDI_BRACKET_RTL_RUNS"
+    printf 'export KIVUN_BIDI_DUMP_RAW=%q\n'                    "$KIVUN_BIDI_DUMP_RAW"
 } > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
