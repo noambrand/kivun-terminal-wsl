@@ -7,6 +7,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { StringDecoder } = require('node:string_decoder');
 const pty = require('node-pty');
 const { Injector } = require('./injector');
 const { resolveClaudeBin } = require('./resolve-claude-bin');
@@ -76,9 +77,11 @@ function run(args, env = process.env) {
     process.stderr.write('kivun-claude-bidi: RTL cost optimizer enabled (prompt mode).\n');
   }
 
+  const stdinDecoder = stdinOptimizer ? null : new StringDecoder('utf8');
   const onStdin = (chunk) => {
     if (!stdinOptimizer) {
-      child.write(chunk);
+      const text = stdinDecoder.write(chunk);
+      if (text) child.write(text);
       return;
     }
     const result = stdinOptimizer.write(chunk);
@@ -116,6 +119,9 @@ function run(args, env = process.env) {
       const pendingInput = stdinOptimizer.end();
       if (pendingInput.notice && optimizerNoticeToStderr) process.stderr.write(pendingInput.notice);
       if (optimizerAudit && pendingInput.audit) writeOptimizerAudit(pendingInput.audit, env);
+    } else if (stdinDecoder) {
+      const pendingInput = stdinDecoder.end();
+      if (pendingInput) child.write(pendingInput);
     }
 
     stdin.off('data', onStdin);
