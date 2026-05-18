@@ -1,4 +1,4 @@
-# Kivun Terminal v1.4.8
+# Kivun Terminal v1.4.10
 
 [![Latest release](https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
@@ -72,7 +72,7 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 ### How it's different from the LTR sister project
 
-| | Launchpad CLI v2.6.3 | Kivun Terminal v1.4.8 |
+| | Launchpad CLI v2.6.5 | Kivun Terminal v1.4.10 |
 |---|---|---|
 | **Runtime** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
 | **RTL/BiDi rendering** | LTR only | Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
@@ -84,8 +84,9 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
 
-### What's new in v1.4.8
+### What's new in v1.4.10
 
+- **Statusline shows reasoning effort level (v1.4.10).** The bottom-of-session statusline now renders `effort:<level>` (low/medium/high/max) in magenta on line 1, right after the model name, whenever an effort override is active. Three resolution sources are tried in order: the JSON Claude Code pipes in (forward-compat for [Anthropic issue #40261](https://github.com/anthropics/claude-code/issues/40261)), `CLAUDE_CODE_EFFORT_LEVEL` env var, then `effortLevel` in `~/.claude/settings.json`. Hidden if nothing resolves. Three opt-in extras — session cost (`KIVUN_SL_COST=1`), cache tokens (`KIVUN_SL_CACHE=1`), and tokens/minute (`KIVUN_SL_TPM=1`) — stay off by default so the bar stays clean. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for the env-var reference.
 - **In-picker update check (v1.4.6+).** The folder picker now hits the GitHub Releases API on launch and shows a yellow *"🆕 Update available"* banner with a one-click `Download` button when newer than the installed `VERSION`. Errors (offline, GitHub down, antivirus) are swallowed silently — the banner just doesn't appear.
 - **Collapsible Advanced section in the picker (v1.4.4+).** Model / flags / startup-cmds / env-vars now hide behind a single `Advanced options` toggle, so first-time users see only folder selection. Window opens at 690 px and grows to fit content when expanded.
 - **Sticky `--continue` fix (v1.4.4+).** Picking *Continue last* in the picker no longer writes `--continue` into `config.txt`'s `CLAUDE_FLAGS` line; that bug used to crash right-click *Open with Kivun Terminal* launches on folders with no prior session ("No conversation found to continue").

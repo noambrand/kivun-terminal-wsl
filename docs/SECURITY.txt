@@ -1,5 +1,5 @@
-Kivun Terminal v1.4.8 - Security Notes
-======================================
+Kivun Terminal v1.4.10 - Security Notes
+=======================================
 
 UBUNTU CREDENTIALS
 ------------------

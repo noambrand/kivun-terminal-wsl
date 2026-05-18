@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.9.0"
+VIProductVersion "1.4.10.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.9.0"
+VIAddVersionKey "FileVersion" "1.4.10.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
