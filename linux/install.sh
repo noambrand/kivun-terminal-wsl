@@ -21,15 +21,24 @@ PAYLOAD_DIR="$(cd "$SCRIPT_DIR/../payload" 2>/dev/null && pwd || echo "$SCRIPT_D
 log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 err() { echo "[$(date '+%H:%M:%S')] ERROR: $1" | tee -a "$LOG_FILE" >&2; }
 
+# CI=1 — non-interactive container mode used by .github/workflows/build-linux.yml
+# fedora:40 verify-install job. Containers boot as root with $USER unset; we
+# (a) provide an $USER fallback so `set -u` doesn't crash here, (b) allow
+# running as root (the container is single-user, $HOME=/root is fine for the
+# user-file deploy assertions), and (c) skip the interactive sudo prompt
+# downstream. End-user installs (CI unset) keep the original guardrails.
+CI_MODE="${CI:-}"
+
 log "=== Kivun Terminal Linux Installer ==="
-log "User: $USER | Home: $HOME"
+log "User: ${USER:-$(id -un 2>/dev/null || echo unknown)} | Home: $HOME"
 log "Distro: $(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
 log "Arch: $(uname -m)"
 
 # Refuse to run as root — we need $HOME to be the user's real home so the
 # Konsole profile and config files land in the right place. Use sudo only
 # for the package-manager step (handled internally below).
-if [ "$(id -u)" -eq 0 ]; then
+# In CI mode the container *is* root by default; allow it there.
+if [ -z "$CI_MODE" ] && [ "$(id -u)" -eq 0 ]; then
     err "Do not run this installer as root. Run as your normal user; sudo will be requested for package installation."
     exit 1
 fi
@@ -47,18 +56,25 @@ fi
 log "Package manager: $PKG_MGR"
 
 # --- Prompt for sudo upfront so later calls don't keep asking ---
-log "Requesting sudo for package installation..."
-if ! sudo -v; then
-    err "sudo failed. Cannot install system packages."
-    exit 1
+# In CI containers we're already root; sudo prompt + keepalive are pointless
+# (and the prompt blocks on a non-interactive runner). Skip cleanly.
+if [ -n "$CI_MODE" ]; then
+    log "CI mode: skipping sudo prompt + keepalive (assumed root or passwordless)"
+    SUDO_KEEPALIVE_PID=""
+else
+    log "Requesting sudo for package installation..."
+    if ! sudo -v; then
+        err "sudo failed. Cannot install system packages."
+        exit 1
+    fi
+    # Keep sudo alive in the background while this script runs.
+    # Check parent-alive BEFORE sleeping so a script that exits in the first
+    # 60s doesn't leave a keepalive spinning for another ~60s. (SIGKILL of
+    # the parent is still uncatchable — the keepalive ends on the next wake.)
+    ( while kill -0 "$$" 2>/dev/null; do sudo -n true; sleep 60; done ) 2>/dev/null &
+    SUDO_KEEPALIVE_PID=$!
 fi
-# Keep sudo alive in the background while this script runs.
-# Check parent-alive BEFORE sleeping so a script that exits in the first
-# 60s doesn't leave a keepalive spinning for another ~60s. (SIGKILL of
-# the parent is still uncatchable — the keepalive ends on the next wake.)
-( while kill -0 "$$" 2>/dev/null; do sudo -n true; sleep 60; done ) 2>/dev/null &
-SUDO_KEEPALIVE_PID=$!
-trap 'kill $SUDO_KEEPALIVE_PID 2>/dev/null || true' EXIT
+trap '[ -n "${SUDO_KEEPALIVE_PID:-}" ] && kill $SUDO_KEEPALIVE_PID 2>/dev/null || true' EXIT
 
 install_pkgs() {
     case "$PKG_MGR" in
