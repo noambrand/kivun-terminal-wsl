@@ -1,11 +1,11 @@
-; Kivun Terminal v1.4.11 - Professional Installer
+; Kivun Terminal v1.4.12 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.11"
+!define PRODUCT_VERSION "1.4.12"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.11.0"
+VIProductVersion "1.4.12.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.11.0"
+VIAddVersionKey "FileVersion" "1.4.12.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -312,7 +312,13 @@ SectionEnd
 Section "Claude Code CLI" SEC_CLAUDE
   SectionIn RO
   DetailPrint "Checking for Claude Code in Ubuntu..."
-  nsExec::Exec 'wsl -d Ubuntu -- bash -lc "command -v claude"'
+  ; Detect a NATIVE Linux claude only. WSL appends the Windows PATH, so a
+  ; plain `command -v claude` matches a Windows npm install at
+  ; /mnt/c/.../npm/claude — which made the installer skip the native
+  ; install for any user who also has Claude on Windows, leaving the
+  ; launcher to drive the Windows binary (TUI opens then dies). Rejecting
+  ; /mnt/* paths mirrors resolve-claude-bin.js, which prefers native slots.
+  nsExec::Exec 'wsl -d Ubuntu -- bash -lc "command -v claude | grep -q -v ^/mnt/"'
   Pop $0
   ${If} $0 != 0
     DetailPrint "Installing Claude Code CLI via official installer (~1-2 minutes)..."
@@ -322,9 +328,14 @@ Section "Claude Code CLI" SEC_CLAUDE
     ; the system in a half-configured state. Download-then-run also means
     ; if curl fails we can tell (via `[ -s file ]`), instead of tee
     ; returning success while curl silently died.
-    ; Run as root to avoid sudo TTY hang; log all output to file so
-    ; nsExec doesn't deadlock on pipe buffers.
-    nsExec::Exec 'wsl -d Ubuntu -u root -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""'
+    ; Run as the DEFAULT WSL user (NOT root). The official installer drops
+    ; claude in $HOME/.local/bin of whoever runs it — as root that's
+    ; /root/.local/bin, which the normal launcher user cannot execute, so
+    ; the native install was effectively invisible. install.sh needs no
+    ; root (it writes only to the user's home), and this matches the
+    ; launcher's own runtime install step in kivun-terminal.bat. Log all
+    ; output to file so nsExec doesn't deadlock on pipe buffers.
+    nsExec::Exec 'wsl -d Ubuntu -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""'
     Pop $0
     ${If} $0 != 0
       DetailPrint "Installer script failed, trying npm fallback (~2-3 minutes)..."

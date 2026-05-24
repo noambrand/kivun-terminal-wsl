@@ -270,8 +270,11 @@ wsl -d Ubuntu -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/
 if %ERRORLEVEL% EQU 0 goto :claude_present
 REM Standard slots empty -- ask a login shell to actively discover.
 REM bash -lc sources .profile/.bashrc so nvm/pnpm/yarn paths are
-REM visible. The 5-second timeout is a guard against hung rc files.
-wsl -d Ubuntu -- bash -lc "command -v claude" < nul 2>&1 >> "%LOG_FILE%"
+REM visible. `grep -q -v ^/mnt/` rejects a Windows npm claude reached
+REM through the appended Windows PATH (/mnt/c/.../npm/claude) -- not a
+REM runnable native Linux binary; accepting it made the launcher skip
+REM the native install and then drive the Windows binary (TUI dies).
+wsl -d Ubuntu -- bash -lc "command -v claude | grep -q -v ^/mnt/" < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 (
     call :LOG "INFO - Claude found via login-shell PATH (non-standard install location)"
     goto :claude_present

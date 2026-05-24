@@ -3,6 +3,20 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.12] - 2026-05-24
+
+### Fixed — native Linux Claude no longer skipped when a Windows Claude is on PATH
+
+WSL appends the Windows PATH, so a user who has Claude installed on Windows (npm: `/mnt/c/Users/<name>/AppData/Roaming/npm/claude`) had that binary show up in `command -v claude` inside Ubuntu. Both the installer and the launcher treated that as "Claude is installed" and **skipped installing the native Linux Claude** — after which the launcher drove the Windows binary through WSL. That can open Konsole but fail to render the interactive TUI (terminal opens, Claude never appears). Reported on a real machine where Claude resolved to the Windows npm path.
+
+Aligned all three Claude-detection sites to **native-only** (reject `/mnt/*`), matching what `kivun-claude-bidi/lib/resolve-claude-bin.js` already does:
+
+- **`installer/Kivun_Terminal_Setup.nsi` (`SEC_CLAUDE`) detection** — `command -v claude` → `command -v claude | grep -q -v ^/mnt/`. A Windows-only Claude no longer counts; native install proceeds.
+- **`installer/Kivun_Terminal_Setup.nsi` (`SEC_CLAUDE`) install** — dropped `-u root`. The official installer writes to `$HOME/.local/bin`; as root that was `/root/.local/bin`, unusable by the normal launcher user. Now runs as the default user (matching the launcher's own runtime install), landing Claude in a slot the resolver checks. The npm fallback still installs system-wide.
+- **`payload/kivun-terminal.bat` presence gate** — the login-shell fallback `command -v claude` likewise now rejects `/mnt/*`, so the runtime safety-net install isn't skipped by a Windows Claude.
+
+No behavior change for users who already have a native Linux Claude (`~/.local/bin`, `/usr/local/bin`, `/usr/bin`) — those are detected first, exactly as before.
+
 ## [1.4.11] - 2026-05-24
 
 ### Fixed — desktop shortcut + right-click no longer lost on a partial install
