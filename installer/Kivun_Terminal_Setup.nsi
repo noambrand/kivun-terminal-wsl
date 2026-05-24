@@ -1,11 +1,11 @@
-; Kivun Terminal v1.2.4 - Professional Installer
+; Kivun Terminal v1.4.11 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.2.4"
+!define PRODUCT_VERSION "1.4.11"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.10.0"
+VIProductVersion "1.4.11.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.10.0"
+VIAddVersionKey "FileVersion" "1.4.11.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -59,8 +59,10 @@ VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 !define MUI_FINISHPAGE_TEXT "${PRODUCT_NAME} v${PRODUCT_VERSION} has been installed successfully.$\r$\n$\r$\nLaunch it from the desktop shortcut or right-click any folder and choose $\"Open with Kivun Terminal$\".$\r$\n$\r$\nYou will need a Claude Pro/Max subscription or an Anthropic API key.$\r$\nGet one at: https://console.anthropic.com/"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\kivun-terminal.bat"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch Kivun Terminal now"
+!define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\README.md"
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "View Quick Start Guide"
+!define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -133,6 +135,36 @@ Section "Core Files" SEC_CORE
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KivunTerminal" "UninstallString" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KivunTerminal" "DisplayIcon" "$INSTDIR\kivun_icon.ico"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KivunTerminal" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
+SectionEnd
+
+; Shortcuts + right-click are created HERE — immediately after Core and
+; BEFORE the WSL/Konsole/Claude sections. Those later sections can Abort
+; (apt failure, ~300MB Konsole download, user Cancel), and NSIS stops the
+; whole install on Abort. When these sections lived at the end (pre-v1.2.5
+; ordering), an abort meant the desktop shortcut and right-click menu were
+; never created — the user's exact symptom. They only touch local files
+; ($INSTDIR\kivun-terminal.bat + icon, both written by Core above) and
+; HKCU, so they can't fail and are safe to run early.
+Section "Desktop Shortcut" SEC_SHORTCUT
+  ; SetShellVarContext current was set in Core and persists across sections,
+  ; so $DESKTOP / $SMPROGRAMS resolve to the invoking user's folders.
+  CreateShortcut "$DESKTOP\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
+  CreateShortcut "$SMPROGRAMS\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
+SectionEnd
+
+; Default-ON (no /o). The welcome page advertises "right-click folder
+; integration" as a headline feature; shipping it unchecked meant most
+; users never got the "Open with Kivun Terminal" menu they were promised.
+Section "Right-Click Menu Integration" SEC_RCLICK
+  ; Add "Open with Kivun Terminal" to folder context menu
+  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal" "" "Open with Kivun Terminal"
+  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal" "Icon" "$INSTDIR\kivun_icon.ico"
+  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal\command" "" '"$INSTDIR\kivun-terminal.bat" "%1"'
+
+  ; Add to background of folder (right-click inside a folder)
+  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal" "" "Open with Kivun Terminal"
+  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal" "Icon" "$INSTDIR\kivun_icon.ico"
+  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal\command" "" '"$INSTDIR\kivun-terminal.bat" "%V"'
 SectionEnd
 
 Section "WSL2 + Ubuntu" SEC_WSL
@@ -350,31 +382,6 @@ Section /o "Open VcXsrv download page (optional, manual install)" SEC_VCXSRV
   ExecShell "open" "https://sourceforge.net/projects/vcxsrv/"
   MessageBox MB_ICONINFORMATION "VcXsrv was not found on this system.$\r$\n$\r$\nTo enable Alt+Shift keyboard-layout switching inside Konsole, install VcXsrv from the page that just opened, then set USE_VCXSRV=true in $INSTDIR\config.txt.$\r$\n$\r$\nThis step is optional — if you skip it, Kivun Terminal falls back to WSLg (Alt+Shift will not work but everything else does)."
   vcxsrv_done:
-SectionEnd
-
-Section "Desktop Shortcut" SEC_SHORTCUT
-  CreateShortcut "$DESKTOP\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
-  CreateShortcut "$SMPROGRAMS\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
-
-  ; v1.2.9 added a standalone "Edit Kivun Terminal Config" Start Menu
-  ; shortcut. v1.3.0 removes it: the same capability is now an "Edit
-  ; Default Flags…" button INSIDE the folder-picker HTA dialog, which
-  ; matches the user's original ask ("a button on the browse to get
-  ; there"). Two entry points to the same Notepad-on-config flow was
-  ; redundant and created confusion ("Notepad opens immediately before
-  ; the user picks a folder").
-SectionEnd
-
-Section /o "Right-Click Menu Integration" SEC_RCLICK
-  ; Add "Open with Kivun Terminal" to folder context menu
-  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal" "" "Open with Kivun Terminal"
-  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal" "Icon" "$INSTDIR\kivun_icon.ico"
-  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal\command" "" '"$INSTDIR\kivun-terminal.bat" "%1"'
-
-  ; Add to background of folder (right-click inside a folder)
-  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal" "" "Open with Kivun Terminal"
-  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal" "Icon" "$INSTDIR\kivun_icon.ico"
-  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal\command" "" '"$INSTDIR\kivun-terminal.bat" "%V"'
 SectionEnd
 
 ; Section descriptions for components page

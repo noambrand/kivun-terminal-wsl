@@ -3,6 +3,27 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.11] - 2026-05-24
+
+### Fixed — desktop shortcut + right-click no longer lost on a partial install
+
+A user on a fresh install reported the desktop icon appeared but the "Open with Kivun Terminal" folder right-click menu did not. Two root causes in `installer/Kivun_Terminal_Setup.nsi`:
+
+- **Section ordering.** `SEC_SHORTCUT` and `SEC_RCLICK` ran *last*, after the `SEC_WSL` / `SEC_KONSOLE` (~300 MB Konsole download) / `SEC_CLAUDE` sections. Any `Abort` in those (apt failure, user clicks Cancel, no internet) stopped the whole install before the shortcut/right-click sections ever ran. Moved both to run **immediately after `SEC_CORE`** and before the failure-prone sections. They only touch local files (already written by Core) and HKCU, so they can't fail.
+- **Right-click was opt-in.** `SEC_RCLICK` was marked `/o` (unchecked by default), so users who didn't tick it on the components page never got the context menu the welcome page advertises as a headline feature. Now **default-on**.
+
+### Fixed — installer version label stuck at 1.2.4
+
+`PRODUCT_VERSION` was hardcoded `"1.2.4"` in the `.nsi` while `VERSION` had advanced to 1.4.10. CI builds with `makensis` and does **not** inject the version, so every release since 1.2.4 shipped an installer that labeled itself "Kivun Terminal v1.2.4" (welcome page, Add/Remove Programs, finish page). Synced `PRODUCT_VERSION`, `VIProductVersion`, and `FileVersion` to the real version, and bumped the current-version header stamps in `docs/` (CREDENTIALS, SECURITY, README, README_INSTALLATION, TROUBLESHOOTING).
+
+### Changed — finish-page checkboxes default to unchecked
+
+"Launch Kivun Terminal now" and "View Quick Start Guide" on the finish page are now **unchecked by default** (`MUI_FINISHPAGE_RUN_NOTCHECKED`, `MUI_FINISHPAGE_SHOWREADME_NOTCHECKED`). Clicking Finish no longer auto-launches anything unless the user opts in. The right-click integration is deliberately *not* among the defaulted-off options — only genuinely-optional convenience actions are unchecked.
+
+### Note — coexistence with the sister ClaudeCode Launchpad CLI
+
+Separately fixed in the sister repo `noambrand/kivun-terminal` (not part of this tag): its installer was deleting *this* product's `Kivun Terminal.lnk` desktop shortcut and `KivunTerminal` right-click registry keys as "legacy cleanup," wiping them whenever it ran. With that removed, both products now coexist — distinct install dirs (`Kivun-WSL` vs `Kivun`), ARP keys, and context-menu namespaces.
+
 ## [1.4.10] - 2026-05-18
 
 ### Added — statusline reasoning-effort field + opt-in extras
