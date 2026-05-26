@@ -3,6 +3,42 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.13] - 2026-05-26
+
+### Changed — a second launch now opens a new TAB instead of closing the open window
+
+Launching Kivun while a Kivun Konsole was already open **killed the existing
+window without warning** and opened a fresh one, so you couldn't work on two
+projects at once. The culprit was a `pkill -x -u <uid> konsole` in
+`payload/kivun-launch.sh` meant to clear *zombie* windows from failed launches
+that also closed live sessions.
+
+Now, when a Kivun window is already open, a new launch **adds a tab to it**
+(opening in the folder you picked) and leaves your existing session untouched.
+
+- **Removed the `pkill`.** Existing windows are never closed.
+- **Managed per-user D-Bus session bus.** WSLg provides no session bus, so the
+  launcher starts a tiny reusable one (`dbus-daemon`, already on Ubuntu) at
+  `$XDG_RUNTIME_DIR/kivun-bus` and persists its address, so each launch — a
+  separate `wsl` invocation — can find the running Konsole.
+- **Tabs via Konsole's D-Bus API.** `konsole --new-tab` does not reliably
+  attach to a running instance under WSLg (it falls back to a new window), so
+  the launcher calls `org.kde.konsole.Window.newSession(profile, directory)`
+  to create the tab in the chosen folder, then `Session.runCommand` to start
+  Claude in it. Verified on Konsole 23.08.5 / WSLg.
+- **Safe fallback.** If no reachable Konsole is found (e.g. first launch, or a
+  window started by an older version), it opens a normal new window — still
+  never closing anything.
+- **New `KIVUN_TABBED` config toggle** (default `on`). Set `KIVUN_TABBED=off`
+  in `config.txt` for a separate window per launch.
+- **Tabs are named by project.** The Konsole profile's tab title changed from a
+  static `Kivun Terminal` to `%d` (current-directory basename), so each tab/window
+  shows its project folder (e.g. `gvSIG`) instead of all reading "Kivun Terminal".
+- **Tab profile fix.** Konsole's D-Bus `newSession` matches the profile *Name*
+  (`Kivun Terminal`), not the filename (`KivunTerminal`) the CLI `--profile` uses;
+  passing the filename silently fell back to the black Built-in scheme, so tabs
+  opened black. Now passes the Name and tabs get the light-blue Kivun theme.
+
 ## [1.4.12] - 2026-05-24
 
 ### Fixed — native Linux Claude no longer skipped when a Windows Claude is on PATH
