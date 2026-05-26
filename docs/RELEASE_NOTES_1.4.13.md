@@ -1,3 +1,5 @@
+![Kivun Terminal Demo](https://raw.githubusercontent.com/noambrand/kivun-terminal-wsl/main/Kivun_Terminal_v1.4.13.gif)
+
 # Kivun Terminal v1.4.13
 
 **Claude Code on Windows with real right‑to‑left (RTL) support.** Hebrew, Arabic, Persian, Urdu and 8 more RTL languages render correctly inside a Linux Konsole (WSL2 + Ubuntu) — something Windows Terminal cannot do.
