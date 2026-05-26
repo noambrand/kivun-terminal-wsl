@@ -1,4 +1,4 @@
-# Kivun Terminal v1.4.12 - Troubleshooting
+# Kivun Terminal v1.4.13 - Troubleshooting
 
 > **macOS deprecated as of v1.2.4.** This doc still contains macOS sections because users with v1.2.0–v1.2.3 `.pkg` installs may need them for diagnostics or recovery. New installs should use Windows or Linux. See [`mac/README.md`](../mac/README.md) for context and uninstall.
 

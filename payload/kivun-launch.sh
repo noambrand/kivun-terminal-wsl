@@ -91,15 +91,14 @@ if [ "${EUID:-$(id -u)}" -eq 0 ]; then
     exit 1
 fi
 
-# Kill any zombie/stale konsole processes belonging to THIS user only —
-# prior failed launches can leave hidden windows that confuse xdotool
-# into reporting "found konsole" when our new window hasn't appeared yet.
 MY_UID="$(id -u)"
-if pgrep -x -u "$MY_UID" konsole > /dev/null 2>&1; then
-    log "INFO - Cleaning up stale konsole processes for uid $MY_UID"
-    pkill -x -u "$MY_UID" konsole 2>/dev/null
-    sleep 1
-fi
+# NOTE: we intentionally do NOT kill the user's existing Konsole windows.
+# Earlier versions ran `pkill -x -u $MY_UID konsole` here to clear zombie
+# windows left by failed launches — but it also closed LIVE sessions, so
+# opening a second project silently killed the first. We now keep existing
+# windows and, when one is open, add a new TAB to it instead (see the launch
+# branch further below). Stale-window confusion is avoided by matching the
+# specific WM_CLASS `kivun-terminal` and activating the existing window.
 
 log "INFO - Checking XDG_RUNTIME_DIR for WSLg sockets"
 # WSLg puts its Wayland/D-Bus/PulseAudio sockets in /mnt/wslg/runtime-dir.
@@ -131,6 +130,52 @@ fi
 [ -z "$DISPLAY" ] && export DISPLAY=":0"
 [ -z "$WAYLAND_DISPLAY" ] && export WAYLAND_DISPLAY="wayland-0"
 log "INFO - Display env: DISPLAY=$DISPLAY, WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
+
+# --- Managed per-user D-Bus session bus -----------------------------------
+# WSLg does not provide a D-Bus *session* bus, but `konsole --new-tab` needs
+# one so a fresh launch can find an already-open Kivun window and add a tab to
+# it instead of opening a separate window. dbus-daemon ships with Ubuntu, so we
+# run a tiny reusable session bus ourselves and persist its address — every
+# launch is a separate `wsl` invocation, so they must rendezvous on a known
+# socket. Best-effort: if the bus can't start we just fall back to windows.
+KIVUN_BUS_SOCK="$XDG_RUNTIME_DIR/kivun-bus"
+KIVUN_BUS_ADDR_FILE="$XDG_RUNTIME_DIR/kivun-dbus-address"
+kivun_bus_alive() {
+    # $1 = dbus address; succeeds only if it names a live unix socket.
+    case "$1" in
+        unix:path=*) ;;
+        *) return 1 ;;
+    esac
+    local p="${1#unix:path=}"; p="${p%%,*}"
+    [ -S "$p" ]
+}
+if [ -f "$KIVUN_BUS_ADDR_FILE" ]; then
+    DBUS_SESSION_BUS_ADDRESS="$(cat "$KIVUN_BUS_ADDR_FILE" 2>/dev/null)"
+fi
+if kivun_bus_alive "$DBUS_SESSION_BUS_ADDRESS"; then
+    log "INFO - Reusing managed D-Bus session bus: $DBUS_SESSION_BUS_ADDRESS"
+elif command -v dbus-daemon >/dev/null 2>&1; then
+    rm -f "$KIVUN_BUS_SOCK" 2>/dev/null
+    setsid dbus-daemon --session \
+        --address="unix:path=$KIVUN_BUS_SOCK" \
+        --nofork --nopidfile >/dev/null 2>&1 &
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$KIVUN_BUS_SOCK"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        kivun_bus_alive "$DBUS_SESSION_BUS_ADDRESS" && break
+        sleep 0.2
+    done
+    if kivun_bus_alive "$DBUS_SESSION_BUS_ADDRESS"; then
+        echo "$DBUS_SESSION_BUS_ADDRESS" > "$KIVUN_BUS_ADDR_FILE"
+        log "INFO - Started managed D-Bus session bus: $DBUS_SESSION_BUS_ADDRESS"
+    else
+        log "WARNING - Managed D-Bus session bus did not come up; tabs disabled this launch"
+        DBUS_SESSION_BUS_ADDRESS=""
+    fi
+else
+    log "WARNING - dbus-daemon not found; cannot share a window (tabs disabled)"
+    DBUS_SESSION_BUS_ADDRESS=""
+fi
+[ -n "$DBUS_SESSION_BUS_ADDRESS" ] && export DBUS_SESSION_BUS_ADDRESS
 
 log "INFO - Setting up keyboard layout for $PRIMARY_LANG"
 # Map RESPONSE_LANGUAGE → xkb layout code. Languages without a real
@@ -308,8 +353,11 @@ UseCustomCursorColor=true
 [General]
 Name=Kivun Terminal
 Parent=FALLBACK/
-LocalTabTitleFormat=Kivun Terminal
-RemoteTabTitleFormat=Kivun Terminal
+# %d = current directory basename, so each tab/window is named by its project
+# folder (e.g. "gvSIG") instead of a static "Kivun Terminal". %D would be the
+# full path; %n the program name.
+LocalTabTitleFormat=%d
+RemoteTabTitleFormat=%d
 
 [Scrolling]
 HistorySize=10000
@@ -444,6 +492,18 @@ if [ -f "$SCRIPT_DIR/config.txt" ]; then
         | sed -e 's/^[[:space:]]*KIVUN_BIDI_WRAPPER[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
     [ -n "$val" ] && KIVUN_BIDI_WRAPPER="$val"
 fi
+
+# Tabbed mode: when a Kivun window is already open, add a new tab to it
+# instead of opening a separate window (lets you run several projects side by
+# side). Default "on". Set KIVUN_TABBED=off in config.txt for a separate
+# window per launch — either way the existing window is never closed.
+KIVUN_TABBED="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_TABBED[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_TABBED[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_TABBED="$val"
+fi
+log "INFO - KIVUN_TABBED=$KIVUN_TABBED"
 
 # Bullet-strip on Hebrew lines. ON by default after a v1.1.8 user-confirmed
 # fix: Konsole 23.x (Ubuntu 24.04 default) classifies the leading ● as
@@ -684,32 +744,91 @@ else
     log "WARNING - kivun-icon.png missing; cannot register .desktop entry"
 fi
 
-log "INFO - Launching Konsole with KivunTerminal profile (WM_CLASS=kivun-terminal)"
-log "INFO - Command: setsid konsole --name kivun-terminal --profile KivunTerminal -e $LAUNCH_TMP"
-
-# setsid detaches Konsole into a new session so it survives the parent
-# bash dying (e.g. user closes the cmd.exe window or the wsl bridge
-# exits). Without this, closing the launcher's console window sent
-# SIGHUP to Konsole and killed the live Claude session along with it.
-#
-# --name kivun-terminal sets WM_CLASS res_name (Qt arg). Combined with
-# the kivun-terminal.desktop file above (StartupWMClass=kivun-terminal),
-# this makes WSLg use kivun-icon.png as the Windows taskbar icon. The
-# python-xlib _NET_WM_ICON path runs further below as a fallback for
-# users still on USE_VCXSRV=true (where _NET_WM_ICON is honored by
-# VcXsrv directly).
-setsid konsole --name kivun-terminal --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
-KPID=$!
-
-if [ $KPID -gt 0 ]; then
-    log "SUCCESS - Konsole started with PID: $KPID"
-else
-    log "ERROR - Failed to start Konsole!"
-    log "ERROR - Check if konsole is installed: command -v konsole"
-    command -v konsole >> "$LOG_FILE" 2>&1
-    exit 1
+# Decide: open a NEW WINDOW, or add a TAB to an existing Kivun window?
+# Tab mode needs the managed bus AND a Konsole already registered on it (one
+# we can drive over D-Bus). We detect that by asking the bus for an
+# org.kde.konsole-<pid> service — not just pgrep — so we never try to tab into
+# a konsole that isn't reachable (e.g. one started before this version, or on
+# a different bus); those just get a fresh window.
+KIVUN_MODE="window"
+KIVUN_SVC=""
+if [ "$KIVUN_TABBED" = "on" ] && [ -n "$DBUS_SESSION_BUS_ADDRESS" ] \
+   && command -v dbus-send >/dev/null 2>&1; then
+    KIVUN_SVC="$(dbus-send --session --print-reply --dest=org.freedesktop.DBus \
+        /org/freedesktop/DBus org.freedesktop.DBus.ListNames 2>/dev/null \
+        | grep -oE 'org\.kde\.konsole-[0-9]+' | head -1)"
+    [ -n "$KIVUN_SVC" ] && KIVUN_MODE="tab"
 fi
 
+# setsid detaches Konsole into a new session so it survives the parent bash
+# dying (e.g. user closes the cmd.exe window or the wsl bridge exits). Without
+# it, closing the launcher's console window sent SIGHUP to Konsole and killed
+# the live Claude session. --name kivun-terminal sets WM_CLASS res_name (Qt
+# arg); combined with the kivun-terminal.desktop StartupWMClass above, WSLg
+# uses kivun-icon.png as the taskbar icon.
+if [ "$KIVUN_MODE" = "tab" ]; then
+    log "INFO - Existing Konsole on bus ($KIVUN_SVC) — adding a new tab via D-Bus (KIVUN_TABBED=on)"
+    # Konsole's `--new-tab` flag does NOT reliably attach to a running instance
+    # under WSLg (it falls back to a new window). The reliable path is Konsole's
+    # D-Bus API: create a session (tab) in the window with our profile + the
+    # chosen working directory, then exec the launch script inside it. $PWD is
+    # the already-resolved target folder (we cd'd to $WSL_PATH earlier).
+    #
+    # NOTE: the profile arg here is the profile's *Name* ("Kivun Terminal"),
+    # NOT the filename ("KivunTerminal"). The CLI `--profile` matches the
+    # filename, but Konsole's D-Bus newSession matches the Name= field; passing
+    # the filename silently falls back to the black Built-in profile.
+    KIVUN_SID="$(dbus-send --session --print-reply --dest="$KIVUN_SVC" /Windows/1 \
+        org.kde.konsole.Window.newSession string:"Kivun Terminal" string:"$PWD" 2>/dev/null \
+        | awk '/int32/{print $NF}')"
+    if [ -n "$KIVUN_SID" ]; then
+        log "SUCCESS - Created tab session $KIVUN_SID in $KIVUN_SVC (dir: $PWD)"
+        # Focus the new tab (best-effort).
+        dbus-send --session --dest="$KIVUN_SVC" /Windows/1 \
+            org.kde.konsole.Window.setCurrentSession int32:"$KIVUN_SID" >/dev/null 2>&1
+        # Give the tab's shell a moment to come up, then exec the launch script
+        # in it (runCommand types+runs it; --print-reply makes dbus-send wait).
+        sleep 2
+        dbus-send --session --print-reply --dest="$KIVUN_SVC" /Sessions/"$KIVUN_SID" \
+            org.kde.konsole.Session.runCommand string:"exec \"$LAUNCH_TMP\"" >/dev/null 2>&1
+        KPID=0
+    else
+        log "WARNING - D-Bus newSession failed; falling back to a new window"
+        KIVUN_MODE="window"
+    fi
+fi
+
+if [ "$KIVUN_MODE" = "window" ]; then
+    log "INFO - Launching Konsole with KivunTerminal profile (WM_CLASS=kivun-terminal)"
+    log "INFO - Command: setsid konsole --name kivun-terminal --profile KivunTerminal -e $LAUNCH_TMP"
+    setsid konsole --name kivun-terminal --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
+    KPID=$!
+    if [ $KPID -gt 0 ]; then
+        log "SUCCESS - Konsole started with PID: $KPID"
+    else
+        log "ERROR - Failed to start Konsole!"
+        log "ERROR - Check if konsole is installed: command -v konsole"
+        command -v konsole >> "$LOG_FILE" 2>&1
+        exit 1
+    fi
+fi
+
+if [ "$KIVUN_MODE" = "tab" ]; then
+    # Tab mode: the window already exists and is sized/iconed/named. Just
+    # bring it to the front so the new tab is visible. Skip all geometry.
+    log "INFO - Tab mode: activating existing Kivun window, skipping geometry/icon"
+    sleep 1
+    if command -v xdotool >/dev/null 2>&1; then
+        WID=$(xdotool search --class kivun-terminal 2>/dev/null | head -1)
+        [ -z "$WID" ] && WID=$(xdotool search --class konsole 2>/dev/null | head -1)
+        if [ -n "$WID" ]; then
+            xdotool windowactivate "$WID" 2>/dev/null
+            log "SUCCESS - Activated existing Kivun window (ID: $WID)"
+        else
+            log "WARNING - Could not find existing Kivun window to activate"
+        fi
+    fi
+else
 log "INFO - Waiting 3 seconds for Konsole window to appear"
 sleep 3
 
@@ -823,12 +942,14 @@ if command -v xdotool >/dev/null 2>&1; then
 else
   log "WARNING - xdotool not available"
 fi
+fi  # end window-mode geometry/icon block (skipped in tab mode)
 
 # v1.4.0: type any startup slash commands the HTA picker recorded into
 # the running Konsole/Claude window. Background subshell so the main
 # launcher continues to wait on Konsole. Best-effort — silently skips
 # if xdotool is missing, the file is gone, or the Konsole window can't
 # be found.
+TYPER_PID=""
 if [ -n "$STARTUP_CMDS_FILE" ] && [ -f "$STARTUP_CMDS_FILE" ] && command -v xdotool >/dev/null 2>&1; then
   log "INFO - Startup commands file: $STARTUP_CMDS_FILE — will type after Claude is ready"
   (
@@ -855,8 +976,18 @@ if [ -n "$STARTUP_CMDS_FILE" ] && [ -f "$STARTUP_CMDS_FILE" ] && command -v xdot
     # the user re-enters commands in the picker.
     rm -f "$STARTUP_CMDS_FILE" 2>/dev/null
   ) &
+  TYPER_PID=$!
 fi
 
-log "INFO - Waiting for Konsole process to complete"
-wait $KPID
-log "COMPLETE - Bash launcher finished (Konsole process ended)"
+if [ "$KIVUN_MODE" = "window" ]; then
+    log "INFO - Waiting for Konsole process to complete"
+    wait $KPID
+    log "COMPLETE - Bash launcher finished (Konsole process ended)"
+else
+    # Tab mode: the tab belongs to the already-running Konsole, so there is no
+    # window of ours to wait on. Let any startup-command typing finish before
+    # the launcher (and its WSL bridge) exits — otherwise the bridge closing
+    # could SIGHUP the typist mid-type — then return promptly.
+    [ -n "$TYPER_PID" ] && wait "$TYPER_PID" 2>/dev/null
+    log "COMPLETE - Bash launcher finished (tab dispatched to existing window)"
+fi

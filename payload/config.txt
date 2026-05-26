@@ -89,6 +89,14 @@ TEXT_DIRECTION=rtl
 #   no   - Skip and show manual install instructions
 AUTO_INSTALL_CLAUDE=yes
 
+# When a Kivun window is already open, add a new TAB to it instead of
+# opening a separate window — so you can run several projects side by side
+# in one window.
+#   on   - Add a tab to the existing window (default)
+#   off  - Open a separate window each launch
+# Either way the launcher never closes a window you already have open.
+KIVUN_TABBED=on
+
 
 # =================================================================
 # BIDI WRAPPER — Hebrew rendering tunables (advanced; leave alone)
