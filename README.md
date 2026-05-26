@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+  <img src="Kivun_Terminal_v1.4.13.gif" width="700" alt="Kivun Terminal demo - Hebrew RTL Claude Code session">
+</p>
+
+<p align="center">
   <video src="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.4.13/Kivun_Terminal_v1.4.13.mp4" width="700" controls muted playsinline></video>
 </p>
 
