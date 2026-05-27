@@ -21,7 +21,8 @@
   <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen&cb=v1.4.14" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
-
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/stargazers"><img src="https://img.shields.io/github/stars/noambrand/kivun-terminal-wsl?style=flat&color=yellow" alt="GitHub Stars"></a>
+  <img src="https://img.shields.io/github/last-commit/noambrand/kivun-terminal-wsl?label=last%20commit&color=brightgreen" alt="Last Commit">
 </p>
 
 <h3 align="center">Real RTL Claude Code terminal. Hebrew, Arabic, Persian, Urdu and 8 more - rendered correctly, on Windows and Linux.</h3>
