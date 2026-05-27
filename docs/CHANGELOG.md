@@ -3,6 +3,32 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.14] - 2026-05-27
+
+### Fixed — picker always opens with Opus as the default model
+
+The Default profile now never persists the model selection. Previously, if a
+user launched with Sonnet, the Default profile saved `model: "sonnet"` and the
+picker would silently open on Sonnet next time — even though the user never
+asked for Sonnet to be the permanent default.
+
+- `captureDialogToProfile`: when saving the Default profile, always writes
+  `"opus"` for the model field regardless of what was selected at Launch time.
+- `applyProfileToDialog`: when loading the Default profile, always sets the
+  model radio to Opus regardless of what is stored.
+- Named project profiles are unaffected and continue to remember their own
+  model as an explicit per-project choice.
+- Applied to `payload/folder-picker.hta`.
+
+### Changed — version bump
+
+- `VERSION` — 1.4.13 → 1.4.14.
+- `installer/Kivun_Terminal_Setup.nsi` — `PRODUCT_VERSION` / `VIProductVersion`
+  / `FileVersion` → 1.4.14 / 1.4.14.0.
+- `docs/README.md`, `docs/README_INSTALLATION.md`, `docs/CREDENTIALS.txt`,
+  `docs/SECURITY.txt`, `docs/TROUBLESHOOTING.md` — version header bumps.
+- `README.md` — badge cachebust → `cb=v1.4.14`.
+
 ## [1.4.13] - 2026-05-26
 
 ### Changed — a second launch now opens a new TAB instead of closing the open window
