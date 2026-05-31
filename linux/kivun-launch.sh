@@ -27,6 +27,13 @@ KEYBOARD_TOGGLE="true"
 FOLDER_PICKER="false"
 CLAUDE_FLAGS=""
 KIVUN_BIDI_WRAPPER="on"
+# BiDi rendering tuning knobs. The wrapper (kivun-claude-bidi/lib/injector.js)
+# already honors these on every platform; these defaults + the parse/export
+# below let Linux users tune them from config.txt the same way Windows can.
+KIVUN_BIDI_STRIP_BULLET="on"
+KIVUN_BIDI_STRIP_INCOMING="auto"
+KIVUN_BIDI_BRACKET_RTL_RUNS="off"
+KIVUN_BIDI_DUMP_RAW="off"
 trim() {
     # Pure-bash whitespace trim. Avoids `xargs` which both strips quotes
     # and globs unquoted special characters against the CWD (so a config
@@ -52,10 +59,15 @@ if [ -f "$CONFIG_FILE" ]; then
             FOLDER_PICKER)       FOLDER_PICKER="$value" ;;
             CLAUDE_FLAGS)        CLAUDE_FLAGS="$value" ;;
             KIVUN_BIDI_WRAPPER)  KIVUN_BIDI_WRAPPER="$value" ;;
+            KIVUN_BIDI_STRIP_BULLET)      KIVUN_BIDI_STRIP_BULLET="$value" ;;
+            KIVUN_BIDI_STRIP_INCOMING)    KIVUN_BIDI_STRIP_INCOMING="$value" ;;
+            KIVUN_BIDI_BRACKET_RTL_RUNS)  KIVUN_BIDI_BRACKET_RTL_RUNS="$value" ;;
+            KIVUN_BIDI_DUMP_RAW)          KIVUN_BIDI_DUMP_RAW="$value" ;;
         esac
     done < "$CONFIG_FILE"
 fi
 log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER"
+log "BiDi tuning: strip_bullet=$KIVUN_BIDI_STRIP_BULLET strip_incoming=$KIVUN_BIDI_STRIP_INCOMING bracket_rtl_runs=$KIVUN_BIDI_BRACKET_RTL_RUNS dump_raw=$KIVUN_BIDI_DUMP_RAW"
 
 # Decide which binary the tmp launch script will invoke. Wrapper is
 # default-on in v1.1.0. Resolution order:
@@ -273,6 +285,11 @@ ENV_FILE="$CACHE_DIR/launch-env.sh"
     printf 'LANG_PROMPT=%q\n'   "$LANG_PROMPT"
     printf 'CLAUDE_FLAGS=%q\n'  "$CLAUDE_FLAGS"
     printf 'CLAUDE_EXEC=%q\n'   "$CLAUDE_EXEC"
+    # Export the BiDi knobs so the wrapper child (injector.js) inherits them.
+    printf 'export KIVUN_BIDI_STRIP_BULLET=%q\n'     "$KIVUN_BIDI_STRIP_BULLET"
+    printf 'export KIVUN_BIDI_STRIP_INCOMING=%q\n'   "$KIVUN_BIDI_STRIP_INCOMING"
+    printf 'export KIVUN_BIDI_BRACKET_RTL_RUNS=%q\n' "$KIVUN_BIDI_BRACKET_RTL_RUNS"
+    printf 'export KIVUN_BIDI_DUMP_RAW=%q\n'         "$KIVUN_BIDI_DUMP_RAW"
 } > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 

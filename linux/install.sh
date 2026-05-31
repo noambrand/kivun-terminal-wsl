@@ -388,6 +388,21 @@ CLAUDE_FLAGS=
 # retries on first launch. Set to "off" to fall back to unwrapped claude.
 # Default: on
 KIVUN_BIDI_WRAPPER=on
+
+# Remove LTR-leading bullets on Hebrew lines. Helps Konsole classify the
+# line as RTL before punctuation/bullets can anchor it left. Default: on
+KIVUN_BIDI_STRIP_BULLET=on
+
+# Strip explicit Unicode directional controls from Claude's stream.
+# Modes: off | auto | on. Default: auto
+KIVUN_BIDI_STRIP_INCOMING=auto
+
+# Bracket every Hebrew run on already-RTL lines. Off is best for Konsole
+# 23.x because line-start RLM is enough and extra marks can fragment runs.
+KIVUN_BIDI_BRACKET_RTL_RUNS=off
+
+# Debug-only raw-byte dump. Default: off
+KIVUN_BIDI_DUMP_RAW=off
 CONFIG
     log "Config created at $CONFIG_FILE"
 fi
