@@ -30,9 +30,34 @@ describe('resolveClaudeBin', () => {
     fs.rmSync(sandbox, { recursive: true, force: true });
   });
 
-  it('honours KIVUN_CLAUDE_BIN env override above all else', () => {
-    const env = { KIVUN_CLAUDE_BIN: '/nope/explicit/claude', HOME: sandbox };
-    assert.equal(resolveClaudeBin(env), '/nope/explicit/claude');
+  it('honours a TRUSTED KIVUN_CLAUDE_BIN override (executable, under ~/.local/bin)', () => {
+    // v1.4.9 (audit #4): KIVUN_CLAUDE_BIN is honored only when it passes
+    // isAllowedClaudeBinPath — an executable file under a trusted prefix.
+    // A path under the user's ~/.local/bin qualifies.
+    const home = fs.mkdtempSync(path.join(sandbox, 'trusted-bin-'));
+    const binDir = path.join(home, '.local/bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const target = path.join(binDir, 'my-claude');
+    fs.writeFileSync(target, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(target, 0o755);
+
+    const env = { KIVUN_CLAUDE_BIN: target, HOME: home };
+    assert.equal(resolveClaudeBin(env), target);
+  });
+
+  it('rejects an UNTRUSTED KIVUN_CLAUDE_BIN and falls through to discovery', () => {
+    // v1.4.9 (audit #4): a path outside the trusted prefixes (e.g. a
+    // malicious profiles.json setting KIVUN_CLAUDE_BIN=/tmp/evil) must NOT
+    // be honored. The resolver falls through to standard discovery rather
+    // than failing loudly, so an untrusted env-var cannot DoS the wrapper.
+    // With an empty home + dead PATH, discovery bottoms out at bare "claude".
+    const home = fs.mkdtempSync(path.join(sandbox, 'untrusted-bin-'));
+    const systemSlots = ['/usr/local/bin/claude', '/usr/bin/claude'];
+    for (const p of systemSlots) {
+      try { fs.accessSync(p, fs.constants.X_OK); return; } catch (_) { /* ok */ }
+    }
+    const env = { KIVUN_CLAUDE_BIN: '/nope/explicit/claude', HOME: home, PATH: '/nonexistent' };
+    assert.equal(resolveClaudeBin(env), 'claude');
   });
 
   it('returns absolute ~/.local/bin/claude when it exists+executable', () => {
