@@ -53,25 +53,36 @@ jobs:
           path: installer/Kivun_Terminal_Setup.exe
           if-no-files-found: error
 
-      # Every release MUST carry the demo video + GIF so a first-time visitor
-      # landing on the latest release sees it — never buried in an old release.
-      # Build FAILS if the media is missing from the repo.
+      # Every release MUST carry the demo video + GIF so a first-time visitor on
+      # the latest release sees it — never buried in an old release. Source order:
+      #   1) the repo copy (if present), else
+      #   2) carry it forward from the most recent prior release that has it
+      #      (so the repo never has to store the large media files).
+      # The build FAILS if the media can't be found anywhere — a release can
+      # never ship without the demo video.
       - name: Stage installer + demo media (video is mandatory)
         if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p release-assets
           cp installer/Kivun_Terminal_Setup.exe release-assets/
+          MP4="Kivun_Terminal_v1.4.13.mp4"
+          GIF="Kivun_Terminal_v1.4.13.gif"
+          [ -f "Kivun Terminal_v1.4.13.mp4" ] && cp "Kivun Terminal_v1.4.13.mp4" "release-assets/$MP4"
+          [ -f "$GIF" ] && cp "$GIF" "release-assets/$GIF"
+          if [ ! -f "release-assets/$MP4" ] || [ ! -f "release-assets/$GIF" ]; then
+            echo "Demo media not in repo — carrying forward from a previous release..."
+            for tag in $(gh release list --limit 40 --json tagName --jq '.[].tagName'); do
+              [ "$tag" = "${GITHUB_REF_NAME}" ] && continue
+              [ -f "release-assets/$MP4" ] || gh release download "$tag" -p "$MP4" -D release-assets/ 2>/dev/null || true
+              [ -f "release-assets/$GIF" ] || gh release download "$tag" -p "$GIF" -D release-assets/ 2>/dev/null || true
+              { [ -f "release-assets/$MP4" ] && [ -f "release-assets/$GIF" ]; } && break
+            done
+          fi
           missing=0
-          if [ -f "Kivun Terminal_v1.4.13.mp4" ]; then
-            cp "Kivun Terminal_v1.4.13.mp4" "release-assets/Kivun_Terminal_v1.4.13.mp4"
-          else
-            echo "::error::Demo MP4 missing from repo — every release must include the demo video."; missing=1
-          fi
-          if [ -f "Kivun_Terminal_v1.4.13.gif" ]; then
-            cp "Kivun_Terminal_v1.4.13.gif" "release-assets/Kivun_Terminal_v1.4.13.gif"
-          else
-            echo "::error::Demo GIF missing from repo — every release must include the demo GIF."; missing=1
-          fi
+          [ -f "release-assets/$MP4" ] || { echo "::error::Demo MP4 not found in repo or any prior release — every release must include the demo video."; missing=1; }
+          [ -f "release-assets/$GIF" ] || { echo "::error::Demo GIF not found in repo or any prior release."; missing=1; }
           [ "$missing" = "1" ] && exit 1
           ls -la release-assets
 

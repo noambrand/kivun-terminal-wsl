@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/noambrand/kivun-terminal-wsl/main/Kivun_Terminal_v1.4.13.gif" width="700" alt="Kivun Terminal demo — Hebrew RTL Claude Code session">
+  <img src="https://github.com/noambrand/kivun-terminal-wsl/releases/download/TAG_PLACEHOLDER/Kivun_Terminal_v1.4.13.gif" width="700" alt="Kivun Terminal demo — Hebrew RTL Claude Code session">
 </p>
 
 # Kivun Terminal — Claude Code with real right‑to‑left (Hebrew / Arabic) support
