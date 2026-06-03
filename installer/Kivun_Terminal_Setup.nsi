@@ -1,11 +1,11 @@
-; Kivun Terminal v1.4.14 - Professional Installer
+; Kivun Terminal v1.4.15 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.14"
+!define PRODUCT_VERSION "1.4.15"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.14.0"
+VIProductVersion "1.4.15.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.14.0"
+VIAddVersionKey "FileVersion" "1.4.15.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -69,6 +69,38 @@ VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+; =================================================================
+; INSTALL LOGGING (v1.4.15)
+; Previously the installer wrote NO log to the Windows filesystem, so a
+; failure in the WSL section (e.g. "WSL not installed") left the user with
+; only a transient MessageBox and nothing to send to support. The apt steps
+; log inside WSL (/tmp/kivun-*.log) but those don't exist until WSL works.
+; Mirror the launcher's logging (payload/kivun-terminal.bat writes
+; %LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt) on the installer side.
+; =================================================================
+Var LOGFILE
+
+!macro KLOG TEXT
+  Push $R8
+  FileOpen $R8 "$LOGFILE" a
+  FileSeek $R8 0 END
+  FileWrite $R8 "${TEXT}$\r$\n"
+  FileClose $R8
+  Pop $R8
+!macroend
+
+Function .onInit
+  ; Default context is the invoking user; set explicitly so $LOCALAPPDATA
+  ; resolves to the real user's profile even under over-the-shoulder UAC.
+  SetShellVarContext current
+  StrCpy $LOGFILE "$LOCALAPPDATA\Kivun-WSL\install-log.txt"
+  ; Create the log dir BEFORE any section can Abort. The WSL section can
+  ; abort at its first probe, and Core's CreateDirectory ran too late to
+  ; capture that failure.
+  CreateDirectory "$LOCALAPPDATA\Kivun-WSL"
+  !insertmacro KLOG "=== Kivun Terminal v${PRODUCT_VERSION} install started ==="
+FunctionEnd
 
 ; =================================================================
 ; SECTIONS
@@ -170,16 +202,54 @@ SectionEnd
 Section "WSL2 + Ubuntu" SEC_WSL
   SectionIn RO
   DetailPrint "Checking WSL..."
-  nsExec::Exec 'wsl --status'
+  ; Availability probe. Run wsl --version directly via nsExec (it gives the
+  ; child no interactive stdin, so the launcher's `< nul` shim isn't needed).
+  ; On a legacy WSL stub wsl.exe prints usage text and returns non-zero.
+  ; Capture exit code + output to the log so this failure is diagnosable on
+  ; Windows (the old `wsl --status` probe left nothing on disk). Bare `wsl`
+  ; resolves fine from this 32-bit installer because wsl.exe is excluded from
+  ; WOW64 file-system redirection — the same reason every other `wsl` call in
+  ; this section works.
+  nsExec::ExecToStack 'wsl --version'
   Pop $0
+  Pop $1
+  !insertmacro KLOG "wsl --version exit=$0"
+  !insertmacro KLOG "wsl --version output:"
+  !insertmacro KLOG "$1"
   ${If} $0 != 0
-    ; SECURITY (#10): `wsl --install` requires admin. This installer runs
-    ; as `user`. Rather than escalate the whole installer (which causes
-    ; HKCU/LOCALAPPDATA-under-admin-hive bugs), we ask the user to do
-    ; the one admin step themselves, then re-run us as themselves.
-    MessageBox MB_ICONEXCLAMATION|MB_OK "WSL is not installed on this system.$\r$\n$\r$\nKivun Terminal installs to your user profile and does not need admin rights — but WSL installation does. Please:$\r$\n$\r$\n1. Close this installer$\r$\n2. Open PowerShell as Administrator (right-click Start > Terminal (Admin))$\r$\n3. Run:   wsl --install$\r$\n4. Reboot your computer$\r$\n5. Run this installer again (normal double-click, no admin needed)$\r$\n$\r$\nIf 'wsl --install' reports it is not recognized, you are on an older Windows build — see https://learn.microsoft.com/en-us/windows/wsl/install"
-    Abort "WSL not installed — please install it first via admin PowerShell."
+    ; WSL is missing. Installing it requires admin + a reboot — a Windows
+    ; requirement, there is no per-user API for it. We keep THIS installer
+    ; per-user (so $LOCALAPPDATA / HKCU writes stay correct, per SECURITY #10)
+    ; and elevate ONLY Microsoft's signed wsl.exe for the one admin step, via
+    ; a single UAC prompt. No PowerShell, no cmd wrapper. WSL needs a reboot
+    ; before Ubuntu/Konsole/Claude can install, so afterwards we ask the user
+    ; to reboot and re-run.
+    !insertmacro KLOG "WSL not available -> offering elevated wsl --install"
+    MessageBox MB_ICONINFORMATION|MB_OKCANCEL "Kivun Terminal needs Windows Subsystem for Linux (WSL), which isn't installed yet.$\r$\n$\r$\nWindows will now ask for administrator permission so it can install WSL for you (Microsoft's built-in 'wsl --install'). After it finishes you'll need to REBOOT and run this installer again.$\r$\n$\r$\nClick OK to install WSL now, or Cancel to do it yourself later." IDOK do_wsl_install
+      ; Cancel -> the user prefers to do it themselves later.
+      !insertmacro KLOG "User cancelled automatic WSL install"
+      MessageBox MB_ICONINFORMATION|MB_OK "No problem. To install WSL yourself later:$\r$\n$\r$\n1. Open Terminal as Administrator (right-click Start > Terminal (Admin))$\r$\n2. Run:   wsl --install$\r$\n3. Reboot, then run this installer again$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+      Abort "WSL not installed — user opted to do it manually."
+    do_wsl_install:
+      ; Elevate ONLY Microsoft's signed wsl.exe (no PowerShell / cmd wrapper).
+      ; Full System32 path: wsl.exe is excluded from WOW64 redirection, so this
+      ; resolves to the real 64-bit binary even from the 32-bit installer, and a
+      ; full path is the most reliable form for ShellExecute "runas".
+      !insertmacro KLOG "Launching elevated: $WINDIR\System32\wsl.exe --install"
+      ClearErrors
+      ExecShellWait "runas" "$WINDIR\System32\wsl.exe" "--install"
+      ${If} ${Errors}
+        ; ShellExecuteEx failed to start — UAC declined, or elevation blocked
+        ; by org policy. Fall back to manual instructions; never pretend.
+        !insertmacro KLOG "Elevated wsl --install did not start (UAC declined or blocked by policy)"
+        MessageBox MB_ICONINFORMATION|MB_OK "WSL installation didn't start — the administrator prompt was declined, or your organization blocks it.$\r$\n$\r$\nTo install WSL: open Terminal as Administrator and run  wsl --install , then reboot and run this installer again.$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+        Abort "WSL install not started."
+      ${EndIf}
+      !insertmacro KLOG "Elevated wsl --install finished; reboot required"
+      MessageBox MB_ICONINFORMATION|MB_OK "WSL has been installed.$\r$\n$\r$\nPlease REBOOT your computer, then run this Kivun Terminal installer again to finish setting up Ubuntu, Konsole, and Claude Code.$\r$\n$\r$\nYou can close this installer now."
+      Abort "WSL installed — reboot and re-run this installer."
   ${EndIf}
+  !insertmacro KLOG "WSL available — continuing install"
 
   ; Best-effort set default version 2 — on modern Windows 11 this works
   ; as user; on older systems it may require admin, in which case we log
@@ -199,7 +269,8 @@ Section "WSL2 + Ubuntu" SEC_WSL
     nsExec::ExecToLog 'wsl --install -d Ubuntu --no-launch'
     Pop $0
     ${If} $0 != 0
-      MessageBox MB_ICONEXCLAMATION|MB_OK "Ubuntu installation failed.$\r$\n$\r$\nPlease try:$\r$\n1. Open Microsoft Store$\r$\n2. Search for 'Ubuntu'$\r$\n3. Install 'Ubuntu' (the latest LTS version)$\r$\n4. Run this installer again"
+      !insertmacro KLOG "Ubuntu install (wsl --install -d Ubuntu) failed exit=$0"
+      MessageBox MB_ICONEXCLAMATION|MB_OK "Ubuntu installation failed.$\r$\n$\r$\nPlease try:$\r$\n1. Open Microsoft Store$\r$\n2. Search for 'Ubuntu'$\r$\n3. Install 'Ubuntu' (the latest LTS version)$\r$\n4. Run this installer again$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
       Abort "Ubuntu installation failed."
     ${EndIf}
     DetailPrint "Waiting for Ubuntu to initialize..."

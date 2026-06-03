@@ -3,6 +3,45 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.15] - 2026-06-03
+
+### Fixed — "WSL not installed" abort left no log and used a fragile probe
+
+A customer's install aborted at the WSL check with no evidence on disk. The
+verdict (WSL genuinely not installed — only the legacy `wsl.exe` stub present)
+was correct, but the installer was neither diagnosable nor as helpful as it
+could be.
+
+- **Install logging (new).** The installer now writes
+  `%LOCALAPPDATA%\Kivun-WSL\install-log.txt`, created in `.onInit` *before* any
+  section can abort, so a WSL-detection failure always leaves a Windows-side log
+  (previously the only logs were inside WSL at `/tmp/kivun-*.log`, which don't
+  exist until WSL works). Mirrors the launcher's existing logging.
+- **Reliable WSL probe.** Replaced `wsl --status` with
+  `cmd /c wsl --version < nul` (the verb + `< nul` stdin guard the launcher
+  already trusts — `payload/kivun-terminal.bat`), and captures the exit code and
+  output to the log. On a legacy WSL stub this records the usage text instead of
+  silently discarding it.
+- **Installs WSL for the user (was: told them to do it manually).** When WSL is
+  missing the installer now offers (info dialog, OK/Cancel) to install it, and
+  on OK runs Microsoft's built-in `wsl --install` itself. Installing WSL
+  unavoidably needs admin + a reboot, so we keep the installer per-user and
+  elevate **only** the signed Microsoft `wsl.exe` via a single UAC prompt — no
+  PowerShell, no cmd wrapper, no elevating the whole installer (so $LOCALAPPDATA
+  / HKCU writes stay correct per SECURITY #10). After it finishes the user
+  reboots and re-runs to complete Ubuntu/Konsole/Claude. The real 64-bit
+  `wsl.exe` is resolved via `$WINDIR\Sysnative` (NSIS is a 32-bit process).
+- **Graceful fallbacks.** If the user cancels, or the UAC prompt is declined /
+  blocked by org policy (`ExecShellWait` errors), the installer shows clear
+  manual steps and the log path instead of pretending — never a silent failure.
+- `RequestExecutionLevel user` is unchanged; only `wsl.exe` elevates.
+
+### Changed — version bump
+
+- `VERSION`, `installer/Kivun_Terminal_Setup.nsi`
+  (`PRODUCT_VERSION`/`VIProductVersion`/`FileVersion`), `README.md` badge, and
+  the `docs/` headers — 1.4.14 → 1.4.15.
+
 ## [1.4.14] - 2026-05-27
 
 ### Fixed — picker always opens with Opus as the default model
