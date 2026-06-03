@@ -176,7 +176,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/kivun-terminal-linux-${{ steps.version.outputs.version }}.tar.gz
-          body_path: /tmp/release-notes.md
           prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') }}
           fail_on_unmatched_files: true
 

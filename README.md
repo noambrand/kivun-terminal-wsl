@@ -7,12 +7,12 @@
 </p>
 
 <p align="center">
-  <video src="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.4.13/Kivun_Terminal_v1.4.13.mp4" width="700" controls muted playsinline></video>
+  <video src="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_v1.4.13.mp4" width="700" controls muted playsinline></video>
 </p>
 
 <p align="center">
   <em>📹 Demo: Hebrew Claude Code session inside Kivun Terminal -
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.4.13/Kivun_Terminal_v1.4.13.mp4">download MP4 (2.4 MB)</a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_v1.4.13.mp4">download MP4 (2.4 MB)</a>
   if your browser doesn't autoplay above.</em>
 </p>
 

@@ -53,39 +53,61 @@ jobs:
           path: installer/Kivun_Terminal_Setup.exe
           if-no-files-found: error
 
-      - name: Build release notes for this tag
+      # Every release MUST carry the demo video + GIF so a first-time visitor
+      # landing on the latest release sees it — never buried in an old release.
+      # Build FAILS if the media is missing from the repo.
+      - name: Stage installer + demo media (video is mandatory)
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
         run: |
-          # Prefer a hand-written user-facing file at docs/RELEASE_NOTES_<version>.md
-          # (download steps, what's new in plain English, feature table) — if absent,
-          # fall back to extracting the CHANGELOG section, which is more technical.
+          mkdir -p release-assets
+          cp installer/Kivun_Terminal_Setup.exe release-assets/
+          missing=0
+          if [ -f "Kivun Terminal_v1.4.13.mp4" ]; then
+            cp "Kivun Terminal_v1.4.13.mp4" "release-assets/Kivun_Terminal_v1.4.13.mp4"
+          else
+            echo "::error::Demo MP4 missing from repo — every release must include the demo video."; missing=1
+          fi
+          if [ -f "Kivun_Terminal_v1.4.13.gif" ]; then
+            cp "Kivun_Terminal_v1.4.13.gif" "release-assets/Kivun_Terminal_v1.4.13.gif"
+          else
+            echo "::error::Demo GIF missing from repo — every release must include the demo GIF."; missing=1
+          fi
+          [ "$missing" = "1" ] && exit 1
+          ls -la release-assets
+
+      # Welcoming, non-technical notes: the template (demo GIF + plain install
+      # steps + first-timer help) is REQUIRED, then we append the plain-English
+      # "what's new" (docs/RELEASE_NOTES_<ver>.md if present, else the CHANGELOG).
+      - name: Build welcoming release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
+          if [ ! -f .github/RELEASE_TEMPLATE.md ]; then
+            echo "::error::.github/RELEASE_TEMPLATE.md missing — release notes must be welcoming to first-time visitors."; exit 1
+          fi
+          sed "s/TAG_PLACEHOLDER/${TAG}/g" .github/RELEASE_TEMPLATE.md > /tmp/release-notes.md
+          printf '\n## What'"'"'s new in %s\n\n' "$TAG" >> /tmp/release-notes.md
           NOTES_FILE="docs/RELEASE_NOTES_${VERSION}.md"
           if [ -f "$NOTES_FILE" ]; then
-            cp "$NOTES_FILE" /tmp/release-notes.md
-            echo "Using hand-written ${NOTES_FILE}"
+            cat "$NOTES_FILE" >> /tmp/release-notes.md
           else
             awk -v ver="$VERSION" '
-              $0 ~ "^## \\["ver"\\]" { in_section = 1; print; next }
+              $0 ~ "^## \["ver"\]" { in_section = 1; next }
               /^## \[/ { if (in_section) exit }
               in_section { print }
-            ' docs/CHANGELOG.md > /tmp/release-notes.md
-            if [ ! -s /tmp/release-notes.md ]; then
-              echo "Release ${TAG}." > /tmp/release-notes.md
-            fi
-            echo "Using CHANGELOG section for ${VERSION} (no ${NOTES_FILE} found)"
+            ' docs/CHANGELOG.md >> /tmp/release-notes.md
           fi
-          echo "----- /tmp/release-notes.md -----"
-          cat /tmp/release-notes.md
-          echo "----- end -----"
+          echo "----- /tmp/release-notes.md -----"; cat /tmp/release-notes.md; echo "----- end -----"
 
-      - name: Attach installer to GitHub Release
+      - name: Attach installer + demo video to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: installer/Kivun_Terminal_Setup.exe
+          files: |
+            release-assets/Kivun_Terminal_Setup.exe
+            release-assets/Kivun_Terminal_v1.4.13.mp4
+            release-assets/Kivun_Terminal_v1.4.13.gif
           body_path: /tmp/release-notes.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
