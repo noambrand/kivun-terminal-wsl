@@ -3,6 +3,35 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.18] - 2026-06-09
+
+### Fixed — endless WSL reinstall/reboot loop (detection probe couldn't see the WSL it just installed)
+
+v1.4.17 fixed the elevated `wsl --install` (via Sysnative), so WSL now installs.
+But after the reboot the installer **reinstalled WSL and asked to reboot again,
+forever**. The real-PC log was conclusive — `wsl --version exit=error` on *every*
+run, including right after a successful install + reboot:
+
+```
+Elevated wsl --install finished; reboot required
+=== install started ===            (after reboot)
+wsl --version exit=error           ← never sees the WSL it just installed
+WSL not available -> offering elevated wsl --install   ← loops
+```
+
+Root cause: the **detection probe** still used bare `wsl`, which (like the
+install step before v1.4.17) can't be launched from the 32-bit installer due to
+WOW64 redirection — so it returned `exit=error` regardless of whether WSL was
+installed, and the installer concluded "missing" on every launch.
+
+- `installer/Kivun_Terminal_Setup.nsi` now runs the detection probe through the
+  same **`$WINDIR\Sysnative\wsl.exe`** path the install step uses (falling back
+  to `System32` on 32-bit Windows). It treats WSL as present if **either**
+  `wsl --status` or `wsl --version` exits 0, so a freshly installed WSL — or any
+  WSL build that exposes only one of those subcommands — is detected correctly
+  and the loop is broken. Both subcommands are non-interactive, so a PC without
+  WSL still returns promptly instead of hanging on the bare-`wsl` install prompt.
+
 ## [1.4.17] - 2026-06-08
 
 ### Fixed — automatic WSL install "did not start" on PCs without WSL (32-bit installer couldn't launch wsl.exe)

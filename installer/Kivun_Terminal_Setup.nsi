@@ -202,20 +202,35 @@ SectionEnd
 Section "WSL2 + Ubuntu" SEC_WSL
   SectionIn RO
   DetailPrint "Checking WSL..."
-  ; Availability probe. Run wsl --version directly via nsExec (it gives the
-  ; child no interactive stdin, so the launcher's `< nul` shim isn't needed).
-  ; On a legacy WSL stub wsl.exe prints usage text and returns non-zero.
-  ; Capture exit code + output to the log so this failure is diagnosable on
-  ; Windows (the old `wsl --status` probe left nothing on disk). Bare `wsl`
-  ; resolves fine from this 32-bit installer because wsl.exe is excluded from
-  ; WOW64 file-system redirection — the same reason every other `wsl` call in
-  ; this section works.
-  nsExec::ExecToStack 'wsl --version'
+  ; Availability probe. The bare `wsl` form returns exit=error from this 32-bit
+  ; installer — wsl.exe is NOT reliably excluded from WOW64 redirection (an old
+  ; comment here wrongly claimed it was). A real-PC log showed `wsl --version
+  ; exit=error` on EVERY run, INCLUDING after a successful install + reboot, so
+  ; the installer never saw the WSL it had just installed and re-installed it on
+  ; each launch — an endless reinstall/reboot loop. Resolve wsl.exe via the
+  ; Sysnative alias (the real 64-bit System32 seen from a 32-bit process), the
+  ; same path the elevated install step uses.
+  StrCpy $R7 "$WINDIR\System32\wsl.exe"
+  ${If} ${FileExists} "$WINDIR\Sysnative\wsl.exe"
+    StrCpy $R7 "$WINDIR\Sysnative\wsl.exe"
+  ${EndIf}
+  ; WSL counts as present if EITHER `--status` or `--version` runs cleanly
+  ; (exit 0). Different WSL builds expose different info subcommands, and a
+  ; freshly `wsl --install`ed system must never read as "missing" (that was the
+  ; loop). Both are non-interactive subcommands, so the pre-install stub returns
+  ; promptly instead of hanging on the bare-`wsl` "press any key" prompt.
+  nsExec::ExecToStack '"$R7" --status'
   Pop $0
   Pop $1
-  !insertmacro KLOG "wsl --version exit=$0"
-  !insertmacro KLOG "wsl --version output:"
+  !insertmacro KLOG "wsl --status (via $R7) exit=$0"
   !insertmacro KLOG "$1"
+  ${If} $0 != 0
+    nsExec::ExecToStack '"$R7" --version'
+    Pop $0
+    Pop $1
+    !insertmacro KLOG "wsl --version (via $R7) exit=$0"
+    !insertmacro KLOG "$1"
+  ${EndIf}
   ${If} $0 != 0
     ; WSL is missing. Installing it requires admin + a reboot — a Windows
     ; requirement, there is no per-user API for it. We keep THIS installer
