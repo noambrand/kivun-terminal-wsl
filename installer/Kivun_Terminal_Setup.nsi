@@ -232,12 +232,21 @@ Section "WSL2 + Ubuntu" SEC_WSL
       Abort "WSL not installed — user opted to do it manually."
     do_wsl_install:
       ; Elevate ONLY Microsoft's signed wsl.exe (no PowerShell / cmd wrapper).
-      ; Full System32 path: wsl.exe is excluded from WOW64 redirection, so this
-      ; resolves to the real 64-bit binary even from the 32-bit installer, and a
-      ; full path is the most reliable form for ShellExecute "runas".
-      !insertmacro KLOG "Launching elevated: $WINDIR\System32\wsl.exe --install"
+      ; WOW64: this installer is 32-bit, and contrary to a long-standing comment
+      ; here, wsl.exe is NOT reliably excluded from WOW64 file redirection. So
+      ; "$WINDIR\System32\wsl.exe" gets redirected to SysWOW64 — where the WSL
+      ; stub does NOT exist — and ShellExecuteEx fails to start it. Real-PC log:
+      ; `Elevated wsl --install did not start`, even when the user ran as admin
+      ; (it was never a permissions problem). Reach the genuine 64-bit System32
+      ; via the Sysnative alias, which exists only for 32-bit processes on 64-bit
+      ; Windows; fall back to System32 on 32-bit Windows where it doesn't exist.
+      StrCpy $R9 "$WINDIR\System32\wsl.exe"
+      ${If} ${FileExists} "$WINDIR\Sysnative\wsl.exe"
+        StrCpy $R9 "$WINDIR\Sysnative\wsl.exe"
+      ${EndIf}
+      !insertmacro KLOG "Launching elevated: $R9 --install"
       ClearErrors
-      ExecShellWait "runas" "$WINDIR\System32\wsl.exe" "--install"
+      ExecShellWait "runas" "$R9" "--install"
       ${If} ${Errors}
         ; ShellExecuteEx failed to start — UAC declined, or elevation blocked
         ; by org policy. Fall back to manual instructions; never pretend.

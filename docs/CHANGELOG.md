@@ -3,6 +3,34 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.17] - 2026-06-08
+
+### Fixed — automatic WSL install "did not start" on PCs without WSL (32-bit installer couldn't launch wsl.exe)
+
+On a clean PC that did not have WSL, the installer correctly detected WSL was
+missing, offered to install it, but then the elevated `wsl --install` **"did not
+start"** — even when the user ran the installer as Administrator. A real-PC log
+showed it wasn't a permissions or policy problem at all:
+
+```
+wsl --version exit=error          (empty output — the process never launched)
+Elevated wsl --install did not start (UAC declined or blocked by policy)
+```
+
+Root cause: the installer is **32-bit**, so `"$WINDIR\System32\wsl.exe"` is
+subject to **WOW64 file redirection** → `SysWOW64\wsl.exe`, which doesn't exist.
+(An old comment claimed wsl.exe was excluded from redirection; the log proves it
+isn't.) So `ShellExecuteEx` had nothing to launch and silently failed — running
+as admin couldn't help because it was a path problem, not a privilege one. The
+user's own 64-bit terminal reaches `wsl.exe` fine.
+
+- `installer/Kivun_Terminal_Setup.nsi` now launches the elevated `wsl --install`
+  via the **`Sysnative`** alias (`$WINDIR\Sysnative\wsl.exe`), the documented way
+  for a 32-bit process to reach the real 64-bit System32 binary, falling back to
+  `System32` on 32-bit Windows. So one-click WSL install actually starts. The
+  detection probe is unchanged (it already reaches WSL correctly once installed,
+  via the WindowsApps execution alias).
+
 ## [1.4.16] - 2026-06-08
 
 ### Fixed — Claude install no longer drops to a "run this by hand" dialog on a transient blip
