@@ -149,33 +149,42 @@ jobs:
           path: build/kivun-terminal-linux-${{ steps.version.outputs.version }}.tar.gz
           if-no-files-found: error
 
-      - name: Resolve release notes for this tag
+      # Identical to build-windows.yml's notes step on purpose: BOTH jobs must
+      # write the SAME welcoming body (template hero + install steps + what's
+      # new). Previously this job generated notes it never used and its release
+      # call had no body_path, so softprops cleared the body and clobbered the
+      # Windows job's notes — releases shipped blank. Same content on both sides
+      # makes the create-or-update race harmless.
+      - name: Build welcoming release notes
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
+          if [ ! -f .github/RELEASE_TEMPLATE.md ]; then
+            echo "::error::.github/RELEASE_TEMPLATE.md missing — release notes must be welcoming to first-time visitors."; exit 1
+          fi
+          sed "s/TAG_PLACEHOLDER/${TAG}/g" .github/RELEASE_TEMPLATE.md > /tmp/release-notes.md
+          printf '\n## What'"'"'s new in %s\n\n' "$TAG" >> /tmp/release-notes.md
           NOTES_FILE="docs/RELEASE_NOTES_${VERSION}.md"
           if [ -f "$NOTES_FILE" ]; then
-            cp "$NOTES_FILE" /tmp/release-notes.md
-            echo "Using hand-written ${NOTES_FILE}"
+            cat "$NOTES_FILE" >> /tmp/release-notes.md
           else
             awk -v ver="$VERSION" '
-              $0 ~ "^## \\["ver"\\]" { in_section = 1; print; next }
+              $0 ~ "^## \["ver"\]" { in_section = 1; next }
               /^## \[/ { if (in_section) exit }
               in_section { print }
-            ' docs/CHANGELOG.md > /tmp/release-notes.md
-            if [ ! -s /tmp/release-notes.md ]; then
-              echo "Release ${TAG}." > /tmp/release-notes.md
-            fi
-            echo "Using CHANGELOG section for ${VERSION}"
+            ' docs/CHANGELOG.md >> /tmp/release-notes.md
           fi
+          echo "----- /tmp/release-notes.md -----"; cat /tmp/release-notes.md; echo "----- end -----"
 
       - name: Attach to release (on tag push)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: build/kivun-terminal-linux-${{ steps.version.outputs.version }}.tar.gz
+          body_path: /tmp/release-notes.md
+          draft: false
           prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') }}
           fail_on_unmatched_files: true
 
