@@ -3,6 +3,27 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.16] - 2026-06-08
+
+### Fixed — Claude install no longer drops to a "run this by hand" dialog on a transient blip
+
+The Claude Code install (both the installer's step and the launcher's runtime
+install) fetched Anthropic's `install.sh` with a bare `curl -fsSL` and **no
+retry**. A single transient network hiccup made it fail straight through to the
+MessageBox that tells the user to run the install command manually in WSL — which
+read like a "policy denied the install" block even though it was just our own
+fallback dialog.
+
+- `installer/Kivun_Terminal_Setup.nsi` and `payload/kivun-install-claude.sh` now
+  fetch `install.sh` with `curl --retry 5 --retry-all-errors --retry-delay 2
+  --connect-timeout 30`, so transient failures auto-recover instead of surfacing
+  the manual-command dialog. (This is the WSL/Linux counterpart of the curl
+  resilience added to the Windows Launchpad CLI; the schannel `close_notify`
+  issue does not apply here because WSL's curl uses OpenSSL.)
+- The remaining last-resort MessageBox now leads with "this is usually temporary —
+  click OK and re-run," so users are no longer told to run a command by hand as
+  the first response to a blip.
+
 ## [1.4.15] - 2026-06-03
 
 ### Fixed — "WSL not installed" abort left no log and used a fragile probe

@@ -17,7 +17,7 @@ rm -f /tmp/kivun-claude.log /tmp/kivun-install-rc
 
 {
   timeout 600 bash -c '
-    curl -fsSL https://claude.ai/install.sh -o /tmp/claude-installer.sh \
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 30 https://claude.ai/install.sh -o /tmp/claude-installer.sh \
       && bash /tmp/claude-installer.sh
     rc=$?
     rm -f /tmp/claude-installer.sh

@@ -406,14 +406,18 @@ Section "Claude Code CLI" SEC_CLAUDE
     ; root (it writes only to the user's home), and this matches the
     ; launcher's own runtime install step in kivun-terminal.bat. Log all
     ; output to file so nsExec doesn't deadlock on pipe buffers.
-    nsExec::Exec 'wsl -d Ubuntu -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""'
+    ; curl gets retries so a transient network blip (the common cause of the
+    ; "install failed, run this by hand" dialog) auto-recovers instead of
+    ; surfacing a manual-command MessageBox to the user. --retry-all-errors
+    ; covers HTTP errors too, not just connection failures.
+    nsExec::Exec 'wsl -d Ubuntu -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 30 -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""'
     Pop $0
     ${If} $0 != 0
       DetailPrint "Installer script failed, trying npm fallback (~2-3 minutes)..."
       nsExec::Exec 'wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"'
       Pop $0
       ${If} $0 != 0
-        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Claude Code CLI installation failed.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-claude.log$\r$\n$\r$\nYou can install it manually later by running (in WSL):$\r$\n  T=$(mktemp) && curl -fsSL -o $T https://claude.ai/install.sh && [ -s $T ] && bash $T && rm -f $T$\r$\n$\r$\nClick OK to continue, or Cancel to abort." IDOK claude_continue
+        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Claude Code CLI installation failed.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-claude.log$\r$\n$\r$\nThis is usually a temporary network issue - clicking OK and re-running the installer often succeeds.$\r$\n$\r$\nIf it keeps failing, you can install it manually (in WSL):$\r$\n  T=$(mktemp) && curl -fsSL --retry 5 -o $T https://claude.ai/install.sh && [ -s $T ] && bash $T && rm -f $T$\r$\n$\r$\nClick OK to continue, or Cancel to abort." IDOK claude_continue
           Abort "Installation cancelled by user."
         claude_continue:
       ${EndIf}
