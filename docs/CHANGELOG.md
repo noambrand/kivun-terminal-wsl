@@ -3,6 +3,44 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.19] - 2026-06-09
+
+### Added — clear "turn on virtualization" guidance instead of a silent reboot loop
+
+A real user PC (Windows 10 Home, a 2018 Lenovo) had **hardware virtualization
+disabled in firmware** — `systeminfo` showed `Virtualization Enabled In
+Firmware: No`. WSL2 runs Linux inside a lightweight Hyper-V utility VM, which
+**cannot start** without that firmware switch. So `wsl --install` succeeded and
+asked for a reboot, but every distro boot afterward failed — and the installer
+could only keep asking to reboot and re-run. The user had no way to learn the
+real cause.
+
+No software (this installer included) is permitted to flip the firmware
+virtualization switch — only the user can, in BIOS/UEFI setup. So the installer
+now **detects this up front and explains exactly what to do**, in plain
+language, instead of looping:
+
+- New pre-flight in `installer/Kivun_Terminal_Setup.nsi` (`CheckVirtualization`)
+  runs before any WSL work. Detection is **locale-independent**: it decides
+  purely from `findstr` exit codes on `wmic`'s non-localized TRUE/FALSE output
+  (`Win32_Processor.VirtualizationFirmwareEnabled` and
+  `Win32_ComputerSystem.HypervisorPresent`) — never parsing localized text, and
+  never parsing wsl.exe's UTF-16 output (which `findstr` can't read). It blocks
+  only when firmware VT is explicitly FALSE **and** no hypervisor is already
+  running (a running hypervisor means VT is actually on). Machines where `wmic`
+  is absent (some Win11 24H2+) simply proceed rather than being false-blocked.
+- When VT is off, `ShowVirtualizationHelp` shows a clear dialog: restart →
+  Setup/BIOS key → enable "Virtualization" / "Intel VT-x" / "SVM Mode" → save →
+  re-run. The installer then stops cleanly instead of looping.
+
+### Fixed — installer UI displayed the wrong version
+
+`PRODUCT_VERSION` in the NSI was pinned at `1.4.15` while `VERSION` (the release
+source of truth) had advanced, so recent releases' welcome/finish pages and the
+Add/Remove Programs entry showed **v1.4.15**. The build does not inject the
+version, so the NSI version strings (and the docs' title stamps) are now bumped
+in lockstep with `VERSION` (1.4.19).
+
 ## [1.4.18] - 2026-06-09
 
 ### Fixed — endless WSL reinstall/reboot loop (detection probe couldn't see the WSL it just installed)

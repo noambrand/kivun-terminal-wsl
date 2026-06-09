@@ -1,11 +1,11 @@
-; Kivun Terminal v1.4.15 - Professional Installer
+; Kivun Terminal v1.4.19 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.15"
+!define PRODUCT_VERSION "1.4.19"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.15.0"
+VIProductVersion "1.4.19.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.15.0"
+VIAddVersionKey "FileVersion" "1.4.19.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -100,6 +100,48 @@ Function .onInit
   ; capture that failure.
   CreateDirectory "$LOCALAPPDATA\Kivun-WSL"
   !insertmacro KLOG "=== Kivun Terminal v${PRODUCT_VERSION} install started ==="
+FunctionEnd
+
+; =================================================================
+; VIRTUALIZATION PRE-FLIGHT (v1.4.19)
+; WSL2 runs Linux inside a lightweight Hyper-V utility VM, which cannot start
+; unless hardware virtualization (Intel VT-x / AMD-V) is ENABLED in the PC's
+; firmware (BIOS/UEFI). On a real user PC (Win10 Home, a 2018 Lenovo) this was
+; OFF: `wsl --install` succeeded and asked for a reboot, but after the reboot
+; every distro boot failed because the utility VM could not start — so the
+; installer kept asking to reboot and re-run, forever. No software can flip
+; this firmware switch; only the user can, in BIOS/UEFI setup. So detect it up
+; front and tell the user, in plain language, exactly what to do.
+;
+; Detection is locale-independent: every decision comes from findstr EXIT CODES
+; on wmic's non-localized TRUE/FALSE output. We deliberately do NOT parse
+; localized text, nor wsl.exe's UTF-16 output (which findstr can't read).
+;   Win32_Processor.VirtualizationFirmwareEnabled = FALSE -> firmware VT is off
+;   Win32_ComputerSystem.HypervisorPresent        = TRUE  -> a hypervisor is
+;     already running, so VT is really ON even if the line above reads FALSE
+; Treat VT as OFF only when firmware VT is explicitly FALSE AND no hypervisor
+; is present. If wmic is absent (some Win11 24H2+) neither check matches and we
+; simply proceed — the install continues rather than false-blocking.
+; =================================================================
+Function CheckVirtualization
+  ; Output: $R5 = "OFF" when firmware virtualization is disabled, else "OK".
+  Push $0
+  Push $1
+  StrCpy $R5 "OK"
+  nsExec::Exec 'cmd /c wmic path Win32_Processor get VirtualizationFirmwareEnabled /value 2>nul | findstr /i /c:=FALSE >nul'
+  Pop $0
+  nsExec::Exec 'cmd /c wmic path Win32_ComputerSystem get HypervisorPresent /value 2>nul | findstr /i /c:=TRUE >nul'
+  Pop $1
+  ${If} $0 == 0
+  ${AndIf} $1 != 0
+    StrCpy $R5 "OFF"
+  ${EndIf}
+  Pop $1
+  Pop $0
+FunctionEnd
+
+Function ShowVirtualizationHelp
+  MessageBox MB_ICONEXCLAMATION|MB_OK "Kivun Terminal (WSL) can't finish because your PC's hardware $\"virtualization$\" setting is turned OFF.$\r$\n$\r$\nWSL runs Linux inside a small virtual machine, and Windows cannot start that virtual machine until virtualization is enabled in your PC's firmware (BIOS/UEFI). No app — including this installer — can change that setting; only you can. It takes about 2 minutes and is a one-time change.$\r$\n$\r$\nHOW TO TURN IT ON:$\r$\n1. Save your work and restart the PC.$\r$\n2. As it powers on, press the BIOS / Setup key repeatedly — often F2, F10, Del or Esc (many Lenovo PCs use F1 or the small $\"Novo$\" button).$\r$\n3. Find a setting named $\"Virtualization$\", $\"Intel Virtual Technology$\" / $\"VT-x$\", or $\"SVM Mode$\" (AMD), and set it to Enabled.$\r$\n4. Save and exit (usually F10) and let Windows start.$\r$\n5. Run this Kivun Terminal installer again — it continues automatically.$\r$\n$\r$\nTip: searching the web for $\"enable virtualization$\" plus your PC maker (Lenovo, Dell, HP...) shows exact steps with pictures.$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
 FunctionEnd
 
 ; =================================================================
@@ -201,6 +243,19 @@ SectionEnd
 
 Section "WSL2 + Ubuntu" SEC_WSL
   SectionIn RO
+
+  ; Virtualization (firmware) pre-flight — see CheckVirtualization above. If
+  ; VT is off, WSL2 can never boot, so explain the one-time BIOS fix now rather
+  ; than letting the user fall into an endless install/reboot loop.
+  DetailPrint "Checking hardware virtualization (BIOS/UEFI)..."
+  Call CheckVirtualization
+  ${If} $R5 == "OFF"
+    !insertmacro KLOG "Firmware virtualization is DISABLED -> telling user how to enable VT in BIOS"
+    Call ShowVirtualizationHelp
+    Abort "Virtualization disabled in firmware — enable it in BIOS, then re-run."
+  ${EndIf}
+  !insertmacro KLOG "Virtualization check result: $R5"
+
   DetailPrint "Checking WSL..."
   ; Availability probe. The bare `wsl` form returns exit=error from this 32-bit
   ; installer — wsl.exe is NOT reliably excluded from WOW64 redirection (an old
