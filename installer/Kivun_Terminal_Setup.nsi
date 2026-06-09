@@ -1,11 +1,11 @@
-; Kivun Terminal v1.4.19 - Professional Installer
+; Kivun Terminal v1.4.20 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.19"
+!define PRODUCT_VERSION "1.4.20"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.19.0"
+VIProductVersion "1.4.20.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.19.0"
+VIAddVersionKey "FileVersion" "1.4.20.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -141,7 +141,7 @@ Function CheckVirtualization
 FunctionEnd
 
 Function ShowVirtualizationHelp
-  MessageBox MB_ICONEXCLAMATION|MB_OK "Kivun Terminal (WSL) can't finish because your PC's hardware $\"virtualization$\" setting is turned OFF.$\r$\n$\r$\nWSL runs Linux inside a small virtual machine, and Windows cannot start that virtual machine until virtualization is enabled in your PC's firmware (BIOS/UEFI). No app — including this installer — can change that setting; only you can. It takes about 2 minutes and is a one-time change.$\r$\n$\r$\nHOW TO TURN IT ON:$\r$\n1. Save your work and restart the PC.$\r$\n2. As it powers on, press the BIOS / Setup key repeatedly — often F2, F10, Del or Esc (many Lenovo PCs use F1 or the small $\"Novo$\" button).$\r$\n3. Find a setting named $\"Virtualization$\", $\"Intel Virtual Technology$\" / $\"VT-x$\", or $\"SVM Mode$\" (AMD), and set it to Enabled.$\r$\n4. Save and exit (usually F10) and let Windows start.$\r$\n5. Run this Kivun Terminal installer again — it continues automatically.$\r$\n$\r$\nTip: searching the web for $\"enable virtualization$\" plus your PC maker (Lenovo, Dell, HP...) shows exact steps with pictures.$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+  MessageBox MB_ICONEXCLAMATION|MB_OK "Kivun Terminal (WSL) can't finish because your PC's hardware $\"virtualization$\" setting is turned OFF.$\r$\n$\r$\nWSL runs Linux inside a small virtual machine, and Windows cannot start that virtual machine until virtualization is enabled in your PC's firmware (BIOS/UEFI). No app — including this installer — can change that setting; only you can. It takes about 2 minutes and is a one-time change.$\r$\n$\r$\nHOW TO TURN IT ON:$\r$\n1. Save your work and restart the PC.$\r$\n2. As it powers on, press the BIOS/Setup key repeatedly:$\r$\n        Dell / ASUS / Acer  →  F2$\r$\n        Lenovo  →  F1, F2, or the Novo button$\r$\n        HP  →  Esc, then F10$\r$\n        Other / desktops  →  Del (or F2)$\r$\n3. Find a setting named $\"Virtualization$\", $\"Intel Virtual Technology$\" / $\"VT-x$\", or $\"SVM Mode$\" (AMD), and set it to Enabled.$\r$\n4. Save and exit (usually F10) and let Windows start.$\r$\n5. Run this Kivun Terminal installer again — it continues automatically.$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
 FunctionEnd
 
 ; =================================================================

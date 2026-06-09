@@ -3,6 +3,29 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.20] - 2026-06-09
+
+### Changed — clearer, per-manufacturer BIOS steps in the virtualization help
+
+The "turn on virtualization" dialog (added in 1.4.19) now lists the BIOS/Setup
+key **by PC maker** instead of a generic "often F2/F10/Del/Esc", so users don't
+have to guess:
+
+- Dell / ASUS / Acer → **F2**
+- Lenovo → **F1, F2, or the Novo button**
+- HP → **Esc, then F10**
+- Other / desktops → **Del (or F2)**
+
+Mirrored in the on-site test kit (`diagnose.cmd` `[2b]` verdict,
+`offline-install.cmd` `[0/4]` gate, `OFFLINE-INSTALL.md` STEP 0).
+
+### Fixed — stale fallback version in the folder picker
+
+`payload/folder-picker.hta`'s `FALLBACK_VERSION` was still `1.4.10` (used only
+when the installed `VERSION` file is missing, so it never affected normal
+installs). Bumped to 1.4.20 in lockstep with `VERSION`, and the release
+consistency sweep now covers `.hta` too.
+
 ## [1.4.19] - 2026-06-09
 
 ### Added — clear "turn on virtualization" guidance instead of a silent reboot loop
