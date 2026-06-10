@@ -1,11 +1,11 @@
-; Kivun Terminal v1.4.24 - Professional Installer
+; Kivun Terminal v1.4.25 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.24"
+!define PRODUCT_VERSION "1.4.25"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.24.0"
+VIProductVersion "1.4.25.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.24.0"
+VIAddVersionKey "FileVersion" "1.4.25.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -176,6 +176,11 @@ Section "Core Files" SEC_CORE
   ; section aborts (e.g. virtualization off) — the user can still produce and
   ; send a good report. See payload/kivun-diagnostics.cmd.
   File "..\payload\kivun-diagnostics.cmd"
+  ; Offline / antivirus-safe WSL+Ubuntu installer, used when the normal online
+  ; `wsl --install` is blocked (e.g. corporate McAfee Web Protection). Installed
+  ; in Core so SEC_WSL's failure messages can point the user to it on disk. See
+  ; offline/README.md.
+  File "..\offline\offline-install.cmd"
   ; Ensures a non-root Ubuntu user exists (Claude won't run as root). Run by
   ; SEC_WSL at install time and by the launcher as a self-heal. See .sh header.
   File "..\payload\kivun-ensure-user.sh"
@@ -332,7 +337,7 @@ Section "WSL2 + Ubuntu" SEC_WSL
         ; ShellExecuteEx failed to start — UAC declined, or elevation blocked
         ; by org policy. Fall back to manual instructions; never pretend.
         !insertmacro KLOG "Elevated wsl --install did not start (UAC declined or blocked by policy)"
-        MessageBox MB_ICONINFORMATION|MB_OK "WSL installation didn't start — the administrator prompt was declined, or your organization blocks it.$\r$\n$\r$\nTo install WSL: open Terminal as Administrator and run  wsl --install , then reboot and run this installer again.$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+        MessageBox MB_ICONINFORMATION|MB_OK "WSL installation didn't start — the administrator prompt was declined, or your organization blocks it.$\r$\n$\r$\nTo install WSL: open Terminal as Administrator and run  wsl --install , then reboot and run this installer again.$\r$\n$\r$\nIf antivirus blocks the WSL download, install it OFFLINE (no downloads): run$\r$\n  $INSTDIR\offline-install.cmd$\r$\nas administrator, with the two official files beside it. Guide:$\r$\nhttps://github.com/noambrand/kivun-terminal-wsl/tree/main/offline$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
         Abort "WSL install not started."
       ${EndIf}
       !insertmacro KLOG "Elevated wsl --install finished; reboot required"
@@ -360,7 +365,7 @@ Section "WSL2 + Ubuntu" SEC_WSL
     Pop $0
     ${If} $0 != 0
       !insertmacro KLOG "Ubuntu install (wsl --install -d Ubuntu) failed exit=$0"
-      MessageBox MB_ICONEXCLAMATION|MB_OK "Ubuntu installation failed.$\r$\n$\r$\nPlease try:$\r$\n1. Open Microsoft Store$\r$\n2. Search for 'Ubuntu'$\r$\n3. Install 'Ubuntu' (the latest LTS version)$\r$\n4. Run this installer again$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+      MessageBox MB_ICONEXCLAMATION|MB_OK "Ubuntu installation failed.$\r$\n$\r$\nPlease try:$\r$\n1. Open Microsoft Store$\r$\n2. Search for 'Ubuntu'$\r$\n3. Install 'Ubuntu' (the latest LTS version)$\r$\n4. Run this installer again$\r$\n$\r$\nBlocked by antivirus? Install WSL + Ubuntu OFFLINE (no downloads): run$\r$\n  $INSTDIR\offline-install.cmd$\r$\nas administrator, after placing the two official files beside it. Step-by-step:$\r$\nhttps://github.com/noambrand/kivun-terminal-wsl/tree/main/offline$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
       Abort "Ubuntu installation failed."
     ${EndIf}
     DetailPrint "Waiting for Ubuntu to initialize..."

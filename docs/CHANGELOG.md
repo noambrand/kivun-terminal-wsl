@@ -3,6 +3,28 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.25] - 2026-06-10
+
+### Added — offline / antivirus-safe WSL+Ubuntu install path (for locked-down PCs)
+
+Some corporate antivirus (we confirmed **McAfee Web Protection** on a real PC) blocks
+the large WSL download that Microsoft's `wsl --install` performs — so the normal
+install can't complete. There's now a fallback that needs **no downloads at all**.
+
+- New **`offline/offline-install.cmd`** installs WSL2 + Ubuntu from two official local
+  files using only native, Microsoft-signed tooling — `dism` to enable the features,
+  `msiexec` for the signed WSL runtime MSI, and `wsl --install --from-file` for the
+  Ubuntu image. No PowerShell, no Microsoft Store, no downloads during install, so
+  antivirus has nothing to block. It checks firmware virtualization first and resumes
+  across the reboot WSL needs.
+- The two files come straight from the vendors — the WSL MSI from
+  <https://github.com/microsoft/WSL/releases> and the Ubuntu 24.04 image from
+  <https://releases.ubuntu.com/noble/> — documented in **`offline/README.md`**.
+- The installer now **bundles `offline-install.cmd`** (in Core, so it survives an
+  aborted WSL step), and its "WSL/Ubuntu install failed" messages **point to it**
+  instead of dead-ending — so a user whose antivirus blocked the download has a clear,
+  reliable next step.
+
 ## [1.4.24] - 2026-06-10
 
 ### Fixed — keyboard opens in your current language; Alt+Shift switching is reliable
