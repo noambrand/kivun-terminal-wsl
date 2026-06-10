@@ -1,11 +1,11 @@
-; Kivun Terminal v1.4.21 - Professional Installer
+; Kivun Terminal v1.4.22 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.21"
+!define PRODUCT_VERSION "1.4.22"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.21.0"
+VIProductVersion "1.4.22.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.21.0"
+VIAddVersionKey "FileVersion" "1.4.22.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -176,6 +176,9 @@ Section "Core Files" SEC_CORE
   ; section aborts (e.g. virtualization off) — the user can still produce and
   ; send a good report. See payload/kivun-diagnostics.cmd.
   File "..\payload\kivun-diagnostics.cmd"
+  ; Ensures a non-root Ubuntu user exists (Claude won't run as root). Run by
+  ; SEC_WSL at install time and by the launcher as a self-heal. See .sh header.
+  File "..\payload\kivun-ensure-user.sh"
   File "kivun_icon.ico"
   File "..\VERSION"
   File "..\docs\README.md"
@@ -377,6 +380,19 @@ Section "WSL2 + Ubuntu" SEC_WSL
       DetailPrint "Ubuntu is already on WSL2."
     ${EndIf}
   ${EndIf}
+
+  ; Ensure a non-root user exists and is the WSL default (v1.4.22). Ubuntu from
+  ; `wsl --install --no-launch` has ONLY root, and Claude Code refuses to run as
+  ; root — which used to dead-end the launcher on a "create a user by hand"
+  ; dialog. Pipe the helper in via stdin (type | bash -s) to dodge all
+  ; NSIS/cmd/bash quoting of the sudoers parens; the .sh is LF via .gitattributes.
+  ; Restart the distro so WSLg is owned by the new user and so Claude installs
+  ; into the user's home (not /root) in the next section.
+  DetailPrint "Ensuring a non-root Ubuntu user (Claude won't run as root)..."
+  nsExec::ExecToLog 'cmd /c type "$INSTDIR\kivun-ensure-user.sh" | wsl -d Ubuntu --user root -- bash -s'
+  Pop $0
+  !insertmacro KLOG "ensure non-root user exit=$0"
+  nsExec::Exec 'wsl --terminate Ubuntu'
 SectionEnd
 
 Section "Konsole + window tools" SEC_KONSOLE
@@ -593,6 +609,7 @@ Section "Uninstall"
   ; Remove installed files
   Delete "$INSTDIR\folder-picker.hta"
   Delete "$INSTDIR\kivun-diagnostics.cmd"
+  Delete "$INSTDIR\kivun-ensure-user.sh"
   Delete "$INSTDIR\kivun-terminal.bat"
   Delete "$INSTDIR\kivun-launch.sh"
   Delete "$INSTDIR\kivun-direct.sh"

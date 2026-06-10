@@ -3,6 +3,31 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.22] - 2026-06-10
+
+### Fixed — Ubuntu had no non-root user, so Claude (which won't run as root) couldn't launch
+
+A real PC reached the very end — virtualization on, WSL + Ubuntu installed,
+Claude downloaded fine *inside* WSL (confirming antivirus does **not** block
+WSL2-internal downloads) — then dead-ended: Ubuntu installed via
+`wsl --install --no-launch` contains **only root**, and Claude Code refuses to
+run as root. The launcher could only print `adduser` commands for the user to
+type by hand (which this project's "never tell users to run cmd" rule forbids).
+
+Now a non-root user is created **automatically**:
+
+- New `payload/kivun-ensure-user.sh` (idempotent): creates user `kivun`, gives
+  it passwordless sudo, and sets it as the WSL default via `/etc/wsl.conf`. Both
+  the installer and launcher run it by piping it in (`type … | wsl --user root
+  -- bash -s`), which dodges all NSIS/cmd/bash quoting of the sudoers parens
+  (the `.sh` is LF via `.gitattributes`).
+- `installer/Kivun_Terminal_Setup.nsi` (SEC_WSL) runs it right after Ubuntu
+  installs and restarts the distro, so WSLg is owned by `kivun` and Claude
+  installs into the user's home (not `/root`).
+- `payload/kivun-terminal.bat` now **auto-creates** the user when it finds none
+  (replacing the old manual-command dialog) and continues; if it still can't, it
+  points the user at Kivun Diagnostics instead of cmd instructions.
+
 ## [1.4.21] - 2026-06-10
 
 ### Added — bundled "Kivun Diagnostics" report tool + clear test/report instructions

@@ -420,24 +420,19 @@ if not defined WSLG_USER (
     for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
 )
 if not defined WSLG_USER (
-    call :LOG "ERROR - No non-root user (UID 1000) found in Ubuntu; cannot launch Claude"
+    call :LOG "INFO - No non-root user in Ubuntu; auto-creating one (Claude cannot run as root)"
+    echo   Setting up your Linux user ^(one-time, a few seconds^)...
+    type "%~dp0kivun-ensure-user.sh" | wsl -d Ubuntu --user root -- bash -s >> "%LOG_FILE%" 2>&1
+    call :LOG "INFO - Restarting Ubuntu so the new default user owns WSLg"
+    wsl --terminate Ubuntu >> "%LOG_FILE%" 2>&1
+    for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
+)
+if not defined WSLG_USER (
+    call :LOG "ERROR - Could not auto-create a non-root user in Ubuntu"
     echo.
-    echo ============================================================
-    echo  ERROR: WSL Ubuntu has no non-root user.
-    echo ============================================================
-    echo  Claude Code refuses to run as root for security reasons
-    echo  ^(--dangerously-skip-permissions is incompatible with root^).
-    echo.
-    echo  Fix: create a non-root user inside Ubuntu and set it as
-    echo  the default. From Windows cmd or PowerShell:
-    echo.
-    echo    wsl -d Ubuntu --user root -- adduser yourname
-    echo    wsl -d Ubuntu --user root -- usermod -aG sudo yourname
-    echo    ubuntu config --default-user yourname
-    echo    wsl --terminate Ubuntu
-    echo.
-    echo  Then re-launch Kivun Terminal.
-    echo ============================================================
+    echo  Could not set up a Linux user automatically. Please open
+    echo  "Kivun Diagnostics" from the Start Menu and email the
+    echo  report to noambbb@gmail.com so we can help.
     pause
     exit /b 1
 )
