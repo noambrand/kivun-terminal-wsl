@@ -32,3 +32,6 @@ __pycache__/
 docs/plans.docx
 docs/*.docx
 *.docx
+
+# Native launcher build output (KivunTerminal.exe is built by CI / launcher/build.bat)
+launcher/out/

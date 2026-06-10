@@ -1,0 +1,46 @@
+// Resource script for KivunTerminal.exe.
+// Honest, complete VERSIONINFO + the product icon: AV heuristics treat a
+// tiny unsigned exe much more kindly when its metadata is consistent
+// (InternalName == OriginalFilename, real CompanyName/Description).
+// Version numbers are injected by build.bat from the repo-root VERSION
+// file via rc.exe /d defines; a bare local build stamps 0.0.0.
+
+#include <winver.h>
+
+#ifndef KIVUN_V_MAJOR
+#define KIVUN_V_MAJOR 0
+#define KIVUN_V_MINOR 0
+#define KIVUN_V_PATCH 0
+#endif
+
+#define S_(x) #x
+#define S(x) S_(x)
+#define KIVUN_VER_STR S(KIVUN_V_MAJOR) "." S(KIVUN_V_MINOR) "." S(KIVUN_V_PATCH) ".0"
+
+1 ICON "..\\installer\\kivun_icon.ico"
+
+1 VERSIONINFO
+FILEVERSION    KIVUN_V_MAJOR,KIVUN_V_MINOR,KIVUN_V_PATCH,0
+PRODUCTVERSION KIVUN_V_MAJOR,KIVUN_V_MINOR,KIVUN_V_PATCH,0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName",      "Noam Brand"
+      VALUE "FileDescription",  "Kivun Terminal launcher (runs kivun-terminal.bat without a console window)"
+      VALUE "FileVersion",      KIVUN_VER_STR
+      VALUE "InternalName",     "KivunTerminal"
+      VALUE "OriginalFilename", "KivunTerminal.exe"
+      VALUE "ProductName",      "Kivun Terminal"
+      VALUE "ProductVersion",   KIVUN_VER_STR
+      VALUE "LegalCopyright",   "(C) 2026 Noam Brand"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

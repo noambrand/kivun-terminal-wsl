@@ -1,4 +1,4 @@
-# Kivun Terminal v1.4.25 - Troubleshooting
+# Kivun Terminal v1.4.26 - Troubleshooting
 
 > **macOS deprecated as of v1.2.4.** This doc still contains macOS sections because users with v1.2.0–v1.2.3 `.pkg` installs may need them for diagnostics or recovery. New installs should use Windows or Linux. See [`mac/README.md`](../mac/README.md) for context and uninstall.
 
@@ -175,6 +175,25 @@ wsl -d Ubuntu -- unix2dos "/mnt/c/Users/%USERNAME%/AppData/Local/Kivun-WSL/kivun
 ```
 
 `kivun-launch.sh` must stay LF (it's a Unix shell script). `kivun-terminal.bat` must be CRLF.
+
+## Symptom: double-clicking the shortcut does nothing at all (v1.4.26+)
+
+Since v1.4.26 the desktop shortcut runs **`KivunTerminal.exe`** — a small native
+launcher that starts `kivun-terminal.bat` with no visible console (that's what
+removed the black window flash). If a launch fails, the exe shows an error popup
+with the last lines of the launch log; if instead *nothing at all* happens, the
+most likely cause is **antivirus quarantining the exe** — it is unsigned, and a
+tiny program that starts a hidden `cmd.exe` resembles patterns some AVs dislike.
+
+**Fix / workaround:**
+
+1. Use the Start-menu shortcut **"Kivun Terminal (console)"** — it runs the exact
+   same `kivun-terminal.bat` with a visible console, no exe involved. Everything
+   works identically (you just see the console again).
+2. Check your antivirus quarantine for `KivunTerminal.exe` and restore/allow it
+   (file location: `%LOCALAPPDATA%\Kivun-WSL\KivunTerminal.exe`).
+3. Still stuck? Run **"Kivun Diagnostics"** from the Start menu and email the
+   report to noambbb@gmail.com.
 
 ## Symptom: "Permission denied" on `/tmp/kivun-claude-launch.sh`
 

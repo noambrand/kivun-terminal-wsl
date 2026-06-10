@@ -57,7 +57,7 @@ VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_FINISHPAGE_TITLE "${PRODUCT_NAME} Installation Complete!"
 !define MUI_FINISHPAGE_TEXT "${PRODUCT_NAME} v${PRODUCT_VERSION} has been installed successfully.$\r$\n$\r$\nLaunch it from the desktop shortcut or right-click any folder and choose $\"Open with Kivun Terminal$\".$\r$\n$\r$\nYou will need a Claude Pro/Max subscription or an Anthropic API key.$\r$\nGet one at: https://console.anthropic.com/$\r$\n$\r$\nTo test it works: launch Kivun Terminal and send Claude a message. If anything fails, open $\"Kivun Diagnostics$\" from the Start Menu and email the report to noambbb@gmail.com."
-!define MUI_FINISHPAGE_RUN "$INSTDIR\kivun-terminal.bat"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\KivunTerminal.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch Kivun Terminal now"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\README.md"
@@ -158,6 +158,10 @@ Section "Core Files" SEC_CORE
   SetShellVarContext current
 
   File "..\payload\kivun-terminal.bat"
+  ; Native no-console-flash launcher (thin hidden shell over the .bat).
+  ; Built by launcher\build.bat - CI (build-windows.yml) runs it before
+  ; makensis; for a local installer build run it manually first.
+  File "..\launcher\out\KivunTerminal.exe"
   File "..\payload\kivun-launch.sh"
   File "..\payload\kivun-direct.sh"
   File "..\payload\kivun-install-claude.sh"
@@ -235,8 +239,14 @@ SectionEnd
 Section "Desktop Shortcut" SEC_SHORTCUT
   ; SetShellVarContext current was set in Core and persists across sections,
   ; so $DESKTOP / $SMPROGRAMS resolve to the invoking user's folders.
-  CreateShortcut "$DESKTOP\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
-  CreateShortcut "$SMPROGRAMS\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
+  ; Shortcuts target the native launcher (no console flash). SW_SHOWNORMAL:
+  ; there is no window to minimize anymore - MINIMIZED was only ever a
+  ; mitigation for the cmd flash the exe now eliminates.
+  CreateShortcut "$DESKTOP\Kivun Terminal.lnk" "$INSTDIR\KivunTerminal.exe" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWNORMAL "" "Launch Kivun Terminal"
+  CreateShortcut "$SMPROGRAMS\Kivun Terminal.lnk" "$INSTDIR\KivunTerminal.exe" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWNORMAL "" "Launch Kivun Terminal"
+  ; Visible-console fallback: same .bat, real window. Diagnostic aid, and
+  ; the escape hatch if an antivirus ever quarantines the unsigned exe.
+  CreateShortcut "$SMPROGRAMS\Kivun Terminal (console).lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWNORMAL "" "Launch with a visible console (diagnostics)"
   ; Diagnostics/report shortcut — visible console (SW_SHOWNORMAL) so the user
   ; sees the "report saved — email it" message and can send us good data.
   CreateShortcut "$SMPROGRAMS\Kivun Diagnostics.lnk" "$INSTDIR\kivun-diagnostics.cmd" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWNORMAL "" "Collect a Kivun problem report to send for help"
@@ -249,12 +259,12 @@ Section "Right-Click Menu Integration" SEC_RCLICK
   ; Add "Open with Kivun Terminal" to folder context menu
   WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal" "" "Open with Kivun Terminal"
   WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal" "Icon" "$INSTDIR\kivun_icon.ico"
-  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal\command" "" '"$INSTDIR\kivun-terminal.bat" "%1"'
+  WriteRegStr HKCU "Software\Classes\Directory\shell\KivunTerminal\command" "" '"$INSTDIR\KivunTerminal.exe" "%1"'
 
   ; Add to background of folder (right-click inside a folder)
   WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal" "" "Open with Kivun Terminal"
   WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal" "Icon" "$INSTDIR\kivun_icon.ico"
-  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal\command" "" '"$INSTDIR\kivun-terminal.bat" "%V"'
+  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\KivunTerminal\command" "" '"$INSTDIR\KivunTerminal.exe" "%V"'
 SectionEnd
 
 Section "WSL2 + Ubuntu" SEC_WSL
@@ -603,6 +613,7 @@ Section "Uninstall"
   ; for users who installed v1.2.9 and then upgraded.
   Delete "$DESKTOP\Kivun Terminal.lnk"
   Delete "$SMPROGRAMS\Kivun Terminal.lnk"
+  Delete "$SMPROGRAMS\Kivun Terminal (console).lnk"
   Delete "$SMPROGRAMS\Kivun Diagnostics.lnk"
   Delete "$SMPROGRAMS\Edit Kivun Terminal Config.lnk"
 
@@ -616,6 +627,7 @@ Section "Uninstall"
   Delete "$INSTDIR\kivun-diagnostics.cmd"
   Delete "$INSTDIR\kivun-ensure-user.sh"
   Delete "$INSTDIR\kivun-terminal.bat"
+  Delete "$INSTDIR\KivunTerminal.exe"
   Delete "$INSTDIR\kivun-launch.sh"
   Delete "$INSTDIR\kivun-direct.sh"
   Delete "$INSTDIR\kivun-install-claude.sh"

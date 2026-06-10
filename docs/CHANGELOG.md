@@ -3,6 +3,37 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.26] - 2026-06-10
+
+### Added — native launcher: no more black window flash (continuation of PR #83 by @zuwasi)
+
+Double-clicking Kivun Terminal used to flash a black cmd window (minimized,
+but visible) and leave a minimized console on the taskbar for the whole
+session. Both are gone.
+
+- New **`launcher/`** builds **`KivunTerminal.exe`** — a ~150 KB native
+  launcher that runs `kivun-terminal.bat` in a console with **no window at
+  all** (`CREATE_NO_WINDOW`). It is a deliberately thin shell: every check
+  the launcher performs (config, folder picker, WSL health, Claude
+  auto-install, root guard, WSLENV) stays in the battle-tested `.bat`.
+- The desktop shortcut, Start-menu shortcut, Explorer right-click entries,
+  and the installer's "Launch now" checkbox now target the exe. Konsole is
+  the only window the user ever sees.
+- **Failures stay visible**: the exe waits for the bat's exit code and pops
+  a MessageBox with the last lines of `LAUNCH_LOG.txt` when it is non-zero —
+  no silent-failure regression (the v1.1.0 lesson).
+- The bat gained `KIVUN_HIDDEN` guards: interactive prompts are skipped with
+  safe defaults, and the WSL bridge launches via `start /B` so no taskbar
+  console appears. Launched directly (visible console), behavior is
+  byte-identical to before.
+- New Start-menu shortcut **"Kivun Terminal (console)"** runs the same bat
+  with a visible console — diagnostics aid and the fallback if an antivirus
+  ever quarantines the unsigned exe.
+- CI builds the exe (vswhere → MSVC, any edition) before packaging, and a
+  new `validate-launcher-windows` job drives the exe → hidden-bat chain
+  against real WSL, asserting env propagation, spaced-path argument
+  forwarding, and exit-code propagation.
+
 ## [1.4.25] - 2026-06-10
 
 ### Added — offline / antivirus-safe WSL+Ubuntu install path (for locked-down PCs)
