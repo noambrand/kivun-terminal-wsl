@@ -1,11 +1,11 @@
-; Kivun Terminal v1.4.20 - Professional Installer
+; Kivun Terminal v1.4.21 - Professional Installer
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.20"
+!define PRODUCT_VERSION "1.4.21"
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +31,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.20.0"
+VIProductVersion "1.4.21.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.20.0"
+VIAddVersionKey "FileVersion" "1.4.21.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
@@ -56,7 +56,7 @@ VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 !insertmacro MUI_PAGE_INSTFILES
 
 !define MUI_FINISHPAGE_TITLE "${PRODUCT_NAME} Installation Complete!"
-!define MUI_FINISHPAGE_TEXT "${PRODUCT_NAME} v${PRODUCT_VERSION} has been installed successfully.$\r$\n$\r$\nLaunch it from the desktop shortcut or right-click any folder and choose $\"Open with Kivun Terminal$\".$\r$\n$\r$\nYou will need a Claude Pro/Max subscription or an Anthropic API key.$\r$\nGet one at: https://console.anthropic.com/"
+!define MUI_FINISHPAGE_TEXT "${PRODUCT_NAME} v${PRODUCT_VERSION} has been installed successfully.$\r$\n$\r$\nLaunch it from the desktop shortcut or right-click any folder and choose $\"Open with Kivun Terminal$\".$\r$\n$\r$\nYou will need a Claude Pro/Max subscription or an Anthropic API key.$\r$\nGet one at: https://console.anthropic.com/$\r$\n$\r$\nTo test it works: launch Kivun Terminal and send Claude a message. If anything fails, open $\"Kivun Diagnostics$\" from the Start Menu and email the report to noambbb@gmail.com."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\kivun-terminal.bat"
 !define MUI_FINISHPAGE_RUN_TEXT "Launch Kivun Terminal now"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
@@ -141,7 +141,7 @@ Function CheckVirtualization
 FunctionEnd
 
 Function ShowVirtualizationHelp
-  MessageBox MB_ICONEXCLAMATION|MB_OK "Kivun Terminal (WSL) can't finish because your PC's hardware $\"virtualization$\" setting is turned OFF.$\r$\n$\r$\nWSL runs Linux inside a small virtual machine, and Windows cannot start that virtual machine until virtualization is enabled in your PC's firmware (BIOS/UEFI). No app — including this installer — can change that setting; only you can. It takes about 2 minutes and is a one-time change.$\r$\n$\r$\nHOW TO TURN IT ON:$\r$\n1. Save your work and restart the PC.$\r$\n2. As it powers on, press the BIOS/Setup key repeatedly:$\r$\n        Dell / ASUS / Acer  →  F2$\r$\n        Lenovo  →  F1, F2, or the Novo button$\r$\n        HP  →  Esc, then F10$\r$\n        Other / desktops  →  Del (or F2)$\r$\n3. Find a setting named $\"Virtualization$\", $\"Intel Virtual Technology$\" / $\"VT-x$\", or $\"SVM Mode$\" (AMD), and set it to Enabled.$\r$\n4. Save and exit (usually F10) and let Windows start.$\r$\n5. Run this Kivun Terminal installer again — it continues automatically.$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+  MessageBox MB_ICONEXCLAMATION|MB_OK "Kivun Terminal (WSL) can't finish because your PC's hardware $\"virtualization$\" setting is turned OFF.$\r$\n$\r$\nWSL runs Linux inside a small virtual machine, and Windows cannot start that virtual machine until virtualization is enabled in your PC's firmware (BIOS/UEFI). No app — including this installer — can change that setting; only you can. It takes about 2 minutes and is a one-time change.$\r$\n$\r$\nHOW TO TURN IT ON:$\r$\n1. Save your work and restart the PC.$\r$\n2. As it powers on, press the BIOS/Setup key repeatedly:$\r$\n        Dell / ASUS / Acer  →  F2$\r$\n        Lenovo  →  F1, F2, or the Novo button$\r$\n        HP  →  Esc, then F10$\r$\n        Other / desktops  →  Del (or F2)$\r$\n3. Find a setting named $\"Virtualization$\", $\"Intel Virtual Technology$\" / $\"VT-x$\", or $\"SVM Mode$\" (AMD), and set it to Enabled.$\r$\n4. Save and exit (usually F10) and let Windows start.$\r$\n5. Run this Kivun Terminal installer again — it continues automatically.$\r$\n$\r$\nNeed help? Open $\"Kivun Diagnostics$\" from the Start Menu and email the report (Kivun-Report.txt, saved to your Desktop) to noambbb@gmail.com.$\r$\n$\r$\nA diagnostic log was also saved to:$\r$\n$LOGFILE"
 FunctionEnd
 
 ; =================================================================
@@ -171,6 +171,11 @@ Section "Core Files" SEC_CORE
   ; writes _NET_WM_ICON via python-xlib. See payload/kivun-set-icon.py.
   File "..\payload\kivun-set-icon.py"
   File "..\payload\kivun-icon.png"
+  ; Kivun Diagnostics: a user-runnable report collector (Start Menu shortcut
+  ; created below). Installed here in Core so it is present even if a later
+  ; section aborts (e.g. virtualization off) — the user can still produce and
+  ; send a good report. See payload/kivun-diagnostics.cmd.
+  File "..\payload\kivun-diagnostics.cmd"
   File "kivun_icon.ico"
   File "..\VERSION"
   File "..\docs\README.md"
@@ -224,6 +229,9 @@ Section "Desktop Shortcut" SEC_SHORTCUT
   ; so $DESKTOP / $SMPROGRAMS resolve to the invoking user's folders.
   CreateShortcut "$DESKTOP\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
   CreateShortcut "$SMPROGRAMS\Kivun Terminal.lnk" "$INSTDIR\kivun-terminal.bat" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWMINIMIZED "" "Launch Kivun Terminal"
+  ; Diagnostics/report shortcut — visible console (SW_SHOWNORMAL) so the user
+  ; sees the "report saved — email it" message and can send us good data.
+  CreateShortcut "$SMPROGRAMS\Kivun Diagnostics.lnk" "$INSTDIR\kivun-diagnostics.cmd" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWNORMAL "" "Collect a Kivun problem report to send for help"
 SectionEnd
 
 ; Default-ON (no /o). The welcome page advertises "right-click folder
@@ -496,7 +504,7 @@ Section "Claude Code CLI" SEC_CLAUDE
       nsExec::Exec 'wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"'
       Pop $0
       ${If} $0 != 0
-        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Claude Code CLI installation failed.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-claude.log$\r$\n$\r$\nThis is usually a temporary network issue - clicking OK and re-running the installer often succeeds.$\r$\n$\r$\nIf it keeps failing, you can install it manually (in WSL):$\r$\n  T=$(mktemp) && curl -fsSL --retry 5 -o $T https://claude.ai/install.sh && [ -s $T ] && bash $T && rm -f $T$\r$\n$\r$\nClick OK to continue, or Cancel to abort." IDOK claude_continue
+        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Claude Code CLI installation failed.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-claude.log$\r$\n$\r$\nThis is usually a temporary network issue - clicking OK and re-running the installer often succeeds.$\r$\n$\r$\nIf it keeps failing, you can install it manually (in WSL):$\r$\n  T=$(mktemp) && curl -fsSL --retry 5 -o $T https://claude.ai/install.sh && [ -s $T ] && bash $T && rm -f $T$\r$\n$\r$\nStill stuck? Open $\"Kivun Diagnostics$\" from the Start Menu and email the report to noambbb@gmail.com.$\r$\n$\r$\nClick OK to continue, or Cancel to abort." IDOK claude_continue
           Abort "Installation cancelled by user."
         claude_continue:
       ${EndIf}
@@ -574,6 +582,7 @@ Section "Uninstall"
   ; for users who installed v1.2.9 and then upgraded.
   Delete "$DESKTOP\Kivun Terminal.lnk"
   Delete "$SMPROGRAMS\Kivun Terminal.lnk"
+  Delete "$SMPROGRAMS\Kivun Diagnostics.lnk"
   Delete "$SMPROGRAMS\Edit Kivun Terminal Config.lnk"
 
   ; Remove registry entries
@@ -583,6 +592,7 @@ Section "Uninstall"
 
   ; Remove installed files
   Delete "$INSTDIR\folder-picker.hta"
+  Delete "$INSTDIR\kivun-diagnostics.cmd"
   Delete "$INSTDIR\kivun-terminal.bat"
   Delete "$INSTDIR\kivun-launch.sh"
   Delete "$INSTDIR\kivun-direct.sh"

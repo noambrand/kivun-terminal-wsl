@@ -1,6 +1,14 @@
-# Kivun Terminal v1.4.20 - Troubleshooting
+# Kivun Terminal v1.4.21 - Troubleshooting
 
 > **macOS deprecated as of v1.2.4.** This doc still contains macOS sections because users with v1.2.0–v1.2.3 `.pkg` installs may need them for diagnostics or recovery. New installs should use Windows or Linux. See [`mac/README.md`](../mac/README.md) for context and uninstall.
+
+## 🆘 Send a diagnostic report (the fastest way to get help)
+
+If anything doesn't work, **open "Kivun Diagnostics" from the Start menu** (installed alongside Kivun Terminal). It writes a file called **`Kivun-Report.txt`** to your Desktop and opens it in Notepad.
+
+**Email that file to noambbb@gmail.com**, or attach it to a new issue at <https://github.com/noambrand/kivun-terminal-wsl/issues>.
+
+The report captures your Windows version, whether **virtualization** is on, your **WSL** status, which **antivirus** is running, and the Kivun **install log** — exactly what's needed to diagnose most failures. It sends nothing automatically, needs no admin rights, and uses no PowerShell.
 
 ## Statusline: customizing what shows on line 1 (v1.4.10+)
 

@@ -3,6 +3,35 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.21] - 2026-06-10
+
+### Added — bundled "Kivun Diagnostics" report tool + clear test/report instructions
+
+Users who hit a problem had no easy way to capture diagnostics or to know how to
+report back — only the private on-site kit did. Now every install ships a
+one-click report tool and tells users how to test and where to send a report.
+
+- New `payload/kivun-diagnostics.cmd`, installed in the **Core** section (so it
+  exists even if a later section aborts — e.g. virtualization off) with a
+  **"Kivun Diagnostics"** Start Menu shortcut. One click writes
+  `Kivun-Report.txt` to the Desktop (Kivun + Windows version, the virtualization
+  verdict, WSL status/version/distros, antivirus present, in-WSL claude/node, and
+  the install log), opens it in Notepad, and tells the user to **email it to
+  noambbb@gmail.com** (or attach it to a GitHub issue). No admin, no PowerShell,
+  no downloads; nothing is sent automatically.
+- The Finish page now explains how to **test** (launch Kivun, message Claude) and
+  how to report; the virtualization-off and Claude-install-failed dialogs both
+  point at Kivun Diagnostics + the contact.
+- Uninstaller removes the tool and its shortcut. `FALLBACK_VERSION` and all
+  version stamps bumped to 1.4.21.
+
+### Note — the installer is intentionally small
+
+`Kivun_Terminal_Setup.exe` (~370 KB) is a *launcher*: it sets up WSL, Ubuntu,
+Konsole and Claude at runtime rather than bundling them. A fully-offline build
+that carries WSL + Ubuntu is a separate, still-pending option, gated on the
+"do downloads work inside WSL" test.
+
 ## [1.4.20] - 2026-06-09
 
 ### Changed — clearer, per-manufacturer BIOS steps in the virtualization help
