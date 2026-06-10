@@ -3,6 +3,22 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.23] - 2026-06-10
+
+### Fixed — terminal window never opened on the newest Ubuntu (Qt6 Konsole dropped --name)
+
+On a PC that pulled a brand-new Ubuntu (the `resolute` archive — Qt6 Konsole
+under Wayland), the launcher's `konsole --name kivun-terminal …` aborted with
+`Unknown option 'name'`, so the window closed instantly and Claude never
+appeared — even though WSL, Ubuntu, the user, Claude and Konsole were all fine.
+The bash log showed it plainly: `konsole: Unknown option 'name'.`
+
+- `payload/kivun-launch.sh` now **probes once** whether this Konsole accepts
+  `--name` and only passes it when it does — in both the live launch and the
+  `.desktop` Exec. On Qt6/Wayland it launches without `--name`, losing only the
+  custom WM_CLASS (taskbar icon grouping) while the window opens normally. On
+  older (Qt5) Konsole nothing changes.
+
 ## [1.4.22] - 2026-06-10
 
 ### Fixed — Ubuntu had no non-root user, so Claude (which won't run as root) couldn't launch

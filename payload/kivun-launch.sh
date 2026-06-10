@@ -717,6 +717,17 @@ log "SUCCESS - Launch script created: $LAUNCH_TMP (CLAUDE_PROMPT length: ${#CLAU
 # pointing to our PNG, then launch Konsole with --name kivun-terminal
 # so its WM_CLASS becomes "kivun-terminal". WSLg matches that class
 # against the .desktop StartupWMClass and uses our PNG for the icon.
+#
+# Newer Konsole (Qt6, e.g. Ubuntu "questing"/"resolute" under Wayland) removed
+# the X11 --name option and aborts with "Unknown option 'name'" — which made
+# the terminal window never open at all. Probe once and only pass --name where
+# this Konsole accepts it; without it we lose the custom WM_CLASS (taskbar icon
+# grouping) but the window opens, which matters far more.
+KIVUN_NAME_OPT="--name kivun-terminal"
+if ! timeout 10 konsole --name kivun-terminal --version >/dev/null 2>&1; then
+    KIVUN_NAME_OPT=""
+    log "INFO - Konsole rejects --name (Qt6/Wayland); launching without it"
+fi
 ICON_PNG_DEPLOY="$(dirname "$0")/kivun-icon.png"
 if [ -f "$ICON_PNG_DEPLOY" ]; then
     DESKTOP_DIR="$HOME/.local/share/applications"
@@ -726,7 +737,7 @@ if [ -f "$ICON_PNG_DEPLOY" ]; then
 Type=Application
 Name=Kivun Terminal
 Comment=Claude Code with full RTL/BiDi rendering
-Exec=konsole --name kivun-terminal --profile KivunTerminal
+Exec=konsole $KIVUN_NAME_OPT --profile KivunTerminal
 Icon=$ICON_PNG_DEPLOY
 Terminal=false
 Categories=Utility;TerminalEmulator;
@@ -800,8 +811,8 @@ fi
 
 if [ "$KIVUN_MODE" = "window" ]; then
     log "INFO - Launching Konsole with KivunTerminal profile (WM_CLASS=kivun-terminal)"
-    log "INFO - Command: setsid konsole --name kivun-terminal --profile KivunTerminal -e $LAUNCH_TMP"
-    setsid konsole --name kivun-terminal --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
+    log "INFO - Command: setsid konsole $KIVUN_NAME_OPT --profile KivunTerminal -e $LAUNCH_TMP"
+    setsid konsole $KIVUN_NAME_OPT --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
     KPID=$!
     if [ $KPID -gt 0 ]; then
         log "SUCCESS - Konsole started with PID: $KPID"
