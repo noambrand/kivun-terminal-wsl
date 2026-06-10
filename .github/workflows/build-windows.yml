@@ -67,6 +67,10 @@ jobs:
         run: |
           mkdir -p release-assets
           cp installer/Kivun_Terminal_Setup.exe release-assets/
+          # Standalone diagnostics tool, downloadable straight from the release
+          # page so a user whose install FAILED (and therefore has no Start Menu
+          # shortcut) can still grab it, run it, and email us the report.
+          cp payload/kivun-diagnostics.cmd release-assets/
           MP4="Kivun_Terminal_v1.4.13.mp4"
           GIF="Kivun_Terminal_v1.4.13.gif"
           [ -f "Kivun Terminal_v1.4.13.mp4" ] && cp "Kivun Terminal_v1.4.13.mp4" "release-assets/$MP4"
@@ -119,6 +123,7 @@ jobs:
             release-assets/Kivun_Terminal_Setup.exe
             release-assets/Kivun_Terminal_v1.4.13.mp4
             release-assets/Kivun_Terminal_v1.4.13.gif
+            release-assets/kivun-diagnostics.cmd
           body_path: /tmp/release-notes.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}

@@ -4,7 +4,10 @@
 
 ## 🆘 Send a diagnostic report (the fastest way to get help)
 
-If anything doesn't work, **open "Kivun Diagnostics" from the Start menu** (installed alongside Kivun Terminal). It writes a file called **`Kivun-Report.txt`** to your Desktop and opens it in Notepad.
+If anything doesn't work, run the diagnostics tool — it writes **`Kivun-Report.txt`** to your Desktop and opens it in Notepad:
+
+- **Installed OK?** Open **"Kivun Diagnostics"** from the Start menu (installed alongside Kivun Terminal).
+- **Install failed / no Start-menu shortcut?** (for example, virtualization was off and the installer stopped before finishing) — download **`kivun-diagnostics.cmd`** straight from the [latest release](https://github.com/noambrand/kivun-terminal-wsl/releases/latest) and double-click it. It works on its own, no install required.
 
 **Email that file to noambbb@gmail.com**, or attach it to a new issue at <https://github.com/noambrand/kivun-terminal-wsl/issues>.
 

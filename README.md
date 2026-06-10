@@ -107,6 +107,7 @@ First launch can take 5–10 minutes — the installer pulls Ubuntu (WSL2), Kons
 - **WSL2 missing.** If the wizard says *"WSL is not installed"*, open **Terminal (Admin)**, run `wsl --install`, reboot, and re-run the installer. You only do this once per machine.
 - <a id="windows-smartscreen"></a>**SmartScreen warning** (*"Windows protected your PC"*): click **More info** → **Run anyway**. The installer is unsigned; the warning fades once Microsoft's reputation signal accumulates from real downloads.
 - **Smart App Control on Windows 11** (the harder block — *"Smart App Control blocked an app that may be unsafe"* with only an *Ok* button): SAC refuses unsigned apps entirely. Open **Start** → search **Smart App Control** → set it to **Off**. SAC cannot be re-enabled without reinstalling Windows, so leave it off only if you're comfortable running other unsigned apps.
+- **Still stuck? Send a 1-click report.** Download **[`kivun-diagnostics.cmd`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)** from the latest release (or open **"Kivun Diagnostics"** from the Start menu if it installed) and double-click it. It saves **`Kivun-Report.txt`** to your Desktop — email it to noambbb@gmail.com. No admin, nothing sent automatically.
 
 </details>
 
