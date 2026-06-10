@@ -3,21 +3,33 @@
 </p>
 
 <p align="center">
-  <video src="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.1.0/kivun_terminal_Hebrew_demo.mp4" width="700" controls muted playsinline></video>
+  <img src="Kivun_Terminal_v1.4.13.gif" width="700" alt="Kivun Terminal demo - Hebrew RTL Claude Code session">
+</p>
+
+<p align="center">
+  <video src="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_v1.4.13.mp4" width="700" controls muted playsinline></video>
 </p>
 
 <p align="center">
   <em>📹 Demo: Hebrew Claude Code session inside Kivun Terminal -
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/download/v1.1.0/kivun_terminal_Hebrew_demo.mp4">download MP4 (12 MB)</a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_v1.4.13.mp4">download MP4 (2.4 MB)</a>
   if your browser doesn't autoplay above.</em>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen&cb=v1.4.9" alt="Latest release"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen&cb=v1.4.25" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/downloads/noambrand/kivun-terminal-wsl/total?label=downloads&color=blue&cb=v1.4.9" alt="Total Downloads"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/stargazers"><img src="https://img.shields.io/github/stars/noambrand/kivun-terminal-wsl?style=flat&color=yellow" alt="GitHub Stars"></a>
+  <img src="https://img.shields.io/github/last-commit/noambrand/kivun-terminal-wsl?label=last%20commit&color=brightgreen" alt="Last Commit">
+  <img src="https://img.shields.io/badge/downloads-324%2B-blue" alt="Total Downloads">
+</p>
+
+<p align="center">
+  <a href="README.md"><b>English</b></a> &bull;
+  <a href="README.md#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a> &bull;
+  <b>العربية</b>
 </p>
 
 <div dir="rtl">
@@ -33,7 +45,7 @@
   <a href="#architecture">البنية</a> &bull;
   <a href="#configuration">الإعدادات</a> &bull;
   <a href="docs/CHANGELOG.md">سجل التغييرات</a> &bull;
-  <a href="docs/TROUBLESHOOTING.md">حل المشاكل</a>
+  <a href="docs/TROUBLESHOOTING.ar.md">حل المشاكل</a>
 </p>
 
 ---
@@ -102,6 +114,7 @@
 <li><strong>WSL2 ناقص.</strong> إذا قالك المعالج <em>"WSL is not installed"</em>، افتح <strong>Terminal (Admin)</strong>، شغّل <code>wsl --install</code>، اعمل reboot، وشغّل المثبّت من جديد. هاي بتعمَل مرة وحدة لكل جهاز.</li>
 <li><a id="windows-smartscreen"></a><strong>تحذير SmartScreen</strong> (<em>"Windows protected your PC"</em>): اضغط <strong>More info</strong> ← <strong>Run anyway</strong>. المثبّت مش موقّع؛ التحذير بيختفي لما تتراكم إشارة السمعة عند Microsoft من تنزيلات حقيقية.</li>
 <li><strong>Smart App Control على Windows 11</strong> (الحجب الأصعب - <em>"Smart App Control blocked an app that may be unsafe"</em> مع زر <em>Ok</em> بس): SAC بيرفض التطبيقات غير الموقّعة كلياً. افتح <strong>Start</strong> ← دوّر على <strong>Smart App Control</strong> ← حطّه على <strong>Off</strong>. ما بتقدر تشغّل SAC من جديد بدون إعادة تثبيت Windows، فخلّيه off بس إذا مرتاح تشغّل تطبيقات تانية مش موقّعة.</li>
+<li><strong>لسا عالق؟ ابعت تقرير بكبسة وحدة.</strong> نزّل <strong><a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><code>kivun-diagnostics.cmd</code></a></strong> من آخر إصدار (أو افتح <strong>"Kivun Diagnostics"</strong> من قائمة Start إذا التثبيت خلص) واضغط عليه دبل-كلك. بيحفظ <strong><code>Kivun-Report.txt</code></strong> على سطح المكتب - ابعتو بالإيميل لـ noambbb@gmail.com. ما بدّو صلاحيات admin، وما بينبعت شي تلقائياً.</li>
 </ul>
 
 </details>

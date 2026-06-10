@@ -1,8 +1,62 @@
-# Kivun Terminal v1.4.3 — استكشاف الأخطاء وحلّها
+# Kivun Terminal v1.4.25 — استكشاف الأخطاء وحلّها
 
 <div dir="rtl">
 
 > **macOS صار deprecated من v1.2.4.** الملف هاد لسا فيه أقسام لـ macOS لأنه المستخدمين اللي عندهم تثبيت `.pkg` من v1.2.0–v1.2.3 ممكن يحتاجوها للتشخيص أو الاسترجاع. أي تثبيت جديد لازم يكون على Windows أو Linux. شوف [`mac/README.md`](../mac/README.md) للسياق وطريقة إلغاء التثبيت.
+
+## 🆘 ابعت تقرير تشخيص (أسرع طريقة تاخد مساعدة)
+
+إذا في إشي مش شغّال، شغّل أداة التشخيص — بتكتب **`Kivun-Report.txt`** على سطح المكتب وبتفتحه بـ Notepad:
+
+<ul dir="rtl">
+<li><strong>التثبيت خلص منيح؟</strong> افتح <strong>"Kivun Diagnostics"</strong> من قائمة Start (بنركّب مع Kivun Terminal).</li>
+<li><strong>التثبيت فشل / مفيش اختصار بقائمة Start؟</strong> (متلاً الـ virtualization كان مسكّر والمثبّت وقف قبل ما يخلّص) — نزّل <strong><code>kivun-diagnostics.cmd</code></strong> مباشرة من <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest">آخر إصدار</a> واضغط عليه دبل-كلك. بشتغل لحاله، ما بدّو تثبيت.</li>
+</ul>
+
+**ابعت الملف بالإيميل لـ noambbb@gmail.com**، أو أرفقه بـ issue جديد على <https://github.com/noambrand/kivun-terminal-wsl/issues>.
+
+التقرير بلقط إصدار Windows تبعك، إذا الـ **virtualization** شغّال، حالة الـ **WSL**، شو **antivirus** عم يشتغل، والـ **install log** تبع Kivun — بالضبط شو لازم لتشخيص معظم المشاكل. ما ببعت إشي تلقائياً، ما بدّو صلاحيات admin، وما بستخدم PowerShell.
+
+## شريط الحالة: تخصيص شو بيبيّن على السطر الأول (v1.4.10+)
+
+`payload/statusline.mjs` (إصدار داخلي v2.2) بقرا أربع متغيرات بيئة. كلها اختيارية.
+
+<table dir="rtl">
+<thead><tr><th>متغير البيئة</th><th>الافتراضي</th><th>التأثير</th></tr></thead>
+<tbody>
+<tr><td><code>CLAUDE_CODE_EFFORT_LEVEL</code></td><td><em>مش محدد</em></td><td>بجبر حقل الـ <code>effort:</code> بالسطر الأول على القيمة المعطاة (متلاً <code>low</code>، <code>medium</code>، <code>high</code>، <code>max</code>). بنستخدم لما <code>d.effort.level</code> مش موجود بالـ JSON تبع الـ statusline (مشكلة Anthropic <a href="https://github.com/anthropics/claude-code/issues/40261">#40261</a> — لسا مفتوحة) وما بدك تعتمد على الـ fallback من <code>~/.claude/settings.json</code>.</td></tr>
+<tr><td><code>KIVUN_SL_COST</code></td><td>مش محدد</td><td>حطّه <code>1</code> / <code>true</code> / <code>yes</code> / <code>on</code> لعرض كلفة الجلسة بالدولار (<code>$X.XX</code>، أخضر) على السطر الأول بين الموديل والمدة.</td></tr>
+<tr><td><code>KIVUN_SL_CACHE</code></td><td>مش محدد</td><td>حطّه على قيمة truthy لعرض الـ tokens المخزّنة (<code>cache:N</code>، أزرق) — مجموع <code>cache_read_input_tokens</code> + <code>cache_creation_input_tokens</code>.</td></tr>
+<tr><td><code>KIVUN_SL_TPM</code></td><td>مش محدد</td><td>حطّه على قيمة truthy لعرض معدّل الـ tokens بالدقيقة (<code>tpm:N</code>، سماوي). بنحجب بأول 5 ثواني من الجلسة لتجنّب أرقام صغيرة مش مفيدة.</td></tr>
+</tbody>
+</table>
+
+ضيف لـ shell rc تبعك (Linux/WSL/macOS):
+
+```bash
+export KIVUN_SL_COST=1
+export KIVUN_SL_CACHE=1
+export KIVUN_SL_TPM=1
+```
+
+على Windows (PowerShell)، ضيف لـ `$PROFILE` تبعك:
+
+```powershell
+$env:KIVUN_SL_COST = '1'
+$env:KIVUN_SL_CACHE = '1'
+$env:KIVUN_SL_TPM = '1'
+```
+
+أعد تشغيل جلسة Claude Code حتى التغييرات تمسك.
+
+**ترتيب حلّ الـ effort** (`readEffort()` بـ `statusline.mjs`):
+
+<ol dir="rtl">
+<li><code>d.effort.level</code> من الـ JSON payload تبع الـ statusline (متوافق للأمام — بيبيّن لما Anthropic يشحنوا issue #40261).</li>
+<li>متغير البيئة <code>CLAUDE_CODE_EFFORT_LEVEL</code>.</li>
+<li>مفتاح <code>effortLevel</code> بـ <code>~/.claude/settings.json</code>. <strong>ثغرة معروفة:</strong> <code>settings.json</code> ما بنكتب من جديد لما تبدّل الـ effort بنص الجلسة عبر <code>/effort</code> — شريط الحالة رح يضل يعرض شو كان مظبوط ببداية الجلسة لحد ما #40261 يوصل.</li>
+<li>إذا ولا إشي اتحلّ، الحقل بنخفى كلياً.</li>
+</ol>
 
 ## أول إشي: اجمع الـ logs
 
@@ -408,9 +462,11 @@ wsl -d Ubuntu -- grep -i bidi ~/.local/share/konsole/KivunTerminal.profile
 
 ## العَرَض: Alt+Shift ما بغيّر تخطيط الكيبورد
 
-**السبب:** WSLg ما بنقل Alt+Shift لـ X server. هاد قيد معروف بـ WSLg.
+**هاد غالباً مش خربان.** Kivun بفتح باللغة اللي عم تستخدمها **هلق** وبربط **Alt+Shift** للتبديل بين الإنجليزي وتخطيط الـ RTL تبعك (متلاً العبري). على Windows 11 حديث + WSL2 (WSLg) هاد بشتغل **بدون** VcXsrv.
 
-**الحل:** فعّل وضع VcXsrv. عدّل `config.txt`:
+**إذا أول Alt+Shift كأنه ما عمل إشي:** اضغط مرة على نافذة Konsole حتى تعطيها focus، وبعدين اضغط Alt+Shift. Kivun بعيد تطبيق التخطيط لحظة ما النافذة تفتح حتى يكون هاد موثوق (v1.4.25+).
+
+**Fallback (نادراً ما بتحتاجه):** شغّل X server كامل — حط `USE_VCXSRV=true` بـ `config.txt` وركّب VcXsrv:
 
 ```
 USE_VCXSRV=true

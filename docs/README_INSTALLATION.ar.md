@@ -1,6 +1,6 @@
 <div dir="rtl">
 
-# Kivun Terminal v1.4.8 — دليل التثبيت الكامل
+# Kivun Terminal v1.4.25 — دليل التثبيت الكامل
 
 ## متطلبات النظام
 
