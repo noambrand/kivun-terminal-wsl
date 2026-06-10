@@ -49,6 +49,14 @@ echo.
 
 call :LOG "START - Launching Kivun Terminal v%PRODUCT_VERSION% (WSL Launcher)"
 
+REM KIVUN_HIDDEN=1 is set by KivunTerminal.exe (the native no-console-flash
+REM launcher). The console exists but has no window, so anything interactive
+REM (pause, set /p) would block forever with nobody able to see or answer it.
+REM Every interactive site below is guarded on this variable. Failures stay
+REM visible: the exe waits for our exit code and shows a MessageBox with the
+REM LAUNCH_LOG tail when it is non-zero.
+if defined KIVUN_HIDDEN call :LOG "INFO - KIVUN_HIDDEN=1 (native hidden launcher); console prompts disabled"
+
 REM Get working directory
 if "%~1"=="" (
     set "WORK_DIR=%USERPROFILE%"
@@ -212,7 +220,7 @@ if %ERRORLEVEL% NEQ 0 (
     echo Run the Kivun Terminal installer to fix this.
     echo.
     echo Log file: %LOG_FILE%
-    pause
+    if not defined KIVUN_HIDDEN pause
     exit /b 1
 )
 call :LOG "SUCCESS - WSL is installed and working"
@@ -233,7 +241,7 @@ if %ERRORLEVEL% NEQ 0 (
         echo Run the Kivun Terminal installer to fix this.
         echo.
         echo Log file: %LOG_FILE%
-        pause
+        if not defined KIVUN_HIDDEN pause
         exit /b 1
     )
     call :LOG "SUCCESS - Ubuntu is now responding after restart"
@@ -433,7 +441,7 @@ if not defined WSLG_USER (
     echo  Could not set up a Linux user automatically. Please open
     echo  "Kivun Diagnostics" from the Start Menu and email the
     echo  report to noambbb@gmail.com so we can help.
-    pause
+    if not defined KIVUN_HIDDEN pause
     exit /b 1
 )
 call :LOG "INFO - Will run as: %WSLG_USER%"
@@ -523,7 +531,20 @@ echo Launching Konsole...
 call :LOG "INFO - Launching Konsole via kivun-launch.sh"
 call :LOG "INFO - Command: wsl -d Ubuntu %WSL_USER_FLAG% bash %INST_WSL%kivun-launch.sh %WSL_PATH% [prompt] %PRIMARY_LANGUAGE% %USE_VCXSRV% %BASH_LOG_WSL% %TEXT_DIRECTION% %PRIMARY_MON% [flags]"
 title Kivun Terminal v%PRODUCT_VERSION% - Loading
+REM Hidden mode: /MIN would create a NEW minimized console for wsl.exe - a
+REM visible taskbar item, the exact thing the native launcher exists to kill.
+REM /B keeps wsl.exe attached to THIS console, which has no window
+REM (CREATE_NO_WINDOW), so nothing appears anywhere. Konsole itself detaches
+REM via setsid inside kivun-launch.sh, so its lifetime never depended on
+REM wsl.exe in the first place. Goto-flat: %CLAUDE_PROMPT% may contain
+REM parens (e.g. "(Farsi)"), which break inside an if (...) block.
+if defined KIVUN_HIDDEN goto :launch_hidden
 start "Kivun Bash" /MIN wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-launch.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%PRIMARY_LANGUAGE%" "%USE_VCXSRV%" "%BASH_LOG_WSL%" "%TEXT_DIRECTION%" "%PRIMARY_MON%" "%CLAUDE_FLAGS%" "%STARTUP_CMDS_WSL%"
+goto :launch_spawned
+:launch_hidden
+call :LOG "INFO - KIVUN_HIDDEN: start /B keeps the WSL bridge in this hidden console (no taskbar item)"
+start "Kivun Bash" /B wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-launch.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%PRIMARY_LANGUAGE%" "%USE_VCXSRV%" "%BASH_LOG_WSL%" "%TEXT_DIRECTION%" "%PRIMARY_MON%" "%CLAUDE_FLAGS%" "%STARTUP_CMDS_WSL%"
+:launch_spawned
 if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Launch command executed"
 ) else (
@@ -559,6 +580,13 @@ if not "%CLAUDE_IN_WSL%"=="1" (
     call :LOG "ERROR - Cannot run direct: claude missing in WSL"
     goto :no_claude_exit
 )
+REM Hidden mode: an INTERACTIVE Claude session cannot run in a console with
+REM no window. Open a fresh visible console for it and exit this hidden one.
+if not defined KIVUN_HIDDEN goto :run_direct_console
+call :LOG "INFO - KIVUN_HIDDEN: opening a visible console for the direct Claude session"
+start "Kivun Terminal" wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%CLAUDE_FLAGS%"
+exit /b 0
+:run_direct_console
 echo ========================================
 echo   Running Claude directly in terminal
 echo ========================================
@@ -586,7 +614,7 @@ echo ========================================
 echo LAUNCH LOG SAVED TO:
 echo %LOG_FILE%
 echo ========================================
-pause
+if not defined KIVUN_HIDDEN pause
 exit /b
 
 :LOG
@@ -684,6 +712,13 @@ echo.
 echo Claude Code is required to run Kivun Terminal.
 echo Windows-side Claude Code does NOT work here - Konsole runs in WSL.
 echo.
+REM Hidden mode has no console to show the [Y/N] prompt; the set /p would
+REM block invisibly forever. Coerce ask -> yes (the documented default).
+if not defined KIVUN_HIDDEN goto :_install_dispatch
+if /i not "%AUTO_INSTALL_CLAUDE%"=="ask" goto :_install_dispatch
+call :LOG "INFO - KIVUN_HIDDEN: AUTO_INSTALL_CLAUDE=ask coerced to yes (no console to prompt)"
+set "AUTO_INSTALL_CLAUDE=yes"
+:_install_dispatch
 if /i "%AUTO_INSTALL_CLAUDE%"=="no"  goto :_decline_install
 if /i "%AUTO_INSTALL_CLAUDE%"=="ask" goto :_prompt_install
 call :LOG "INFO - Auto-installing Claude (AUTO_INSTALL_CLAUDE=yes)"
@@ -835,7 +870,7 @@ echo   Then re-run Kivun Terminal.
 echo   NOTE: Windows-side Claude Code does NOT work here.
 echo ========================================
 call :LOG "EXIT - No Claude in WSL, user must install manually"
-pause
+if not defined KIVUN_HIDDEN pause
 exit /b 2
 
 :WIN_TO_WSL_PATH

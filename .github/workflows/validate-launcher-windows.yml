@@ -18,6 +18,7 @@ on:
       - 'payload/kivun-terminal.bat'
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
+      - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
   pull_request:
     branches: [main]
@@ -25,6 +26,7 @@ on:
       - 'payload/kivun-terminal.bat'
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
+      - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
 
 # Disable Git Bash's MSYS auto-conversion of POSIX paths to Windows paths
@@ -163,6 +165,32 @@ jobs:
           grep -qE 'var\s+maskEnvValues\s*=\s*true' "$HTA" \
             || (echo "FAIL: maskEnvValues default is not 'true' — values leak into preview by default"; exit 1)
           echo "PASS: all v1.4.0 env-var invariants intact"
+
+      - name: Verify KIVUN_HIDDEN invariants (native hidden launcher)
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          CPP=launcher/kivun-launcher.cpp
+          # KivunTerminal.exe runs the .bat in a console with NO window. Any
+          # bare `pause` or un-coerced prompt blocks forever with nobody able
+          # to see it. Every interactive site must carry the KIVUN_HIDDEN
+          # guard; this lint makes the guard impossible to drop silently.
+          if grep -nE '^[[:space:]]*pause[[:space:]]*$' "$BAT"; then
+            echo "FAIL: bare 'pause' in $BAT — must be 'if not defined KIVUN_HIDDEN pause'" >&2
+            exit 1
+          fi
+          echo "PASS: no unguarded pause"
+          grep -q '^:launch_hidden' "$BAT" \
+            || (echo "FAIL: :launch_hidden branch missing — hidden launches will create a taskbar console"; exit 1)
+          grep -q 'start "Kivun Bash" /B wsl' "$BAT" \
+            || (echo "FAIL: hidden launch does not use start /B — WSL bridge would get a visible console"; exit 1)
+          grep -q 'AUTO_INSTALL_CLAUDE=ask coerced to yes' "$BAT" \
+            || (echo "FAIL: hidden-mode ask->yes coercion missing — set /p would block invisibly"; exit 1)
+          # The exe side: the headless-CI MessageBox suppression must survive,
+          # or every failing CI run hangs on an invisible dialog.
+          grep -q 'KIVUN_SUPPRESS_ERROR_UI' "$CPP" \
+            || (echo "FAIL: KIVUN_SUPPRESS_ERROR_UI escape hatch missing from $CPP"; exit 1)
+          echo "PASS: all KIVUN_HIDDEN invariants intact"
 
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
@@ -929,21 +957,23 @@ jobs:
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # Job 6 — v1.1.15 abort path AND v1.1.16 WSL_PATH=. fallback (bundled).
-  # Bundles two regressions that escaped CI before:
-  #   (a) v1.1.15 abort when WSL has no non-root user. The default
-  #       windows-latest WSL Ubuntu (--no-launch) ships with root as the
-  #       only user — exactly the scenario user 'mipmip' hit. With Claude
-  #       pre-installed (so the launcher passes the claude-present check),
-  #       the launcher must reach the user-detection block, fail to find
-  #       UID 1000, and exit cleanly with helpful instructions.
+  # Job 6 — v1.4.22 no-root auto-create AND v1.1.16 WSL_PATH=. fallback.
+  # Bundles two scenarios that share an expensive WSL setup:
+  #   (a) No non-root user in WSL (root-only Ubuntu, exactly what
+  #       windows-latest --no-launch ships — and what user 'mipmip' hit).
+  #       v1.1.15 used to ABORT here; v1.4.22 instead AUTO-CREATES a
+  #       UID-1000 user (kivun-ensure-user.sh), makes it the WSL default,
+  #       and routes the launch through it. Run A must show the
+  #       auto-create + "Will run as:" markers.
   #   (b) v1.1.16 WSL_PATH=. fallback. wslpath returns the literal "."
   #       string when given "" or "." input. Pre-v1.1.16 the bash launcher
   #       would `cd .` into whatever cwd cmd inherited — typically the
   #       Kivun install dir when launched via the Desktop shortcut.
   # The test invokes the launcher TWICE in one CI job to share the WSL
-  # setup cost. Run A uses "." arg (dot-fallback), Run B uses a normal
-  # path arg (abort path). Each has its own assertions.
+  # setup cost. Run A uses "." arg (dot-fallback + auto-create). Run B then
+  # runs with the auto-created user as WSL default: Claude (root-only
+  # pre-install) is invisible to it, so the launcher must take the clean
+  # :no_claude_exit (exit 2) — never the v1.1.0 warn-then-crash.
   # -------------------------------------------------------------------------
   test-v1115-abort-and-v1116-dot-fallback:
     runs-on: windows-latest
@@ -1045,42 +1075,56 @@ jobs:
             exit 1
           fi
 
-      - name: 'Run B — launcher with normal path (v1.1.15 abort)'
+      - name: 'Run B — normal path after auto-create (v1.4.22 non-root routing)'
         shell: cmd
         continue-on-error: true
         run: |
+          REM v1.4.22 replaced the v1.1.15 hard abort: with no UID-1000 user,
+          REM the launcher now AUTO-CREATES one (kivun-ensure-user.sh) and
+          REM makes it the WSL default. Run A above did exactly that, so the
+          REM original "abort when no non-root user" scenario no longer exists
+          REM by the time run B starts. Fresh log so the assertions below see
+          REM run B in isolation (run A is preserved in LAUNCH_LOG_A.txt).
+          del "%LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt" >nul 2>&1
           (echo.) > "%RUNNER_TEMP%\input.txt"
           (echo.) >> "%RUNNER_TEMP%\input.txt"
           call payload\kivun-terminal.bat C:\temp < "%RUNNER_TEMP%\input.txt"
           set "RC_B=%ERRORLEVEL%"
           (echo RUN_B_EXITCODE=%RC_B%)>>"%GITHUB_ENV%"
 
-      - name: Assert v1.1.15 abort fired in run B
+      - name: Assert v1.4.22 auto-create in run A + clean no-claude exit in run B
         shell: bash
         run: |
           set -e
           # Git Bash auto-converts $LOCALAPPDATA to a Unix-style path that
           # `cat`/`grep` can read directly. No path-string surgery needed.
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
-          echo "----- LAUNCH_LOG.txt (full) -----"
+          echo "----- LAUNCH_LOG.txt (run B) -----"
           cat "$log"
           echo "---------------------------------"
-          if ! grep -qE 'No non-root user \(UID 1000\) found' "$log"; then
-            echo "FAIL: v1.1.15 abort log line missing — root-user-check regressed" >&2
+          # v1.4.22: run A must have auto-created the non-root user and
+          # routed through it instead of aborting (the old v1.1.15 behavior).
+          grep -qF 'No non-root user in Ubuntu; auto-creating one' LAUNCH_LOG_A.txt \
+            || { echo "FAIL: v1.4.22 auto-create marker missing from run A log" >&2; exit 1; }
+          grep -qF 'Will run as:' LAUNCH_LOG_A.txt \
+            || { echo "FAIL: run A did not route through the auto-created user" >&2; exit 1; }
+          echo "PASS: run A auto-created the non-root user and routed through it"
+          # Run B starts with that user as the WSL default. Claude was
+          # pre-installed for root only, so the presence check (which runs as
+          # the default user) must miss it, and with AUTO_INSTALL_CLAUDE=no
+          # the launcher must take the clean :no_claude_exit (exit 2) — never
+          # the v1.1.0 warn-then-crash that ate user 'mipmip' twice.
+          grep -qF 'EXIT - No Claude in WSL' "$log" \
+            || { echo "FAIL: run B did not reach the clean no-claude exit" >&2; exit 1; }
+          if [ "$RUN_B_EXITCODE" != "2" ]; then
+            echo "FAIL: run B exit code was '$RUN_B_EXITCODE', expected 2 (:no_claude_exit)" >&2
             exit 1
           fi
-          if [ "$RUN_B_EXITCODE" != "1" ]; then
-            echo "FAIL: launcher exit code was '$RUN_B_EXITCODE', expected 1 (v1.1.15 abort)" >&2
-            exit 1
-          fi
-          # Defense-in-depth: launcher must NOT pretend to fall through
-          # past the abort. The fake fall-through (warn-then-crash) was
-          # the v1.1.0 anti-pattern that ate user 'mipmip' twice.
           if grep -qE 'INFO - Launching Konsole|INFO - Falling back to direct' "$log"; then
-            echo "FAIL: launcher proceeded past abort despite no UID 1000" >&2
+            echo "FAIL: run B proceeded despite missing Claude (v1.1.0 anti-pattern)" >&2
             exit 1
           fi
-          echo "PASS: v1.1.15 abort fired with exit 1 + no fake fall-through"
+          echo "PASS: run B exited 2 cleanly with no fake fall-through"
 
       - name: Upload artifacts
         if: always()
@@ -1318,3 +1362,158 @@ jobs:
             exit 1
           fi
           echo "PASS: kivun-launch.sh refused root with exit 1 + helpful instructions"
+
+  # -------------------------------------------------------------------------
+  # Job 9 — Native hidden launcher (KivunTerminal.exe) end-to-end.
+  # Compiles the exe, then drives the exe -> hidden cmd -> .bat chain against
+  # real WSL+Ubuntu with Claude absent and AUTO_INSTALL_CLAUDE=no.
+  # One deliberately multiplexed run validates:
+  #   - the exe builds on a clean runner (vswhere/cl path),
+  #   - KIVUN_HIDDEN=1 crosses exe -> cmd -> bat (log marker),
+  #   - a quoted spaced path survives the /S /C quoting end-to-end,
+  #   - the bat's exit 2 (:no_claude_exit) propagates back out of the exe,
+  #   - nothing blocks on console input: NO stdin is fed on purpose — an
+  #     unguarded pause would hang into the job timeout, which is the alarm.
+  # -------------------------------------------------------------------------
+  test-hidden-exe-no-claude:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the hidden launcher
+        shell: cmd
+        run: launcher\build.bat
+
+      - name: Confirm WSL is available on the runner
+        shell: bash
+        run: |
+          set -e
+          wsl --status
+          wsl --version
+
+      - name: Install Ubuntu in WSL (no-launch)
+        shell: bash
+        run: |
+          set -e
+          wsl --install -d Ubuntu --no-launch
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
+
+      - name: Confirm Claude is NOT in WSL (CI baseline)
+        shell: bash
+        run: |
+          set -e
+          r=$(wsl -d Ubuntu --user root -- bash -c "command -v claude || echo NOT_FOUND")
+          echo "claude lookup: $r"
+          if ! echo "$r" | grep -qF 'NOT_FOUND'; then
+            echo "FAIL: Claude unexpectedly already installed in fresh Ubuntu" >&2
+            exit 1
+          fi
+
+      - name: Run exe -> hidden bat chain (spaced path, no stdin)
+        shell: cmd
+        continue-on-error: true
+        env:
+          # Headless: the failure MessageBox would hang CI forever.
+          KIVUN_SUPPRESS_ERROR_UI: '1'
+        run: |
+          REM The exe resolves kivun-terminal.bat next to its own image, so
+          REM placing it in payload\ exercises the real $INSTDIR layout.
+          copy launcher\out\KivunTerminal.exe payload\ >nul
+          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
+          mkdir "C:\Kivun Spaced Dir" 2>nul
+          payload\KivunTerminal.exe "C:\Kivun Spaced Dir"
+          set "RC=%ERRORLEVEL%"
+          echo Captured launcher exit code: %RC%
+          REM Parens are mandatory: without them "echo X=2>>file" is parsed
+          REM as a stderr redirect and silently drops the value.
+          (echo LAUNCHER_EXITCODE=%RC%)>>"%GITHUB_ENV%"
+
+      - name: Assert hidden-chain invariants on LAUNCH_LOG.txt
+        shell: bash
+        run: |
+          set -e
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ ! -e "$log" ]; then
+            echo "FAIL: LAUNCH_LOG.txt was not created at $log" >&2
+            exit 1
+          fi
+          echo "----- LAUNCH_LOG.txt -----"
+          cat "$log"
+          echo "--------------------------"
+
+          # Invariant 1: KIVUN_HIDDEN crossed exe -> cmd -> bat.
+          if ! grep -qF 'KIVUN_HIDDEN=1 (native hidden launcher)' "$log"; then
+            echo "FAIL: KIVUN_HIDDEN marker missing — env var did not reach the bat" >&2
+            exit 1
+          fi
+          echo "PASS: KIVUN_HIDDEN reached the bat"
+
+          # Invariant 2: the spaced path survived /S /C quoting end-to-end.
+          if ! grep -qF 'Using specified work directory: C:\Kivun Spaced Dir' "$log"; then
+            echo "FAIL: spaced work directory missing — argument forwarding/quoting broke" >&2
+            exit 1
+          fi
+          echo "PASS: spaced-path argument forwarded intact"
+
+          # Invariant 3: correct failure branch fired (no Claude, install
+          # declined via config).
+          if ! grep -qF 'EXIT - No Claude in WSL' "$log"; then
+            echo "FAIL: expected ':no_claude_exit' marker missing from log" >&2
+            exit 1
+          fi
+          echo "PASS: :no_claude_exit was reached"
+
+          # Invariant 4: exit 2 propagated bat -> cmd -> exe -> caller.
+          # This is the error-visibility contract: a real user gets the
+          # MessageBox precisely because the exe sees this non-zero code.
+          if [ "$LAUNCHER_EXITCODE" != "2" ]; then
+            echo "FAIL: exe exit code was '$LAUNCHER_EXITCODE', expected 2" >&2
+            exit 1
+          fi
+          echo "PASS: exit code 2 propagated through the exe"
+
+          # Invariant 5: the v1.1.1 bug signature must stay absent in the
+          # hidden chain too.
+          if awk '
+            /ERROR[[:space:]]*-[[:space:]]*Claude Code not found/ { found_err=1; next }
+            found_err && /INFO[[:space:]]*-[[:space:]]*Executing:[[:space:]]*claude/ { exit 2 }
+          ' "$log"; then
+            :
+          else
+            rc=$?
+            if [ "$rc" = "2" ]; then
+              echo "FAIL: bug signature present in LAUNCH_LOG (v1.1.1 regression in hidden chain)" >&2
+              exit 1
+            fi
+            exit "$rc"
+          fi
+          echo "PASS: bug signature absent"
+
+      - name: Copy LAUNCH_LOG into workspace for upload
+        if: always()
+        shell: bash
+        run: |
+          src="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ -e "$src" ]; then
+            cp "$src" LAUNCH_LOG.txt
+            echo "Copied $src to workspace"
+          else
+            echo "WARNING: $src not present (launcher may have failed before logging)"
+            echo "(LAUNCH_LOG was not created)" > LAUNCH_LOG.txt
+          fi
+
+      - name: Upload LAUNCH_LOG as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAUNCH_LOG-hidden-exe-no-claude
+          path: LAUNCH_LOG.txt
+          if-no-files-found: warn

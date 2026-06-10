@@ -35,6 +35,21 @@ jobs:
           choco install nsis -y --no-progress
           echo "NSIS installed"
 
+      # The native no-console-flash launcher must exist before makensis runs:
+      # the .nsi has a `File "..\launcher\out\KivunTerminal.exe"` directive
+      # that hard-fails when it is missing. Same script developers run locally.
+      - name: Build native hidden launcher (KivunTerminal.exe)
+        shell: cmd
+        run: launcher\build.bat
+
+      - name: Assert launcher exe exists
+        run: |
+          if [ ! -f launcher/out/KivunTerminal.exe ]; then
+            echo "::error::launcher/build.bat did not produce KivunTerminal.exe" >&2
+            exit 1
+          fi
+          ls -la launcher/out/KivunTerminal.exe
+
       - name: Build installer
         working-directory: installer
         run: |
