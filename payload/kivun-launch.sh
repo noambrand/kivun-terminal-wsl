@@ -210,6 +210,34 @@ case "$PRIMARY_LANG" in
 esac
 log "SUCCESS - Keyboard layout mapped to: $KBD_PRIMARY"
 
+# --- Keyboard: US English + the primary RTL script as two xkb groups, with
+# Alt+Shift to toggle. Open in whatever language the user is CURRENTLY using
+# instead of always forcing the RTL script: WSLg forwards the active Windows
+# keyboard layout into the X server, so `setxkbmap -query` (read BEFORE we
+# override anything) tells us what they're on, and we put that layout first.
+# Defined as a function so it runs once now AND again once the Konsole window
+# exists — the early apply can be dropped by WSLg before the window grabs
+# focus, which was the "stuck on Hebrew, first Alt+Shift does nothing"
+# symptom. Detection is best-effort; on anything unexpected we open
+# English-first so the terminal is immediately ready for commands and paths.
+KIVUN_KBD_LAYOUTS=""
+apply_kivun_keyboard() {
+    command -v setxkbmap >/dev/null 2>&1 || return 0
+    if [ "$KBD_PRIMARY" = "us" ]; then
+        setxkbmap -layout us 2>/dev/null || true   # English: nothing to toggle
+        return 0
+    fi
+    if [ -z "$KIVUN_KBD_LAYOUTS" ]; then
+        _kb_cur=$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' | cut -d, -f1)
+        case "$_kb_cur" in
+            "$KBD_PRIMARY") KIVUN_KBD_LAYOUTS="${KBD_PRIMARY},us" ;;
+            *)              KIVUN_KBD_LAYOUTS="us,${KBD_PRIMARY}" ;;
+        esac
+        log "INFO - Keyboard: current='${_kb_cur:-unknown}' -> '${KIVUN_KBD_LAYOUTS}' (Alt+Shift toggles)"
+    fi
+    setxkbmap -layout "$KIVUN_KBD_LAYOUTS" -option "" -option grp:alt_shift_toggle 2>/dev/null || true
+}
+
 # --- Statusline setup ---
 # Copy statusline.mjs into ~/.local/share/kivun-terminal/ and register it
 # in Claude Code's settings. Complication: on this user's machine, Claude
@@ -293,7 +321,7 @@ if [ "$USE_VCXSRV" = "true" ]; then
     # invoking user via SI-authenticated ucred checks. Matches the
     # access-control-on xlaunch config (-ac removed, DisableAC=False).
     xhost "+si:localuser:$USER" 2>/dev/null || true
-    setxkbmap -layout "${KBD_PRIMARY},us" -option "" -option grp:alt_shift_toggle 2>/dev/null || true
+    apply_kivun_keyboard
     log "SUCCESS - Keyboard layout configured (VcXsrv mode, Alt+Shift enabled)"
     echo "Keyboard mode: VcXsrv (Alt+Shift toggle enabled)"
   else
@@ -317,14 +345,14 @@ if [ "$USE_VCXSRV" = "true" ]; then
     echo "Display: WSLg (VcXsrv unreachable -- usually fine on Windows 11)"
     export DISPLAY=:0
     log "INFO - DISPLAY reset to :0 for WSLg"
-    setxkbmap -layout "${KBD_PRIMARY},us" -option "" -option grp:alt_shift_toggle 2>/dev/null || true
+    apply_kivun_keyboard
     log "SUCCESS - Keyboard layout configured (WSLg fallback mode)"
   fi
 else
   log "INFO - WSLg mode (default)"
-  setxkbmap -layout "${KBD_PRIMARY},us" -option "" -option grp:alt_shift_toggle 2>/dev/null || true
+  apply_kivun_keyboard
   log "SUCCESS - Keyboard layout configured (WSLg mode)"
-  echo "Keyboard mode: WSLg (Alt+Shift may not work)"
+  echo "Keyboard: Alt+Shift switches layouts (opens in your current language)"
 fi
 
 log "INFO - Deploying Konsole profile and color scheme"
@@ -909,6 +937,14 @@ if command -v xdotool >/dev/null 2>&1; then
   if [ -n "$WID" ]; then
     log "SUCCESS - Found Konsole window (ID: $WID)"
     xdotool set_window --name "Kivun Terminal" "$WID" 2>/dev/null
+
+    # Re-apply the keyboard layout now that the window actually exists. The
+    # early setxkbmap (run before Konsole opened) can be dropped by WSLg
+    # before the window grabs focus, leaving the first Alt+Shift doing
+    # nothing ("stuck on Hebrew"). Focus the window, then re-apply so the
+    # toggle is reliable from the first keystroke.
+    xdotool windowactivate "$WID" 2>/dev/null
+    apply_kivun_keyboard
 
     # Override the X server's default window icon (VcXsrv shows its own
     # X if the client doesn't set _NET_WM_ICON; Konsole sets only an

@@ -3,6 +3,24 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.24] - 2026-06-10
+
+### Fixed — keyboard opens in your current language; Alt+Shift switching is reliable
+
+The terminal used to always start on the Hebrew (primary RTL) keyboard, and the
+`setxkbmap` toggle was applied *before* the Konsole window had focus — so on WSLg
+the very first **Alt+Shift** could be missed and it felt "stuck on Hebrew".
+
+- Kivun now **opens in the language you're currently using**: it reads the active
+  layout WSLg forwards from Windows (`setxkbmap -query`) and puts that group first
+  (English-first if it can't tell), so the terminal is immediately ready for the
+  language you're on. Both English and your RTL layout stay one **Alt+Shift** apart.
+- The layout + Alt+Shift toggle are **re-applied the moment the Konsole window
+  appears/gets focus**, so the first keystroke registers — no more dead first press.
+- Dropped the misleading `Keyboard mode: WSLg (Alt+Shift may not work)` message and
+  corrected the troubleshooting docs (WSLg handles Alt+Shift on modern Windows 11;
+  VcXsrv is only a rare fallback).
+
 ## [1.4.23] - 2026-06-10
 
 ### Fixed — terminal window never opened on the newest Ubuntu (Qt6 Konsole dropped --name)

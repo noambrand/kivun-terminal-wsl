@@ -1,4 +1,4 @@
-# Kivun Terminal v1.4.23 - Troubleshooting
+# Kivun Terminal v1.4.24 - Troubleshooting
 
 > **macOS deprecated as of v1.2.4.** This doc still contains macOS sections because users with v1.2.0–v1.2.3 `.pkg` installs may need them for diagnostics or recovery. New installs should use Windows or Linux. See [`mac/README.md`](../mac/README.md) for context and uninstall.
 
@@ -436,9 +436,11 @@ If missing, delete the profile file and relaunch - the launcher regenerates it.
 
 ## Symptom: Alt+Shift doesn't switch keyboard layout
 
-**Cause:** WSLg does not propagate Alt+Shift to the X server. This is a known WSLg limitation.
+**This usually isn't broken.** Kivun opens in the language you're **currently** using and binds **Alt+Shift** to toggle between English and your RTL layout (e.g. Hebrew). On modern Windows 11 + WSL2 (WSLg) this works **without** VcXsrv.
 
-**Fix:** Enable VcXsrv mode. Edit `config.txt`:
+**If the _first_ Alt+Shift seems to do nothing:** click the Konsole window once to give it focus, then press Alt+Shift. Kivun re-applies the layout the moment the window opens to make this reliable (v1.4.24+).
+
+**Fallback (rarely needed):** run a full X server — set `USE_VCXSRV=true` in `config.txt` and install VcXsrv:
 
 ```
 USE_VCXSRV=true
