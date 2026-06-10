@@ -957,21 +957,23 @@ jobs:
           if-no-files-found: warn
 
   # -------------------------------------------------------------------------
-  # Job 6 — v1.1.15 abort path AND v1.1.16 WSL_PATH=. fallback (bundled).
-  # Bundles two regressions that escaped CI before:
-  #   (a) v1.1.15 abort when WSL has no non-root user. The default
-  #       windows-latest WSL Ubuntu (--no-launch) ships with root as the
-  #       only user — exactly the scenario user 'mipmip' hit. With Claude
-  #       pre-installed (so the launcher passes the claude-present check),
-  #       the launcher must reach the user-detection block, fail to find
-  #       UID 1000, and exit cleanly with helpful instructions.
+  # Job 6 — v1.4.22 no-root auto-create AND v1.1.16 WSL_PATH=. fallback.
+  # Bundles two scenarios that share an expensive WSL setup:
+  #   (a) No non-root user in WSL (root-only Ubuntu, exactly what
+  #       windows-latest --no-launch ships — and what user 'mipmip' hit).
+  #       v1.1.15 used to ABORT here; v1.4.22 instead AUTO-CREATES a
+  #       UID-1000 user (kivun-ensure-user.sh), makes it the WSL default,
+  #       and routes the launch through it. Run A must show the
+  #       auto-create + "Will run as:" markers.
   #   (b) v1.1.16 WSL_PATH=. fallback. wslpath returns the literal "."
   #       string when given "" or "." input. Pre-v1.1.16 the bash launcher
   #       would `cd .` into whatever cwd cmd inherited — typically the
   #       Kivun install dir when launched via the Desktop shortcut.
   # The test invokes the launcher TWICE in one CI job to share the WSL
-  # setup cost. Run A uses "." arg (dot-fallback), Run B uses a normal
-  # path arg (abort path). Each has its own assertions.
+  # setup cost. Run A uses "." arg (dot-fallback + auto-create). Run B then
+  # runs with the auto-created user as WSL default: Claude (root-only
+  # pre-install) is invisible to it, so the launcher must take the clean
+  # :no_claude_exit (exit 2) — never the v1.1.0 warn-then-crash.
   # -------------------------------------------------------------------------
   test-v1115-abort-and-v1116-dot-fallback:
     runs-on: windows-latest
@@ -1073,42 +1075,56 @@ jobs:
             exit 1
           fi
 
-      - name: 'Run B — launcher with normal path (v1.1.15 abort)'
+      - name: 'Run B — normal path after auto-create (v1.4.22 non-root routing)'
         shell: cmd
         continue-on-error: true
         run: |
+          REM v1.4.22 replaced the v1.1.15 hard abort: with no UID-1000 user,
+          REM the launcher now AUTO-CREATES one (kivun-ensure-user.sh) and
+          REM makes it the WSL default. Run A above did exactly that, so the
+          REM original "abort when no non-root user" scenario no longer exists
+          REM by the time run B starts. Fresh log so the assertions below see
+          REM run B in isolation (run A is preserved in LAUNCH_LOG_A.txt).
+          del "%LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt" >nul 2>&1
           (echo.) > "%RUNNER_TEMP%\input.txt"
           (echo.) >> "%RUNNER_TEMP%\input.txt"
           call payload\kivun-terminal.bat C:\temp < "%RUNNER_TEMP%\input.txt"
           set "RC_B=%ERRORLEVEL%"
           (echo RUN_B_EXITCODE=%RC_B%)>>"%GITHUB_ENV%"
 
-      - name: Assert v1.1.15 abort fired in run B
+      - name: Assert v1.4.22 auto-create in run A + clean no-claude exit in run B
         shell: bash
         run: |
           set -e
           # Git Bash auto-converts $LOCALAPPDATA to a Unix-style path that
           # `cat`/`grep` can read directly. No path-string surgery needed.
           log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
-          echo "----- LAUNCH_LOG.txt (full) -----"
+          echo "----- LAUNCH_LOG.txt (run B) -----"
           cat "$log"
           echo "---------------------------------"
-          if ! grep -qE 'No non-root user \(UID 1000\) found' "$log"; then
-            echo "FAIL: v1.1.15 abort log line missing — root-user-check regressed" >&2
+          # v1.4.22: run A must have auto-created the non-root user and
+          # routed through it instead of aborting (the old v1.1.15 behavior).
+          grep -qF 'No non-root user in Ubuntu; auto-creating one' LAUNCH_LOG_A.txt \
+            || { echo "FAIL: v1.4.22 auto-create marker missing from run A log" >&2; exit 1; }
+          grep -qF 'Will run as:' LAUNCH_LOG_A.txt \
+            || { echo "FAIL: run A did not route through the auto-created user" >&2; exit 1; }
+          echo "PASS: run A auto-created the non-root user and routed through it"
+          # Run B starts with that user as the WSL default. Claude was
+          # pre-installed for root only, so the presence check (which runs as
+          # the default user) must miss it, and with AUTO_INSTALL_CLAUDE=no
+          # the launcher must take the clean :no_claude_exit (exit 2) — never
+          # the v1.1.0 warn-then-crash that ate user 'mipmip' twice.
+          grep -qF 'EXIT - No Claude in WSL' "$log" \
+            || { echo "FAIL: run B did not reach the clean no-claude exit" >&2; exit 1; }
+          if [ "$RUN_B_EXITCODE" != "2" ]; then
+            echo "FAIL: run B exit code was '$RUN_B_EXITCODE', expected 2 (:no_claude_exit)" >&2
             exit 1
           fi
-          if [ "$RUN_B_EXITCODE" != "1" ]; then
-            echo "FAIL: launcher exit code was '$RUN_B_EXITCODE', expected 1 (v1.1.15 abort)" >&2
-            exit 1
-          fi
-          # Defense-in-depth: launcher must NOT pretend to fall through
-          # past the abort. The fake fall-through (warn-then-crash) was
-          # the v1.1.0 anti-pattern that ate user 'mipmip' twice.
           if grep -qE 'INFO - Launching Konsole|INFO - Falling back to direct' "$log"; then
-            echo "FAIL: launcher proceeded past abort despite no UID 1000" >&2
+            echo "FAIL: run B proceeded despite missing Claude (v1.1.0 anti-pattern)" >&2
             exit 1
           fi
-          echo "PASS: v1.1.15 abort fired with exit 1 + no fake fall-through"
+          echo "PASS: run B exited 2 cleanly with no fake fall-through"
 
       - name: Upload artifacts
         if: always()
