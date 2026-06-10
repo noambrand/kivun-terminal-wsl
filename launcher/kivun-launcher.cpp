@@ -26,6 +26,7 @@
 // KIVUN_SUPPRESS_ERROR_UI=1 suppresses the failure MessageBox (headless CI).
 
 #include <windows.h>
+#include <stdio.h>    // swprintf_s
 #include <stdlib.h>
 #include <string.h>
 
