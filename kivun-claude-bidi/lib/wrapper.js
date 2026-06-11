@@ -16,6 +16,40 @@ function currentSize(stdout) {
   };
 }
 
+// #98 EXPERIMENT — RTL cost optimizer wiring. Decided ONCE at startup:
+//   off (the default)   → raw passthrough, byte-identical to the
+//                         pre-experiment wrapper; the optimizer module is
+//                         never even require()d.
+//   on + stdin is a TTY → one stderr notice, then raw passthrough
+//                         (interactive TUI input is never touched).
+//   on + piped stdin    → line-buffered StdinPromptOptimizer.
+// onStdinEnd is non-null only in the piped case: line buffering must flush
+// a final unterminated line at pipe EOF; the passthrough never needed an
+// 'end' handler and does not get one.
+function makeStdinPipeline(child, env, isTTY, writeErr = (s) => process.stderr.write(s)) {
+  const enabled = String((env || {}).KIVUN_RTL_COST_OPTIMIZER || '').trim().toLowerCase() === 'on';
+  if (!enabled) {
+    return { onStdin: (chunk) => child.write(chunk), onStdinEnd: null };
+  }
+  if (isTTY) {
+    writeErr('kivun-claude-bidi: RTL cost optimizer applies to piped input only; skipped for interactive TUI\n');
+    return { onStdin: (chunk) => child.write(chunk), onStdinEnd: null };
+  }
+  // Lazy require: the optimizer code loads only in this opt-in branch.
+  const { StdinPromptOptimizer } = require('./rtl-cost-optimizer');
+  const optimizer = new StdinPromptOptimizer(env, { writeErr });
+  return {
+    onStdin: (chunk) => {
+      const out = optimizer.write(chunk);
+      if (out) child.write(out);
+    },
+    onStdinEnd: () => {
+      const out = optimizer.end();
+      if (out) child.write(out);
+    },
+  };
+}
+
 function run(args, env = process.env) {
   const cmd = resolveClaudeBin(env);
   const { cols, rows } = currentSize(process.stdout);
@@ -43,8 +77,9 @@ function run(args, env = process.env) {
   if (hadRawMode) stdin.setRawMode(true);
   stdin.resume();
 
-  const onStdin = (chunk) => child.write(chunk);
+  const { onStdin, onStdinEnd } = makeStdinPipeline(child, env, hadRawMode);
   stdin.on('data', onStdin);
+  if (onStdinEnd) stdin.on('end', onStdinEnd);
 
   child.onData((data) => {
     process.stdout.write(injector.write(data));
@@ -72,6 +107,7 @@ function run(args, env = process.env) {
     process.stdout.write(injector.end());
 
     stdin.off('data', onStdin);
+    if (onStdinEnd) stdin.off('end', onStdinEnd);
     if (hadRawMode) {
       try { stdin.setRawMode(false); } catch (_) { /* not a TTY */ }
     }
@@ -87,4 +123,4 @@ function run(args, env = process.env) {
   });
 }
 
-module.exports = { run, resolveClaudeBin };
+module.exports = { run, resolveClaudeBin, makeStdinPipeline };

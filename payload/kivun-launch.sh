@@ -612,6 +612,53 @@ fi
 export KIVUN_BIDI_BRACKET_RTL_RUNS
 log "INFO - KIVUN_BIDI_BRACKET_RTL_RUNS=$KIVUN_BIDI_BRACKET_RTL_RUNS"
 
+# RTL cost optimizer (EXPERIMENT, issue #98). Off by default. When on,
+# PIPED stdin prompts are normalized and scaffold-wrapped locally before
+# reaching Claude — the user's full request is always carried verbatim.
+# Savings UNPROVEN: input tokens may INCREASE; the experiment measures
+# output-token impact. Interactive TUI typing is NEVER touched.
+KIVUN_RTL_COST_OPTIMIZER="off"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER
+log "INFO - KIVUN_RTL_COST_OPTIMIZER=$KIVUN_RTL_COST_OPTIMIZER"
+
+# Optimizer sub-knobs (only consulted when the master switch is on).
+KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD
+
+KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW
+
+KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE
+
+KIVUN_RTL_COST_OPTIMIZER_AUDIT="on"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_AUDIT[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER_AUDIT[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_RTL_COST_OPTIMIZER_AUDIT="$val"
+fi
+export KIVUN_RTL_COST_OPTIMIZER_AUDIT
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates

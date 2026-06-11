@@ -3,6 +3,28 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added — RTL cost optimizer experiment, rebuilt correctly (closes #98; continues PR #84 by @zuwasi)
+
+An **off-by-default experiment** that rewrites PIPED Hebrew/Arabic prompts
+before they reach Claude Code: strips niqqud/diacritics and invisible
+direction marks, collapses whitespace (fenced code untouched), and wraps
+the **full request verbatim** in a short English reasoning frame.
+
+- Fixes both #84 correctness blockers by construction: there is no TUI
+  optimizer (interactive typing is never touched — piped stdin only), and
+  there are no intent templates (nothing can substitute or truncate the
+  user's request; a regression test pins the exact "remove CMake" case #84
+  inverted).
+- The default stdin path is byte-identical to previous releases — the
+  optimizer module is not even loaded unless `KIVUN_RTL_COST_OPTIMIZER=on`.
+- Honest accounting: the stderr estimate can go NEGATIVE (the scaffold adds
+  input tokens); docs say plainly that savings are unproven and the
+  experiment measures output-token impact. Per-prompt metrics (never prompt
+  text) append to `~/.local/state/kivun-terminal/rtl-cost-optimizer.jsonl`.
+- Knobs documented in `config.txt`; propagated on both Windows and Linux.
+
 ## [1.4.26] - 2026-06-10
 
 ### Added — native launcher: no more black window flash (continuation of PR #83 by @zuwasi)
