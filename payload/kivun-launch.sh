@@ -615,8 +615,9 @@ log "INFO - KIVUN_BIDI_BRACKET_RTL_RUNS=$KIVUN_BIDI_BRACKET_RTL_RUNS"
 # RTL cost optimizer (EXPERIMENT, issue #98). Off by default. When on,
 # PIPED stdin prompts are normalized and scaffold-wrapped locally before
 # reaching Claude — the user's full request is always carried verbatim.
-# Savings UNPROVEN: input tokens may INCREASE; the experiment measures
-# output-token impact. Interactive TUI typing is NEVER touched.
+# MEASURED (post-v1.4.27): NO token saving, even for Hebrew-reply users;
+# the scaffold ADDS input tokens. Leave off — see PR #102 / #84.
+# Interactive TUI typing is NEVER touched.
 KIVUN_RTL_COST_OPTIMIZER="off"
 if [ -f "$SCRIPT_DIR/config.txt" ]; then
     val=$(grep -E '^[[:space:]]*KIVUN_RTL_COST_OPTIMIZER[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \

@@ -15,7 +15,18 @@ your antivirus blocks the new unsigned launcher, use the **"Kivun Terminal
 versions. Credit: continues [PR #83](https://github.com/noambrand/kivun-terminal-wsl/pull/83)
 by **@zuwasi**.
 
-**New experiment: RTL cost optimizer — OFF by default.** Set
+**New experiment: RTL cost optimizer — OFF by default.**
+
+> **Update (measured after release): it saves no tokens.** Paired A/B
+> testing on Opus 4.8 and Sonnet 4.6 — including with extended thinking
+> maxed out — found the net output-token effect statistically
+> indistinguishable from zero, and the English frame *adds* input tokens.
+> A Hebrew answer costs ~31% more tokens than the same English answer, but
+> that "tax" is in the output tokenizer and can't be recovered while
+> keeping Hebrew replies. Recommended: leave it off. Full data in PR
+> #102 / #84. The description below is preserved as the original release text.
+
+Set
 `KIVUN_RTL_COST_OPTIMIZER=on` in `config.txt` and prompts you **pipe** into
 Claude in Hebrew/Arabic get cleaned up before they're sent: niqqud/diacritics
 and invisible direction marks stripped, whitespace collapsed (fenced code

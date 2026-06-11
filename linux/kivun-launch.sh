@@ -34,8 +34,8 @@ KIVUN_BIDI_STRIP_BULLET="on"
 KIVUN_BIDI_STRIP_INCOMING="auto"
 KIVUN_BIDI_BRACKET_RTL_RUNS="off"
 KIVUN_BIDI_DUMP_RAW="off"
-# RTL cost optimizer — EXPERIMENT (#98), off by default. See config.txt
-# for the honest warning (savings unproven; piped input only).
+# RTL cost optimizer — EXPERIMENT (#98), off by default. MEASURED as no
+# token saving (see config.txt / PR #102 / #84); piped input only.
 KIVUN_RTL_COST_OPTIMIZER="off"
 KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD="on"
 KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="on"
