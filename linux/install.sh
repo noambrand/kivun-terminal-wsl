@@ -403,6 +403,14 @@ KIVUN_BIDI_BRACKET_RTL_RUNS=off
 
 # Debug-only raw-byte dump. Default: off
 KIVUN_BIDI_DUMP_RAW=off
+
+# RTL cost optimizer — EXPERIMENT (#98). Rewrites PIPED Hebrew/Arabic
+# prompts (normalize + English scaffold carrying your FULL request
+# verbatim). Savings UNPROVEN — input tokens may INCREASE; measures
+# output-token impact. TUI typing is never touched. Default: off
+# Sub-knobs (all default on): KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD,
+# _SHOW_PREVIEW, _SHOW_ESTIMATE, _AUDIT.
+KIVUN_RTL_COST_OPTIMIZER=off
 CONFIG
     log "Config created at $CONFIG_FILE"
 fi

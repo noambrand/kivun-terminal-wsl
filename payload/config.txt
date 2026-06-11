@@ -136,6 +136,41 @@ KIVUN_BIDI_DUMP_RAW=off
 
 
 # =================================================================
+# RTL COST OPTIMIZER — EXPERIMENT (off by default; advanced)
+# =================================================================
+# Rewrites PIPED Hebrew/Arabic prompts before they reach Claude Code:
+# strips niqqud/diacritics and invisible direction marks, collapses
+# whitespace (fenced ``` code blocks are untouched), then wraps your FULL
+# request VERBATIM in a short English frame ("Use English for internal
+# reasoning... Reply in Hebrew."). Your request is never replaced or
+# truncated. Interactive typing in the TUI is NEVER touched — piped
+# input only (e.g. echo "..." | kivun session).
+#
+# HONEST WARNING: savings are UNPROVEN. The scaffold ADDS English text,
+# so INPUT tokens may INCREASE. This experiment exists to measure whether
+# English internal reasoning reduces OUTPUT tokens (Hebrew output costs
+# roughly 2x tokens per word). Default: off
+KIVUN_RTL_COST_OPTIMIZER=off
+
+# Wrap the normalized prompt in the English scaffold. off = strip-only
+# (niqqud/direction-marks/whitespace; strictly lossless). Default: on
+KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD=on
+
+# Print the transformed prompt to stderr so you can verify the meaning
+# was preserved. Default: on
+KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW=on
+
+# Print a rough token estimate. Heuristic only — the delta can be
+# NEGATIVE (scaffold adds more than normalization removes). Default: on
+KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE=on
+
+# Append one JSONL metrics line per transformed prompt to
+# ~/.local/state/kivun-terminal/rtl-cost-optimizer.jsonl
+# (sizes and estimates only — NEVER prompt text). Default: on
+KIVUN_RTL_COST_OPTIMIZER_AUDIT=on
+
+
+# =================================================================
 # REFERENCE: 23 supported languages for RESPONSE_LANGUAGE
 # =================================================================
 #

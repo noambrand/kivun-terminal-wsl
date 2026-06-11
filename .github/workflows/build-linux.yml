@@ -115,7 +115,7 @@ jobs:
           cd "$WRAPPER_DIR"
           # Test deps aren't installed by --production; pull them now.
           npm install --no-audit --no-fund
-          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js
+          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js test/rtl-cost-optimizer.test.js
 
       - name: Smoke-test wrapper end-to-end against fake claude
         run: |
@@ -234,4 +234,4 @@ jobs:
           WRAPPER_DIR="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
           cd "$WRAPPER_DIR"
           npm install --no-audit --no-fund
-          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js
+          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js test/rtl-cost-optimizer.test.js

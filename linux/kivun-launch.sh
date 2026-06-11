@@ -34,6 +34,13 @@ KIVUN_BIDI_STRIP_BULLET="on"
 KIVUN_BIDI_STRIP_INCOMING="auto"
 KIVUN_BIDI_BRACKET_RTL_RUNS="off"
 KIVUN_BIDI_DUMP_RAW="off"
+# RTL cost optimizer — EXPERIMENT (#98), off by default. See config.txt
+# for the honest warning (savings unproven; piped input only).
+KIVUN_RTL_COST_OPTIMIZER="off"
+KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD="on"
+KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="on"
+KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="on"
+KIVUN_RTL_COST_OPTIMIZER_AUDIT="on"
 trim() {
     # Pure-bash whitespace trim. Avoids `xargs` which both strips quotes
     # and globs unquoted special characters against the CWD (so a config
@@ -63,11 +70,16 @@ if [ -f "$CONFIG_FILE" ]; then
             KIVUN_BIDI_STRIP_INCOMING)    KIVUN_BIDI_STRIP_INCOMING="$value" ;;
             KIVUN_BIDI_BRACKET_RTL_RUNS)  KIVUN_BIDI_BRACKET_RTL_RUNS="$value" ;;
             KIVUN_BIDI_DUMP_RAW)          KIVUN_BIDI_DUMP_RAW="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER)               KIVUN_RTL_COST_OPTIMIZER="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD)      KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW)  KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE) KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE="$value" ;;
+            KIVUN_RTL_COST_OPTIMIZER_AUDIT)         KIVUN_RTL_COST_OPTIMIZER_AUDIT="$value" ;;
         esac
     done < "$CONFIG_FILE"
 fi
 log "Config: lang=$RESPONSE_LANGUAGE dir=$TEXT_DIRECTION color=$TERMINAL_COLOR kb=$KEYBOARD_TOGGLE picker=$FOLDER_PICKER bidi=$KIVUN_BIDI_WRAPPER"
-log "BiDi tuning: strip_bullet=$KIVUN_BIDI_STRIP_BULLET strip_incoming=$KIVUN_BIDI_STRIP_INCOMING bracket_rtl_runs=$KIVUN_BIDI_BRACKET_RTL_RUNS dump_raw=$KIVUN_BIDI_DUMP_RAW"
+log "BiDi tuning: strip_bullet=$KIVUN_BIDI_STRIP_BULLET strip_incoming=$KIVUN_BIDI_STRIP_INCOMING bracket_rtl_runs=$KIVUN_BIDI_BRACKET_RTL_RUNS dump_raw=$KIVUN_BIDI_DUMP_RAW rtl_optimizer=$KIVUN_RTL_COST_OPTIMIZER"
 
 # Decide which binary the tmp launch script will invoke. Wrapper is
 # default-on in v1.1.0. Resolution order:
@@ -290,6 +302,12 @@ ENV_FILE="$CACHE_DIR/launch-env.sh"
     printf 'export KIVUN_BIDI_STRIP_INCOMING=%q\n'   "$KIVUN_BIDI_STRIP_INCOMING"
     printf 'export KIVUN_BIDI_BRACKET_RTL_RUNS=%q\n' "$KIVUN_BIDI_BRACKET_RTL_RUNS"
     printf 'export KIVUN_BIDI_DUMP_RAW=%q\n'         "$KIVUN_BIDI_DUMP_RAW"
+    # RTL cost optimizer experiment knobs (#98) — wrapper child inherits.
+    printf 'export KIVUN_RTL_COST_OPTIMIZER=%q\n'               "$KIVUN_RTL_COST_OPTIMIZER"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD=%q\n'      "$KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW=%q\n'  "$KIVUN_RTL_COST_OPTIMIZER_SHOW_PREVIEW"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE=%q\n' "$KIVUN_RTL_COST_OPTIMIZER_SHOW_ESTIMATE"
+    printf 'export KIVUN_RTL_COST_OPTIMIZER_AUDIT=%q\n'         "$KIVUN_RTL_COST_OPTIMIZER_AUDIT"
 } > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
