@@ -3,6 +3,30 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Documented — RTL cost optimizer measured: no token saving (follow-up to #98 / #102 / #84)
+
+The v1.4.27 RTL cost optimizer experiment was measured with paired A/B
+testing against real Claude calls (`claude -p --output-format json`,
+reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
+~110 calls total.
+
+- **Result: no token saving — not even for Hebrew-reply users.** Across
+  every configuration the net output-token effect was statistically
+  indistinguishable from zero (e.g. Opus 4.8 with extended thinking at
+  `--effort xhigh`: −0.5%, 95% CI [−5.8%, +4.8%]; pooled Opus 4.8: +1.9%,
+  95% CI [−2.2%, +6.0%]). The English scaffold *adds* input tokens.
+- **Why (structural):** a Hebrew answer costs ~31% more tokens than the
+  same answer in English (measured), but that "tax" lives in the output
+  tokenizer; the optimizer keeps replies in Hebrew (correctly), so it
+  cannot reach it, and the "reason in English" lever doesn't move total
+  tokens because Claude already reasons efficiently regardless of prompt
+  language.
+- Action: left **off by default**; docs updated from "savings unproven" to
+  the measured "no benefit." Findings posted to PR #102 / #84. The lossless
+  normalization and meaning-safety guarantees from #98 are unchanged.
+
 ## [1.4.27] - 2026-06-11
 
 ### Added — RTL cost optimizer experiment, rebuilt correctly (closes #98; continues PR #84 by @zuwasi)

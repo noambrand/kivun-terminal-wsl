@@ -406,8 +406,10 @@ KIVUN_BIDI_DUMP_RAW=off
 
 # RTL cost optimizer — EXPERIMENT (#98). Rewrites PIPED Hebrew/Arabic
 # prompts (normalize + English scaffold carrying your FULL request
-# verbatim). Savings UNPROVEN — input tokens may INCREASE; measures
-# output-token impact. TUI typing is never touched. Default: off
+# verbatim). MEASURED (post-v1.4.27): NO token saving, even for Hebrew-
+# reply users — A/B on Opus 4.8 / Sonnet 4.6 found the net output effect
+# indistinguishable from zero; the scaffold ADDS input tokens. Leave off.
+# See PR #102 / #84. TUI typing is never touched. Default: off
 # Sub-knobs (all default on): KIVUN_RTL_COST_OPTIMIZER_SCAFFOLD,
 # _SHOW_PREVIEW, _SHOW_ESTIMATE, _AUDIT.
 KIVUN_RTL_COST_OPTIMIZER=off

@@ -146,10 +146,14 @@ KIVUN_BIDI_DUMP_RAW=off
 # truncated. Interactive typing in the TUI is NEVER touched — piped
 # input only (e.g. echo "..." | kivun session).
 #
-# HONEST WARNING: savings are UNPROVEN. The scaffold ADDS English text,
-# so INPUT tokens may INCREASE. This experiment exists to measure whether
-# English internal reasoning reduces OUTPUT tokens (Hebrew output costs
-# roughly 2x tokens per word). Default: off
+# MEASURED RESULT (post-v1.4.27): it provides NO token saving — not even
+# for Hebrew-reply users. Paired A/B testing on Opus 4.8 and Sonnet 4.6
+# (incl. with extended thinking maxed out) found the net output-token
+# effect statistically indistinguishable from zero, and the English frame
+# ADDS input tokens. The Hebrew "output tax" (~31% more tokens than the
+# same English answer) lives in the tokenizer and cannot be recovered
+# while keeping Hebrew replies. Recommended: leave OFF. See PR #102 / #84.
+# Default: off
 KIVUN_RTL_COST_OPTIMIZER=off
 
 # Wrap the normalized prompt in the English scaffold. off = strip-only
