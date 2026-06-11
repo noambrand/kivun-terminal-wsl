@@ -3,7 +3,7 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.4.27] - 2026-06-11
 
 ### Added — RTL cost optimizer experiment, rebuilt correctly (closes #98; continues PR #84 by @zuwasi)
 
