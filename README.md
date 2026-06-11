@@ -23,12 +23,12 @@
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
   <a href="https://github.com/noambrand/kivun-terminal-wsl/stargazers"><img src="https://img.shields.io/github/stars/noambrand/kivun-terminal-wsl?style=flat&color=yellow" alt="GitHub Stars"></a>
   <img src="https://img.shields.io/github/last-commit/noambrand/kivun-terminal-wsl?label=last%20commit&color=brightgreen" alt="Last Commit">
-  <img src="https://img.shields.io/badge/downloads-324%2B-blue" alt="Total Downloads">
+  <img src="https://img.shields.io/badge/downloads-462%2B-blue" alt="Total Downloads">
 </p>
 
 <h3 align="center">Real RTL Claude Code terminal. Hebrew, Arabic, Persian, Urdu and 8 more - rendered correctly, on Windows and Linux.</h3>
 
-<p align="center"><sub><strong>macOS support deprecated as of v1.2.4</strong> — no native Mac terminal renders mixed Hebrew+English correctly today. <a href="mac/README.md">Details &amp; uninstall instructions →</a></sub></p>
+<p align="center"><sub><strong>macOS support deprecated as of v1.2.4</strong> - no native Mac terminal renders mixed Hebrew+English correctly today. <a href="mac/README.md">Details &amp; uninstall instructions →</a></sub></p>
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> &bull;
@@ -65,10 +65,10 @@
 | **Live status bar** (model, context %, usage) | ✅ | ✅ |
 | **Light-blue Kivun theme** | ✅ Windows Terminal | ✅ Konsole |
 | **Right-click "Open with…" on a folder** | ✅ Windows Explorer | ✅ Windows Explorer + Linux file managers |
-| **Named profiles per project** (folder + model + flags + env vars + startup slash-commands) | ✅ v2.6.0 — chip row at top of picker, click to switch; `ANTHROPIC_API_KEY` etc. masked in preview by default | ✅ **🆕 v1.4.0** — chip row at top of picker; per-profile `ANTHROPIC_API_KEY`/`DEBUG`/`MCP_*` propagated via `WSLENV`; masked in preview by default |
+| **Named profiles per project** (folder + model + flags + env vars + startup slash-commands) | ✅ v2.6.0 - chip row at top of picker, click to switch; `ANTHROPIC_API_KEY` etc. masked in preview by default | ✅ **🆕 v1.4.0** - chip row at top of picker; per-profile `ANTHROPIC_API_KEY`/`DEBUG`/`MCP_*` propagated via `WSLENV`; masked in preview by default |
 | **Startup time** | ~2 s | ~6 s |
 | **Install size on Windows** | ~150 MB | ~2 GB (includes Ubuntu + Konsole) |
-| **macOS support** | ✅ | ❌ Deprecated as of v1.2.4 (no Mac terminal handles mixed Hebrew+English — see [`mac/README.md`](mac/README.md)) |
+| **macOS support** | ✅ | ❌ Deprecated as of v1.2.4 (no Mac terminal handles mixed Hebrew+English - see [`mac/README.md`](mac/README.md)) |
 | **Linux support** | ❌ | ✅ apt / dnf / pacman / zypper |
 
 > Technical details (BiDi wrapper, RLM injection, Konsole 23.x workarounds, etc.) live in the rest of this README and in [`docs/`](docs/) for anyone who wants them.
@@ -82,34 +82,34 @@
 ## What's included out of the box
 
 <p align="center">
-  <img src="picker.png" alt="Kivun Terminal folder picker (v1.4.8) — folder selection up top, an Advanced options toggle that hides model / flags / startup slash-commands / env-vars by default, and a yellow 'Update available' banner that checks GitHub Releases on launch and offers a one-click Download button" width="780">
+  <img src="picker.png" alt="Kivun Terminal folder picker (v1.4.8) - folder selection up top, an Advanced options toggle that hides model / flags / startup slash-commands / env-vars by default, and a yellow 'Update available' banner that checks GitHub Releases on launch and offers a one-click Download button" width="780">
 </p>
 
-- **🆕 Named profiles (v1.4.0+)** — save folder + model + flags + startup slash-commands + environment variables per project. The chip row at the top of the picker lets you switch between profiles in one click; the active profile is highlighted blue. Per-profile env vars (`ANTHROPIC_API_KEY`, `DEBUG`, custom `MCP_*`, …) are propagated through `WSLENV` on Windows / `export` on Linux so they reach the Claude Code session. Values are masked in the resolved-command preview by default for screenshot safety; click `👁 show values` to reveal.
-- **Folder picker dialog** on the desktop shortcut (screenshot above) — browse the folder tree **or** type/paste a Windows path, plus inline radio-button model selection (Opus / Sonnet / Haiku), one-click flag chips (Respond in Hebrew, High effort, Auto-accept file edits, Read-only, etc.), and a textarea for startup slash commands like `/voicemode:converse`.
-- **Right-click "Open with Kivun Terminal"** on any folder in File Explorer — launches straight into that folder, skipping the picker.
-- **Live two-line statusline** at the bottom of every Claude Code session — model, context %, total tokens, session duration, and 5-hour / 7-day usage with countdown to reset.
-- **Light-blue Kivun theme** for Konsole (`#C8E6FF` background) — easy on the eyes, on by default. Disable via `TERMINAL_COLOR=default`.
+- **🆕 Named profiles (v1.4.0+)** - save folder + model + flags + startup slash-commands + environment variables per project. The chip row at the top of the picker lets you switch between profiles in one click; the active profile is highlighted blue. Per-profile env vars (`ANTHROPIC_API_KEY`, `DEBUG`, custom `MCP_*`, …) are propagated through `WSLENV` on Windows / `export` on Linux so they reach the Claude Code session. Values are masked in the resolved-command preview by default for screenshot safety; click `👁 show values` to reveal.
+- **Folder picker dialog** on the desktop shortcut (screenshot above) - browse the folder tree **or** type/paste a Windows path, plus inline radio-button model selection (Opus / Sonnet / Haiku), one-click flag chips (Respond in Hebrew, High effort, Auto-accept file edits, Read-only, etc.), and a textarea for startup slash commands like `/voicemode:converse`.
+- **Right-click "Open with Kivun Terminal"** on any folder in File Explorer - launches straight into that folder, skipping the picker.
+- **Live two-line statusline** at the bottom of every Claude Code session - model, context %, total tokens, session duration, and 5-hour / 7-day usage with countdown to reset.
+- **Light-blue Kivun theme** for Konsole (`#C8E6FF` background) - easy on the eyes, on by default. Disable via `TERMINAL_COLOR=default`.
 - **BiDi wrapper** that fixes Hebrew/Arabic/Persian rendering bugs in Claude Code's TUI (see [BiDi Wrapper](#bidi-wrapper) below for the seven specific fixes).
-- **Auto-installs everything** — WSL2 + Ubuntu + Konsole + Node.js + Claude Code itself, on a clean Windows machine. The installer asks once and handles the rest.
+- **Auto-installs everything** - WSL2 + Ubuntu + Konsole + Node.js + Claude Code itself, on a clean Windows machine. The installer asks once and handles the rest.
 
 ## Quick Start
 
 ### Windows
 
 1. **[Download `Kivun_Terminal_Setup.exe`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe)** from the latest release.
-2. Run it — follow the wizard. No admin rights required.
+2. Run it - follow the wizard. No admin rights required.
 3. Double-click the **Kivun Terminal** desktop shortcut → pick a folder (browse the tree or paste a Windows path), or right-click any folder in File Explorer → **Open with Kivun Terminal**.
 
-First launch can take 5–10 minutes — the installer pulls Ubuntu (WSL2), Konsole, and Claude Code on its own.
+First launch can take 5–10 minutes - the installer pulls Ubuntu (WSL2), Konsole, and Claude Code on its own.
 
 <details>
 <summary>If something goes wrong: WSL not installed / SAC blocks / SmartScreen warning</summary>
 
 - **WSL2 missing.** If the wizard says *"WSL is not installed"*, open **Terminal (Admin)**, run `wsl --install`, reboot, and re-run the installer. You only do this once per machine.
 - <a id="windows-smartscreen"></a>**SmartScreen warning** (*"Windows protected your PC"*): click **More info** → **Run anyway**. The installer is unsigned; the warning fades once Microsoft's reputation signal accumulates from real downloads.
-- **Smart App Control on Windows 11** (the harder block — *"Smart App Control blocked an app that may be unsafe"* with only an *Ok* button): SAC refuses unsigned apps entirely. Open **Start** → search **Smart App Control** → set it to **Off**. SAC cannot be re-enabled without reinstalling Windows, so leave it off only if you're comfortable running other unsigned apps.
-- **Still stuck? Send a 1-click report.** Download **[`kivun-diagnostics.cmd`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)** from the latest release (or open **"Kivun Diagnostics"** from the Start menu if it installed) and double-click it. It saves **`Kivun-Report.txt`** to your Desktop — email it to noambbb@gmail.com. No admin, nothing sent automatically.
+- **Smart App Control on Windows 11** (the harder block - *"Smart App Control blocked an app that may be unsafe"* with only an *Ok* button): SAC refuses unsigned apps entirely. Open **Start** → search **Smart App Control** → set it to **Off**. SAC cannot be re-enabled without reinstalling Windows, so leave it off only if you're comfortable running other unsigned apps.
+- **Still stuck? Send a 1-click report.** Download **[`kivun-diagnostics.cmd`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)** from the latest release (or open **"Kivun Diagnostics"** from the Start menu if it installed) and double-click it. It saves **`Kivun-Report.txt`** to your Desktop - email it to noambbb@gmail.com. No admin, nothing sent automatically.
 
 </details>
 
@@ -166,16 +166,16 @@ v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's outp
 | **Bullet-strip** (v1.1.8) | Removes the leading `●` from Hebrew bullet lines so the line's first visible char is Hebrew | Konsole 23.x classifies `●` as a direction-anchoring neutral; without strip, lines stay LTR even with line-start RLM | on |
 | **Strip-incoming bidi controls** (v1.1.9) | Strips embedding (`U+202A`–`U+202E`) and isolate (`U+2066`–`U+2069`) marks from Claude's stream; preserves LRM/RLM | Stops upstream-emitted bidi controls from compounding with wrapper-injected RLM and producing nondeterministic positioning | auto |
 | **Flatten colors on RTL lines** (v1.1.10) | Strips ANSI SGR (CSI`...m`) sequences from any line whose first strong char is Hebrew so the line is one attribute run | Konsole's BiDi only runs within continuous-attribute regions; color changes split the BiDi run and Qt mispositions the resulting fragments | on |
-| **No per-run RLE/PDF on RTL lines** (v1.1.11) | When the line is already RTL via line-start RLM, skip per-Hebrew-run RLE/PDF brackets — let UAX #9 handle direction across the whole single-attribute line | Per-run brackets *themselves* act as attribute-region boundaries; on lines with multiple Hebrew runs separated by LTR runs, they recreated the same misposition v1.1.10 was supposed to fix | off |
-| **Cursor-forward → space replacement on RTL lines** (v1.1.16, **user-confirmed working** April 2026) | Replaces each `\x1b[NC` cursor-forward CSI with N literal space characters on RTL lines. Visually identical (cursor moves over presumed-blank cells; spaces write to those same cells) but no attribute-region boundary | Claude Code's TUI uses cursor-forward escapes instead of literal spaces between every word — confirmed via `KIVUN_BIDI_DUMP_RAW=on` capture showing **306 cursor-forward CSIs in one short Hebrew session**. Each one was splitting Konsole's BiDi run the same way SGR colors did, just invisibly. v1.1.10 caught the visible color splitters; v1.1.16 catches the invisible cursor-forward splitters | on (gated on the same `KIVUN_BIDI_FLATTEN_COLORS_RTL` flag) |
+| **No per-run RLE/PDF on RTL lines** (v1.1.11) | When the line is already RTL via line-start RLM, skip per-Hebrew-run RLE/PDF brackets - let UAX #9 handle direction across the whole single-attribute line | Per-run brackets *themselves* act as attribute-region boundaries; on lines with multiple Hebrew runs separated by LTR runs, they recreated the same misposition v1.1.10 was supposed to fix | off |
+| **Cursor-forward → space replacement on RTL lines** (v1.1.16, **user-confirmed working** April 2026) | Replaces each `\x1b[NC` cursor-forward CSI with N literal space characters on RTL lines. Visually identical (cursor moves over presumed-blank cells; spaces write to those same cells) but no attribute-region boundary | Claude Code's TUI uses cursor-forward escapes instead of literal spaces between every word - confirmed via `KIVUN_BIDI_DUMP_RAW=on` capture showing **306 cursor-forward CSIs in one short Hebrew session**. Each one was splitting Konsole's BiDi run the same way SGR colors did, just invisibly. v1.1.10 caught the visible color splitters; v1.1.16 catches the invisible cursor-forward splitters | on (gated on the same `KIVUN_BIDI_FLATTEN_COLORS_RTL` flag) |
 
-**Why this isn't fixable upstream:** Konsole has no real BiDi engine — it hands continuous-attribute regions to Qt's text layout, and Qt has no idea where a colored, bracketed, or cursor-positioned fragment logically belongs in the surrounding RTL paragraph. This is documented at [terminal-wg.pages.freedesktop.org](https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html) and was empirically confirmed via April 2026 A/B tests on Konsole 23.08.5. KDE has shown no signs of changing it; the wrapper's job is to give Konsole exactly what it can render correctly: a single attribute run per RTL line.
+**Why this isn't fixable upstream:** Konsole has no real BiDi engine - it hands continuous-attribute regions to Qt's text layout, and Qt has no idea where a colored, bracketed, or cursor-positioned fragment logically belongs in the surrounding RTL paragraph. This is documented at [terminal-wg.pages.freedesktop.org](https://terminal-wg.pages.freedesktop.org/bidi/prior-work/terminals.html) and was empirically confirmed via April 2026 A/B tests on Konsole 23.08.5. KDE has shown no signs of changing it; the wrapper's job is to give Konsole exactly what it can render correctly: a single attribute run per RTL line.
 
 **Trade-offs:**
 - v1.1.10 flatten loses syntax color on Hebrew lines. Set `KIVUN_BIDI_FLATTEN_COLORS_RTL=off` to keep colors at the cost of broken positioning. (v1.1.16 cursor-forward replacement is gated on the same flag, so opting out of color-flatten also opts out of cursor-forward replacement.)
 - v1.1.11 no-bracket is the cleaner path; if you preferred the legacy v1.1.0–v1.1.10 behavior set `KIVUN_BIDI_BRACKET_RTL_RUNS=on`.
 
-**The "look for invisible CSI splitters" debugging pattern** (v1.1.16 lesson learned, also captured in `docs/TROUBLESHOOTING.md`): when a wrapper-rendered terminal output looks wrong even though all *visible* escapes (colors, RLE/PDF) are stripped, look for *invisible* CSI sequences acting as attribute-region boundaries. Cursor-forward (`...C`), cursor-back (`...D`), set/reset mode (`...h`/`...l`) all qualify. Turn on `KIVUN_BIDI_DUMP_RAW=on` and inspect `~/.local/state/kivun-terminal/bidi-raw-dump.bin` — anything that *looks* like text in the dump but is actually an escape sequence is a candidate splitter.
+**The "look for invisible CSI splitters" debugging pattern** (v1.1.16 lesson learned, also captured in `docs/TROUBLESHOOTING.md`): when a wrapper-rendered terminal output looks wrong even though all *visible* escapes (colors, RLE/PDF) are stripped, look for *invisible* CSI sequences acting as attribute-region boundaries. Cursor-forward (`...C`), cursor-back (`...D`), set/reset mode (`...h`/`...l`) all qualify. Turn on `KIVUN_BIDI_DUMP_RAW=on` and inspect `~/.local/state/kivun-terminal/bidi-raw-dump.bin` - anything that *looks* like text in the dump but is actually an escape sequence is a candidate splitter.
 
 Toggle the wrapper itself via `KIVUN_BIDI_WRAPPER=on|off` in your config. Each individual fix has its own toggle (`KIVUN_BIDI_STRIP_BULLET`, `KIVUN_BIDI_STRIP_INCOMING`, `KIVUN_BIDI_FLATTEN_COLORS_RTL`, `KIVUN_BIDI_BRACKET_RTL_RUNS`). Test coverage as of v1.1.16: 87 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
 
@@ -210,7 +210,7 @@ CLAUDE_FLAGS=                    # default Claude flags applied to every launch
 
 ### Default Claude flags
 
-`CLAUDE_FLAGS` is appended to every `claude` invocation Kivun starts — so you can pin model selection, conversation continuation, etc. without typing flags every time. Example:
+`CLAUDE_FLAGS` is appended to every `claude` invocation Kivun starts - so you can pin model selection, conversation continuation, etc. without typing flags every time. Example:
 
 ```ini
 CLAUDE_FLAGS=--model opus --continue
@@ -227,7 +227,7 @@ The full reference of supported flags (sourced from `claude --help`, ~25 options
 | `--dangerously-skip-permissions` | skip the per-tool permission prompts (use with care) |
 | `--append-system-prompt "..."` | add custom instructions to the system prompt |
 
-You can also edit `CLAUDE_FLAGS` from inside the folder picker dialog — click **Edit Default Flags** to open `config.txt` in Notepad, edit, save, then launch.
+You can also edit `CLAUDE_FLAGS` from inside the folder picker dialog - click **Edit Default Flags** to open `config.txt` in Notepad, edit, save, then launch.
 
 See `docs/CHANGELOG.md` for the full list of supported languages and config keys.
 
@@ -235,10 +235,10 @@ See `docs/CHANGELOG.md` for the full list of supported languages and config keys
 
 Contributions welcome. Areas where help is especially useful:
 
-- **Wayland keyboard toggle** — `setxkbmap` is X11-only; Wayland needs DE-specific layout switching (KWin: `qdbus org.kde.keyboard`, GNOME: `gsettings input-sources`, Sway: per-config). No CI for Wayland; needs a contributor with the hardware.
-- **More RTL language coverage** — N'Ko, Adlam, Mandaic, Samaritan, and a few others currently fall back to Hebrew xkb layouts. PRs adding entries to `payload/languages.sh` welcome.
-- **Konsole 25.x bring-up** — the BiDi wrapper's RLE/PDF/RLM workarounds were tuned against Konsole 23.08 and re-validated on 24.x. If you're on a 25.x preview and see Hebrew misrendering, file an issue with `KONSOLE_VERSION` + a paste of the broken line.
-- **Pacman / zypper installer paths** — Arch / openSUSE branches in `linux/install.sh` are written but only manually tested. CI covers apt (Ubuntu 24.04) and dnf (Fedora 40) automatically; pacman/zypper are field-tested only.
+- **Wayland keyboard toggle** - `setxkbmap` is X11-only; Wayland needs DE-specific layout switching (KWin: `qdbus org.kde.keyboard`, GNOME: `gsettings input-sources`, Sway: per-config). No CI for Wayland; needs a contributor with the hardware.
+- **More RTL language coverage** - N'Ko, Adlam, Mandaic, Samaritan, and a few others currently fall back to Hebrew xkb layouts. PRs adding entries to `payload/languages.sh` welcome.
+- **Konsole 25.x bring-up** - the BiDi wrapper's RLE/PDF/RLM workarounds were tuned against Konsole 23.08 and re-validated on 24.x. If you're on a 25.x preview and see Hebrew misrendering, file an issue with `KONSOLE_VERSION` + a paste of the broken line.
+- **Pacman / zypper installer paths** - Arch / openSUSE branches in `linux/install.sh` are written but only manually tested. CI covers apt (Ubuntu 24.04) and dnf (Fedora 40) automatically; pacman/zypper are field-tested only.
 
 ### What CI already covers
 
@@ -256,14 +256,14 @@ Fork the repo, make your changes, and open a PR.
 
 Six independent developers each built userland RTL fixes for the AI-tooling stack. The fact that all of us had to ship our own fix is itself a comment on how overdue the upstream BiDi work is:
 
-- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** by Lidor Mashiach — generic browser extension with click-to-select RTL for any website, including LLM chat UIs (Claude.ai, ChatGPT, Gemini, etc.).
-- **[Claude.ai RTL Support (Chrome extension)](https://chromewebstore.google.com/detail/claude-ai-rtl-support/lkopcjdmfmffphbomfhecalbojiaeape)** — Chrome extension purpose-built for Claude.ai specifically. Lighter than the generic adaptive one if you only need RTL on Claude's web UI.
-- **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** by Guy Ronnen — VS Code extension covering Claude Code, Cursor, Antigravity, and Gemini Code Assist in the VS Code webview layer.
-- **[Claude Code RTL Support](https://open-vsx.org/extension/yechielby/claude-code-rtl)** by Yechiel Bar-Yehuda — VS Code / Cursor / Antigravity extension purpose-built for the official Claude Code IDE plugin. **6,700+ installs** <sub><sup>(4.6K+ Open VSX / 2.1K+ [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=yechielby.claude-code-rtl))</sup></sub>. Complementary to Guy Ronnen's broader webview fix above — **pick this one if you specifically live inside the Claude Code IDE panel.**
-- **[Claude-for-word-RTL-fix](https://github.com/asaf-aizone/Claude-for-word-RTL-fix)** by Asaf Aizone — Hebrew/Arabic RTL fix for the Claude for Word (Desktop) add-in.
-- **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (this repo) — terminal-layer fix: a `kivun-claude-bidi` Node wrapper for Claude Code's TUI output, plus a one-click installer for WSL2+Konsole on Windows or Konsole on Linux. (macOS deprecated as of v1.2.4 — see [`mac/README.md`](mac/README.md).)
+- **[Adaptive-RTL-Extension](https://github.com/Lidor-Mashiach/Adaptive-RTL-Extension)** by Lidor Mashiach - generic browser extension with click-to-select RTL for any website, including LLM chat UIs (Claude.ai, ChatGPT, Gemini, etc.).
+- **[Claude.ai RTL Support (Chrome extension)](https://chromewebstore.google.com/detail/claude-ai-rtl-support/lkopcjdmfmffphbomfhecalbojiaeape)** - Chrome extension purpose-built for Claude.ai specifically. Lighter than the generic adaptive one if you only need RTL on Claude's web UI.
+- **[rtl-for-vs-code-agents](https://github.com/GuyRonnen/rtl-for-vs-code-agents)** by Guy Ronnen - VS Code extension covering Claude Code, Cursor, Antigravity, and Gemini Code Assist in the VS Code webview layer.
+- **[Claude Code RTL Support](https://open-vsx.org/extension/yechielby/claude-code-rtl)** by Yechiel Bar-Yehuda - VS Code / Cursor / Antigravity extension purpose-built for the official Claude Code IDE plugin. **6,700+ installs** <sub><sup>(4.6K+ Open VSX / 2.1K+ [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=yechielby.claude-code-rtl))</sup></sub>. Complementary to Guy Ronnen's broader webview fix above - **pick this one if you specifically live inside the Claude Code IDE panel.**
+- **[Claude-for-word-RTL-fix](https://github.com/asaf-aizone/Claude-for-word-RTL-fix)** by Asaf Aizone - Hebrew/Arabic RTL fix for the Claude for Word (Desktop) add-in.
+- **[kivun-terminal-wsl](https://github.com/noambrand/kivun-terminal-wsl)** (this repo) - terminal-layer fix: a `kivun-claude-bidi` Node wrapper for Claude Code's TUI output, plus a one-click installer for WSL2+Konsole on Windows or Konsole on Linux. (macOS deprecated as of v1.2.4 - see [`mac/README.md`](mac/README.md).)
 
-The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Microsoft Word, terminal) are largely disjoint — pick the one that matches where you're hitting the BiDi problem.
+The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Microsoft Word, terminal) are largely disjoint - pick the one that matches where you're hitting the BiDi problem.
 
 <div dir="rtl">
 
@@ -381,10 +381,10 @@ CLAUDE_FLAGS=                    # למשל --continue
 
 מוזמנים לעזור. תחומים שעזרה בהם תהיה שימושית במיוחד:
 
-- **מתג מקלדת ל-Wayland** — `setxkbmap` עובד רק ב-X11; Wayland דורש החלפת layout ספציפית לסביבת השולחן (KWin: `qdbus org.kde.keyboard`, GNOME: `gsettings input-sources`, Sway: ב-config). אין CI ל-Wayland; דרוש contributor עם החומרה.
-- **כיסוי שפות RTL נוספות** — N'Ko, Adlam, Mandaic, Samaritan ועוד מספר שפות נופלות כרגע ל-fallback של מפת ה-xkb של עברית. PRs שמוסיפים ערכים ל-`payload/languages.sh` מתקבלים בברכה.
-- **התאמה ל-Konsole 25.x** — workarounds של ה-BiDi wrapper (RLE/PDF/RLM) כויילו מול Konsole 23.08 ואומתו מחדש על 24.x. אם אתם על preview של 25.x ורואים תקלות בהצגת עברית, פתחו issue עם `KONSOLE_VERSION` ושורת דוגמה.
-- **התקנה דרך pacman / zypper** — ענפי Arch / openSUSE ב-`linux/install.sh` כתובים אבל נבדקו רק ידנית. ה-CI מכסה apt (Ubuntu 24.04) ו-dnf (Fedora 40) אוטומטית; pacman ו-zypper נבדקים רק בשטח.
+- **מתג מקלדת ל-Wayland** - `setxkbmap` עובד רק ב-X11; Wayland דורש החלפת layout ספציפית לסביבת השולחן (KWin: `qdbus org.kde.keyboard`, GNOME: `gsettings input-sources`, Sway: ב-config). אין CI ל-Wayland; דרוש contributor עם החומרה.
+- **כיסוי שפות RTL נוספות** - N'Ko, Adlam, Mandaic, Samaritan ועוד מספר שפות נופלות כרגע ל-fallback של מפת ה-xkb של עברית. PRs שמוסיפים ערכים ל-`payload/languages.sh` מתקבלים בברכה.
+- **התאמה ל-Konsole 25.x** - workarounds של ה-BiDi wrapper (RLE/PDF/RLM) כויילו מול Konsole 23.08 ואומתו מחדש על 24.x. אם אתם על preview של 25.x ורואים תקלות בהצגת עברית, פתחו issue עם `KONSOLE_VERSION` ושורת דוגמה.
+- **התקנה דרך pacman / zypper** - ענפי Arch / openSUSE ב-`linux/install.sh` כתובים אבל נבדקו רק ידנית. ה-CI מכסה apt (Ubuntu 24.04) ו-dnf (Fedora 40) אוטומטית; pacman ו-zypper נבדקים רק בשטח.
 
 ### מה ה-CI כבר מכסה
 
