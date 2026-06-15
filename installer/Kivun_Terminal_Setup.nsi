@@ -430,8 +430,9 @@ Section "Konsole + window tools" SEC_KONSOLE
   DetailPrint "==================================================================="
   DetailPrint "Now installing Ubuntu packages, Konsole and Claude Code inside WSL."
   DetailPrint "This usually takes about 5 to 15 minutes (longer on slow internet)."
-  DetailPrint "Please leave this window OPEN and do NOT close it. A moving bar"
-  DetailPrint "means it is working. It is finished only when a 'Finish' button"
+  DetailPrint "Please leave this window OPEN and do NOT close it. The progress"
+  DetailPrint "bar may sit still for several minutes during the download - that"
+  DetailPrint "is normal, not a freeze. It is finished ONLY when a 'Finish' button"
   DetailPrint "appears and the title changes to 'Installation Complete'."
   DetailPrint "==================================================================="
 

@@ -27,6 +27,22 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.33] - 2026-06-16
+
+### Fixed — corrected the misleading "a moving bar means it is working" line
+
+The v1.4.29 install banner (and the README / install guide) said "a moving bar
+means it is working." That was misleading both ways: during the package
+download the NSIS progress bar can **sit still for several minutes** (normal,
+not a freeze), and conversely the bar looked nearly full while the installer
+was actually **stuck** waiting on a hidden prompt. A real user read the stuck,
+full-looking bar as "working" and waited 15+ minutes.
+
+- `installer/Kivun_Terminal_Setup.nsi` banner, `README.md` (English + Hebrew),
+  and `docs/README_INSTALLATION.md` now say: the bar may sit still during the
+  download (that's normal), and the install is finished **only** when the
+  **Finish** button / "Installation Complete" appears.
+
 ## [1.4.32] - 2026-06-15
 
 ### Changed — bigger default terminal font

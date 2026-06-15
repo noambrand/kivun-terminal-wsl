@@ -103,7 +103,7 @@
 2. **Right-click the file → `Run as administrator`.** Do **not** just double-click it. This lets the installer set up WSL in one go - the most common failure ("WSL install not started") is simply a missing admin step.
 3. If a **black window** appears asking to **create a Ubuntu user**: type a username (lowercase, no spaces), press Enter, then type a password and press Enter, twice. The password stays **invisible while you type** - that is normal, just keep typing.
 4. If the installer asks you to **reboot**, reboot, then run the **same `.exe` again** with **right-click → `Run as administrator`** to finish.
-5. **Installing takes about 5–15 minutes.** A moving bar means it is working - **leave the window open** until it shows **"Installation Complete"** with a **Finish** button. Do not close it early.
+5. **Installing takes about 5–15 minutes.** The progress bar may sit still for several minutes during the download, that's normal, not a freeze. It's done **only** when it shows **"Installation Complete"** with a **Finish** button, leave the window open until then.
 6. Launch the **Kivun Terminal** desktop shortcut → pick a folder (browse the tree or paste a Windows path), or right-click any folder in File Explorer → **Open with Kivun Terminal**.
 
 <details>
@@ -178,6 +178,11 @@ Kivun ships **FreeMono at size 13** by default — a monospace font whose Hebrew
 | **Cascadia Mono** | `sudo apt install fonts-cascadia-code` (Ubuntu 24.04+) | Matched Hebrew/Latin stroke weights |
 
 **Avoid for Hebrew:** *DejaVu Sans Mono* and *Noto Sans Mono* — their Hebrew letters sit narrow in the monospace cell, so words look split apart (e.g. קריפטו appears as separated letters). Full reference: [`docs/FONTS.md`](docs/FONTS.md).
+
+## Copy, paste & colors
+
+- **Copy/paste:** select text and press **`Ctrl+Shift+C`** to copy, **`Ctrl+Shift+V`** to paste (or right-click → Copy / Paste). Plain **`Ctrl+C`** does **not** copy in a terminal — it interrupts the running command. Copied Hebrew keeps its correct logical order, so it pastes cleanly into any editor.
+- **Colored words** in Claude's replies (bold, headings, code, file/folder names) are normal markdown formatting, **not** a rendering bug.
 
 ## BiDi Wrapper
 
@@ -333,7 +338,7 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 <li><strong>קליק ימני על הקובץ ← <code>Run as administrator</code> (הפעל כמנהל).</strong> לא דאבל-קליק רגיל. כך WSL מותקן בפעם אחת - התקלה הנפוצה ("WSL install not started") היא פשוט דילוג על שלב זה.</li>
 <li>אם נפתח <strong>חלון שחור</strong> שמבקש ליצור משתמש Ubuntu: הקלידו שם משתמש באותיות קטנות באנגלית, בלי רווחים, Enter, ואז סיסמה פעמיים. הסיסמה <strong>לא מופיעה על המסך</strong> בזמן ההקלדה - זה תקין, פשוט הקלידו.</li>
 <li>אם מבקשים <strong>לאתחל</strong> - אתחלו, ואז הריצו <strong>שוב את אותו קובץ</strong> עם קליק ימני ← <code>Run as administrator</code>.</li>
-<li>ההתקנה לוקחת בערך <strong>5 עד 15 דקות</strong>. פס שזז = עובד. <strong>אל תסגרו את החלון</strong> עד שמופיע <strong>"Installation Complete"</strong> עם כפתור <strong>Finish</strong>.</li>
+<li>ההתקנה לוקחת בערך <strong>5 עד 15 דקות</strong>. הפס עלול לעמוד במקום כמה דקות בזמן ההורדה, וזה תקין (לא תקיעה). ההתקנה הסתיימה <strong>רק</strong> כשמופיע <strong>"Installation Complete"</strong> עם כפתור <strong>Finish</strong>, <strong>אל תסגרו</strong> עד אז.</li>
 </ol>
 </blockquote>
 
@@ -392,6 +397,11 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 | **Cascadia Mono** | `sudo apt install fonts-cascadia-code` | משקלי קו תואמים לעברית ואנגלית |
 
 **להימנע בעברית:** *DejaVu Sans Mono* ו-*Noto Sans Mono* , אותיות העברית בהם צרות בתוך התא, אז המילים נראות מפורקות. פירוט מלא: [`docs/FONTS.md`](docs/FONTS.md).
+
+### 📋 העתקה, הדבקה וצבעים
+
+- **העתקה/הדבקה:** מסמנים טקסט ולוחצים **`Ctrl+Shift+C`** להעתקה, **`Ctrl+Shift+V`** להדבקה (או קליק ימני ← Copy / Paste). **`Ctrl+C`** רגיל **לא** מעתיק בטרמינל, אלא עוצר את הפקודה הרצה. העברית מועתקת בסדר הלוגי הנכון ונדבקת תקין בכל עורך.
+- **המילים הצבעוניות** בתשובות של Claude (מודגש, כותרות, קוד, שמות קבצים) הן עיצוב markdown רגיל, **לא** באג בתצוגה.
 
 ### 🧠 על תמיכת ה-RTL
 
