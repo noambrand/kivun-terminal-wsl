@@ -371,7 +371,7 @@ fi
 cat > ~/.local/share/konsole/KivunTerminal.profile << PROFEOF
 [Appearance]
 ColorScheme=ColorSchemeNoam
-Font=FreeMono,11,-1,5,50,0,0,0,0,0
+Font=FreeMono,13,-1,5,50,0,0,0,0,0
 
 [Cursor Options]
 CursorShape=0

@@ -27,6 +27,15 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.32] - 2026-06-15
+
+### Changed — bigger default terminal font
+
+Bumped the default Konsole font size from **11 to 13** (`payload/kivun-launch.sh`,
+`Font=FreeMono,13`) for more comfortable, readable text out of the box. Users
+can still adjust it any time via Konsole: Settings → Edit Current Profile →
+Appearance → Select Font.
+
 ## [1.4.31] - 2026-06-15
 
 ### Fixed — Hebrew now renders consistently (gappy letters on fresh installs)
