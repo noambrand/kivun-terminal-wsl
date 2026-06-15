@@ -158,6 +158,27 @@ A custom **light-blue Kivun color scheme** (`#C8E6FF` background, dark text, blu
 
 Disable via `TERMINAL_COLOR=default` in your config to fall back to the terminal emulator's defaults.
 
+## Terminal Font (Hebrew-friendly)
+
+Kivun ships **FreeMono at size 13** by default — a monospace font whose Hebrew glyphs fill the cell tightly, so Hebrew reads cleanly **without big gaps between letters**. You can change the font or size any time, right inside the terminal.
+
+**To change the font** (in the Kivun / Konsole window):
+
+1. Open the menu — the **☰ button in the top-right corner** (or press `Ctrl+Shift+M` to show the menu bar).
+2. **Edit Current Profile** → **Appearance** tab → **Select Font**.
+3. Pick a font and size (e.g. **FreeMono**, 13) → **OK** → **OK**.
+
+**Fonts that render Hebrew well (no gaps):**
+
+| Font | How to get it | Notes |
+|---|---|---|
+| **FreeMono** | ships with the installer (`fonts-freefont-ttf`) | Kivun's default — tight Hebrew, broad coverage |
+| **Liberation Mono** | usually already installed | Good Hebrew, Courier-like Latin |
+| **Miriam Mono CLM** | `sudo apt install fonts-culmus` | Hebrew-first design — the nicest Hebrew, plainer Latin |
+| **Cascadia Mono** | `sudo apt install fonts-cascadia-code` (Ubuntu 24.04+) | Matched Hebrew/Latin stroke weights |
+
+**Avoid for Hebrew:** *DejaVu Sans Mono* and *Noto Sans Mono* — their Hebrew letters sit narrow in the monospace cell, so words look split apart (e.g. קריפטו appears as separated letters). Full reference: [`docs/FONTS.md`](docs/FONTS.md).
+
 ## BiDi Wrapper
 
 v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's output through a state machine doing seven complementary fixes for known Konsole BiDi limitations. Every fix here was added in response to a specific user-visible Hebrew rendering bug; cumulatively they make Hebrew/English mixed terminal output behave the way `<bdi>` makes it behave in HTML.
@@ -350,6 +371,27 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 | Linux (Konsole) | אותו פרופיל וערכת צבעים | `~/.local/share/konsole/` |
 
 לחזור לברירת המחדל של הטרמינל: להגדיר `TERMINAL_COLOR=default` בקובץ ה-config.
+
+### 🔤 פונט הטרמינל (ידידותי לעברית)
+
+ברירת המחדל היא **FreeMono בגודל 13** , פונט מונוספייס שאותיות העברית בו ממלאות את התא היטב, כך שהעברית נקראת צמוד ו**בלי רווחים גדולים בין האותיות**. אפשר להחליף פונט וגודל בכל רגע, ישר מתוך הטרמינל.
+
+**להחלפת הפונט** (בחלון Kivun):
+
+1. פותחים את התפריט , כפתור **☰ בפינה הימנית למעלה** (או `Ctrl+Shift+M` להצגת סרגל התפריט).
+2. **Edit Current Profile** ← לשונית **Appearance** ← **Select Font**.
+3. בוחרים פונט וגודל (למשל **FreeMono**, 13) ← **OK** ← **OK**.
+
+**פונטים שמציגים עברית יפה (בלי רווחים):**
+
+| פונט | איך משיגים | הערות |
+|---|---|---|
+| **FreeMono** | מותקן עם הקובץ (`fonts-freefont-ttf`) | ברירת המחדל, עברית צמודה וכיסוי רחב |
+| **Liberation Mono** | בדרך כלל כבר מותקן | עברית טובה |
+| **Miriam Mono CLM** | `sudo apt install fonts-culmus` | עיצוב עברי, העברית הכי יפה |
+| **Cascadia Mono** | `sudo apt install fonts-cascadia-code` | משקלי קו תואמים לעברית ואנגלית |
+
+**להימנע בעברית:** *DejaVu Sans Mono* ו-*Noto Sans Mono* , אותיות העברית בהם צרות בתוך התא, אז המילים נראות מפורקות. פירוט מלא: [`docs/FONTS.md`](docs/FONTS.md).
 
 ### 🧠 על תמיכת ה-RTL
 
