@@ -27,6 +27,23 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.29] - 2026-06-15
+
+### Changed — install progress now tells users how long it takes and not to close
+
+During the long phase that installs Ubuntu packages, Konsole and Claude
+Code inside WSL, the installer showed only the generic "Please wait while
+Kivun Terminal is being installed" with a moving bar and no time estimate.
+A real user, mid-install, did not know whether to keep waiting or close the
+window. (Per-step hints like "~30-60 seconds" and "3-8 minutes" were already
+in the detail log, but there was no upfront total.)
+
+- `installer/Kivun_Terminal_Setup.nsi` now prints a clear banner at the start
+  of the Konsole/Claude phase: it takes about **5 to 15 minutes**, a moving
+  bar means it is working, **leave the window open**, and it is finished only
+  when a **Finish** button appears and the title changes to "Installation
+  Complete". Follows the v1.4.28 effort to make the installer self-explanatory.
+
 ## [1.4.28] - 2026-06-15
 
 ### Changed — "WSL install not started" now tells users exactly what to do (Run as administrator)

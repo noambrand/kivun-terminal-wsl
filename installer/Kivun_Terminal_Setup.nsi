@@ -419,6 +419,14 @@ Section "Konsole + window tools" SEC_KONSOLE
   ; Split into small steps so Cancel button is responsive between them.
   ; ------------------------------------------------------------
 
+  DetailPrint "==================================================================="
+  DetailPrint "Now installing Ubuntu packages, Konsole and Claude Code inside WSL."
+  DetailPrint "This usually takes about 5 to 15 minutes (longer on slow internet)."
+  DetailPrint "Please leave this window OPEN and do NOT close it. A moving bar"
+  DetailPrint "means it is working. It is finished only when a 'Finish' button"
+  DetailPrint "appears and the title changes to 'Installation Complete'."
+  DetailPrint "==================================================================="
+
   DetailPrint "[1/7] Updating package lists (~30-60 seconds)..."
   nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "apt-get update -qq -y > /tmp/kivun-apt.log 2>&1"'
   Pop $0
