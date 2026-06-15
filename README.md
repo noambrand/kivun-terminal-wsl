@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen&cb=v1.4.25" alt="Latest release"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen&cb=v1.4.29" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
   <a href="https://github.com/noambrand/kivun-terminal-wsl/stargazers"><img src="https://img.shields.io/github/stars/noambrand/kivun-terminal-wsl?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -97,11 +97,14 @@
 
 ### Windows
 
-1. **[Download `Kivun_Terminal_Setup.exe`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe)** from the latest release.
-2. Run it - follow the wizard. No admin rights required.
-3. Double-click the **Kivun Terminal** desktop shortcut → pick a folder (browse the tree or paste a Windows path), or right-click any folder in File Explorer → **Open with Kivun Terminal**.
+> ⚠️ **Install in this exact order.** Almost every install problem comes from skipping step 2 (Run as administrator).
 
-First launch can take 5–10 minutes - the installer pulls Ubuntu (WSL2), Konsole, and Claude Code on its own.
+1. **[Download `Kivun_Terminal_Setup.exe`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe)** from the latest release.
+2. **Right-click the file → `Run as administrator`.** Do **not** just double-click it. This lets the installer set up WSL in one go - the most common failure ("WSL install not started") is simply a missing admin step.
+3. If a **black window** appears asking to **create a Ubuntu user**: type a username (lowercase, no spaces), press Enter, then type a password and press Enter, twice. The password stays **invisible while you type** - that is normal, just keep typing.
+4. If the installer asks you to **reboot**, reboot, then run the **same `.exe` again** with **right-click → `Run as administrator`** to finish.
+5. **Installing takes about 5–15 minutes.** A moving bar means it is working - **leave the window open** until it shows **"Installation Complete"** with a **Finish** button. Do not close it early.
+6. Launch the **Kivun Terminal** desktop shortcut → pick a folder (browse the tree or paste a Windows path), or right-click any folder in File Explorer → **Open with Kivun Terminal**.
 
 <details>
 <summary>If something goes wrong: WSL not installed / SAC blocks / SmartScreen warning</summary>
@@ -300,10 +303,20 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 
 ### 📥 התקנה
 
-הוראות ההתקנה מפורטות באנגלית בקטעי **Quick Start** למעלה. הפקודות (`npm install`, נתיבים וכד') זהות בכל השפות ולא תורגמו. בקצרה:
+הוראות ההתקנה מפורטות באנגלית בקטעי **Quick Start** למעלה. הפקודות (`npm install`, נתיבים וכד') זהות בכל השפות ולא תורגמו.
+
+<blockquote dir="rtl" align="right">
+<strong>⚠️ Windows - התקינו בדיוק בסדר הזה.</strong> רוב התקלות נובעות מדילוג על שלב 1 (הפעלה כמנהל).
+<ol dir="rtl" align="right">
+<li>מורידים את <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe"><code>Kivun_Terminal_Setup.exe</code></a>.</li>
+<li><strong>קליק ימני על הקובץ ← <code>Run as administrator</code> (הפעל כמנהל).</strong> לא דאבל-קליק רגיל. כך WSL מותקן בפעם אחת - התקלה הנפוצה ("WSL install not started") היא פשוט דילוג על שלב זה.</li>
+<li>אם נפתח <strong>חלון שחור</strong> שמבקש ליצור משתמש Ubuntu: הקלידו שם משתמש באותיות קטנות באנגלית, בלי רווחים, Enter, ואז סיסמה פעמיים. הסיסמה <strong>לא מופיעה על המסך</strong> בזמן ההקלדה - זה תקין, פשוט הקלידו.</li>
+<li>אם מבקשים <strong>לאתחל</strong> - אתחלו, ואז הריצו <strong>שוב את אותו קובץ</strong> עם קליק ימני ← <code>Run as administrator</code>.</li>
+<li>ההתקנה לוקחת בערך <strong>5 עד 15 דקות</strong>. פס שזז = עובד. <strong>אל תסגרו את החלון</strong> עד שמופיע <strong>"Installation Complete"</strong> עם כפתור <strong>Finish</strong>.</li>
+</ol>
+</blockquote>
 
 <ul dir="rtl" align="right">
-<li><strong>Windows:</strong> מורידים את <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe"><code>Kivun_Terminal_Setup.exe</code></a> ומריצים את האשף. ההתקנה הראשונה לוקחת 5–10 דקות (המתקין מוריד WSL2 + Ubuntu + Konsole + Claude Code לבד). אם WSL2 עדיין לא מותקן, האשף יבקש לפתוח <strong>Terminal (Admin)</strong> ולהריץ <code>wsl --install</code> חד-פעמית ולאתחל - פעולה חד-פעמית למחשב.</li>
 <li><strong>Linux:</strong> <code>git clone</code> + <code>./linux/install.sh</code>. תומך ב-apt/dnf/pacman/zypper.</li>
 <li><strong>macOS:</strong> לא נתמך מ-v1.2.4 ואילך - ראו <a href="mac/README.md"><code>mac/README.md</code></a>.</li>
 </ul>

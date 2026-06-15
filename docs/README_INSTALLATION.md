@@ -1,4 +1,4 @@
-# Kivun Terminal v1.4.27 - Full Installation Guide
+# Kivun Terminal v1.4.29 - Full Installation Guide
 
 ## System Requirements
 
@@ -32,9 +32,9 @@ If the command prints WSL info, you're good - skip to Step 3. If it says WSL is 
 
 Once WSL2 is set up, you do **not** need admin rights again.
 
-## Step 3 - Run the installer (no admin required)
+## Step 3 - Run the installer (right-click → Run as administrator)
 
-Double-click `Kivun_Terminal_Setup.exe`. The installer runs as your normal user and writes only to your profile (`%LOCALAPPDATA%\Kivun-WSL`).
+**Right-click `Kivun_Terminal_Setup.exe` and choose `Run as administrator`** - do not just double-click it. The installer itself is per-user (it writes only to `%LOCALAPPDATA%\Kivun-WSL`), but if WSL2 is not yet installed it needs **one** elevated step to install it. Running as administrator from the start avoids the most common failure, where that elevation prompt is silently blocked and the installer aborts with *"WSL install not started"*. If "Run as administrator" asks for a password you do not have, it is a locked-down work PC - ask IT to run `wsl --install` once (Step 2).
 
 Note: until the installer is code-signed, Windows SmartScreen may show "Windows protected your PC". Click *More info* → *Run anyway*. On Windows 11 with **Smart App Control** turned on, the installer is blocked outright - see Step 1 for how to turn SAC off.
 
@@ -49,9 +49,11 @@ The wizard steps:
 5. **Install** - installs Ubuntu (if missing), Konsole, Claude Code. This can take 5–15 minutes on a fresh Ubuntu.
 6. **Finish** - launch immediately or view this guide.
 
-## Step 4 - First-run Ubuntu setup
+## Step 4 - First-run Ubuntu setup (the black window)
 
-On the first launch, Ubuntu prompts you in a terminal to create a username and password for the WSL Ubuntu account. Pick any values - these are local-only, used solely for `sudo` inside WSL, and never touch the Claude API or any network. See [SECURITY.txt](SECURITY.txt) for more.
+During or right after install, a **black terminal window** may appear asking you to create a Ubuntu user. Type a username (lowercase, no spaces), press Enter, then a password twice. **The password is invisible while you type - that is normal, just keep typing and press Enter.** Pick any values - these are local-only, used solely for `sudo` inside WSL, and never touch the Claude API or any network. See [SECURITY.txt](SECURITY.txt) for more.
+
+If WSL was just installed and Windows asks you to **reboot**, reboot, then run the same `Kivun_Terminal_Setup.exe` again (**right-click → Run as administrator**) to finish. Let the install run all the way to the **Finish** page before closing - the package phase can take 5–15 minutes, and a moving progress bar means it is working.
 
 ## Step 5 - Launch
 
