@@ -27,6 +27,24 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.30] - 2026-06-15
+
+### Fixed — elevated WSL install no longer hangs on a hidden "create a user" window
+
+The elevated WSL step ran `wsl --install` **without** `--no-launch`. Bare
+`wsl --install` installs WSL and then *launches* Ubuntu, which opens an
+interactive **"Create a default Unix user account:"** prompt in the elevated
+console. `ExecShellWait` waits for that process to exit, but it sits on the
+prompt forever waiting for keyboard input, so the installer appeared **frozen
+with a progress bar that never moved**, and nothing told the user that a
+separate window needed their input (or to close it). A real user got stuck
+here past 15 minutes.
+
+- `installer/Kivun_Terminal_Setup.nsi` now elevates `wsl --install --no-launch`,
+  so WSL + Ubuntu install **without** the interactive prompt. The non-root
+  user is created non-interactively afterward by `kivun-ensure-user.sh` (as it
+  already was on the normal path). No blocking window, nothing to close.
+
 ## [1.4.29] - 2026-06-15
 
 ### Changed — install progress now tells users how long it takes and not to close

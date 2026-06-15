@@ -340,9 +340,17 @@ Section "WSL2 + Ubuntu" SEC_WSL
       ${If} ${FileExists} "$WINDIR\Sysnative\wsl.exe"
         StrCpy $R9 "$WINDIR\Sysnative\wsl.exe"
       ${EndIf}
-      !insertmacro KLOG "Launching elevated: $R9 --install"
+      ; --no-launch is CRITICAL: bare `wsl --install` installs WSL and then
+      ; LAUNCHES Ubuntu, which opens an interactive "Create a default Unix user
+      ; account:" prompt in the elevated console. ExecShellWait waits for that
+      ; process to exit, but it sits forever on that prompt waiting for keyboard
+      ; input — so the installer appears frozen ("the window isn't moving"), and
+      ; nothing tells the user a separate window needs their input. --no-launch
+      ; installs WSL+Ubuntu WITHOUT that prompt; our own non-interactive
+      ; kivun-ensure-user.sh (below) creates the non-root user instead.
+      !insertmacro KLOG "Launching elevated: $R9 --install --no-launch"
       ClearErrors
-      ExecShellWait "runas" "$R9" "--install"
+      ExecShellWait "runas" "$R9" "--install --no-launch"
       ${If} ${Errors}
         ; ShellExecuteEx failed to start — UAC declined, or elevation blocked
         ; by org policy. Fall back to manual instructions; never pretend.
