@@ -27,6 +27,26 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.31] - 2026-06-15
+
+### Fixed — Hebrew now renders consistently (gappy letters on fresh installs)
+
+The Konsole profile pinned `Font=DejaVu Sans Mono`, whose Hebrew glyphs are
+narrow inside the monospace cell, so Hebrew showed with wide gaps between
+letters on a fresh machine (a word like קריפטו visually split apart). It
+looked fine only on machines that happened to already have a nicer Hebrew
+font installed — there, "DejaVu Sans Mono" fell back to FreeMono. Same
+profile string, different rendered font, so the look was inconsistent
+machine to machine.
+
+- The installer now installs **`fonts-freefont-ttf`** (provides **FreeMono**,
+  whose Hebrew fills the cell tightly), and the Konsole profile
+  (`payload/kivun-launch.sh`) pins **`Font=FreeMono`**. Hebrew now renders the
+  same on every install, independent of what other fonts a machine has.
+- Trade-off: FreeMono's Latin/code glyphs look slightly more dated than
+  DejaVu's, accepted because Kivun is a Hebrew-first RTL terminal and
+  consistent, tight Hebrew is the priority.
+
 ## [1.4.30] - 2026-06-15
 
 ### Fixed — elevated WSL install no longer hangs on a hidden "create a user" window

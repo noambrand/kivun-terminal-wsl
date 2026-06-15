@@ -462,8 +462,13 @@ Section "Konsole + window tools" SEC_KONSOLE
     konsole_ok_3:
   ${EndIf}
 
-  DetailPrint "[4/7] Installing x11-utils + x11-xserver-utils + color-emoji font (~40-60 seconds)..."
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji >> /tmp/kivun-apt.log 2>&1"'
+  DetailPrint "[4/7] Installing x11-utils + x11-xserver-utils + Hebrew/emoji fonts (~40-60 seconds)..."
+  ; fonts-freefont-ttf provides FreeMono — a monospace font whose Hebrew glyphs
+  ; fill the cell tightly. Konsole's profile pins Font=FreeMono, so EVERY machine
+  ; renders Hebrew the same. Without this, "DejaVu Sans Mono" rendered Hebrew with
+  ; wide gaps between letters on a fresh install (it looked fine only on machines
+  ; that happened to have nicer Hebrew fonts installed).
+  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install x11-utils (code $0).$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_4
