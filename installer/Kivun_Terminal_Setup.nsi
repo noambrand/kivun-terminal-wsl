@@ -324,7 +324,7 @@ Section "WSL2 + Ubuntu" SEC_WSL
     MessageBox MB_ICONINFORMATION|MB_OKCANCEL "Kivun Terminal needs Windows Subsystem for Linux (WSL), which isn't installed yet.$\r$\n$\r$\nWindows will now ask for administrator permission so it can install WSL for you (Microsoft's built-in 'wsl --install'). After it finishes you'll need to REBOOT and run this installer again.$\r$\n$\r$\nClick OK to install WSL now, or Cancel to do it yourself later." IDOK do_wsl_install
       ; Cancel -> the user prefers to do it themselves later.
       !insertmacro KLOG "User cancelled automatic WSL install"
-      MessageBox MB_ICONINFORMATION|MB_OK "No problem. To install WSL yourself later:$\r$\n$\r$\n1. Open Terminal as Administrator (right-click Start > Terminal (Admin))$\r$\n2. Run:   wsl --install$\r$\n3. Reboot, then run this installer again$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+      MessageBox MB_ICONINFORMATION|MB_OK "No problem. To install WSL yourself later:$\r$\n$\r$\nEasiest: RIGHT-CLICK this installer and choose 'Run as administrator', then run it again, it can install WSL for you.$\r$\n$\r$\nOr do it manually:$\r$\n1. Open Terminal as Administrator (right-click Start > Terminal (Admin))$\r$\n2. Run:   wsl --install$\r$\n3. Reboot, then run this installer again$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
       Abort "WSL not installed — user opted to do it manually."
     do_wsl_install:
       ; Elevate ONLY Microsoft's signed wsl.exe (no PowerShell / cmd wrapper).
@@ -347,7 +347,7 @@ Section "WSL2 + Ubuntu" SEC_WSL
         ; ShellExecuteEx failed to start — UAC declined, or elevation blocked
         ; by org policy. Fall back to manual instructions; never pretend.
         !insertmacro KLOG "Elevated wsl --install did not start (UAC declined or blocked by policy)"
-        MessageBox MB_ICONINFORMATION|MB_OK "WSL installation didn't start — the administrator prompt was declined, or your organization blocks it.$\r$\n$\r$\nTo install WSL: open Terminal as Administrator and run  wsl --install , then reboot and run this installer again.$\r$\n$\r$\nIf antivirus blocks the WSL download, install it OFFLINE (no downloads): run$\r$\n  $INSTDIR\offline-install.cmd$\r$\nas administrator, with the two official files beside it. Guide:$\r$\nhttps://github.com/noambrand/kivun-terminal-wsl/tree/main/offline$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+        MessageBox MB_ICONINFORMATION|MB_OK "WSL installation didn't start. The administrator step was blocked, or no prompt appeared.$\r$\n$\r$\nEasiest fix: close this window, then RIGHT-CLICK this installer and choose 'Run as administrator', and run it again. That usually completes the WSL install in one go. Afterwards, reboot and run it once more to finish.$\r$\n$\r$\nIf 'Run as administrator' asks for a password you don't have, this is a locked-down work computer: ask your IT department to run  wsl --install  once, then reboot.$\r$\n$\r$\nIf antivirus blocks the WSL download, install OFFLINE (no downloads): run$\r$\n  $INSTDIR\offline-install.cmd$\r$\nas administrator, with the two official files beside it. Guide:$\r$\nhttps://github.com/noambrand/kivun-terminal-wsl/tree/main/offline$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
         Abort "WSL install not started."
       ${EndIf}
       !insertmacro KLOG "Elevated wsl --install finished; reboot required"

@@ -27,6 +27,30 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.28] - 2026-06-15
+
+### Changed — "WSL install not started" now tells users exactly what to do (Run as administrator)
+
+When the elevated `wsl --install` step fails to start, the installer used to
+say only "WSL install not started" and jump straight to "open Terminal as
+Administrator and run wsl --install". On a real machine this caused a support
+round-trip: the user was already on the `Sysnative`-fixed path (so it was not
+the old WOW64 bug), the separate UAC prompt had silently failed (no window
+appeared), and the fix turned out to be simply re-running the installer itself
+as administrator.
+
+- The failure dialog (`installer/Kivun_Terminal_Setup.nsi`) now leads with the
+  proven fix: **close the window, right-click the installer, choose "Run as
+  administrator", run it again.** That completes the WSL install in one go on a
+  machine where the user has admin rights.
+- It then explains the two remaining cases plainly: if "Run as administrator"
+  asks for a password the user does not have, it is a locked-down work PC and
+  IT must run `wsl --install` once; if antivirus blocks the download, use the
+  bundled offline `offline-install.cmd`.
+- The Cancel-path message ("install WSL yourself later") got the same
+  Run-as-administrator hint as its easiest option, for consistency.
+- No flow change, message text only. The diagnostic log path is unchanged.
+
 ## [1.4.27] - 2026-06-11
 
 ### Added — RTL cost optimizer experiment, rebuilt correctly (closes #98; continues PR #84 by @zuwasi)
