@@ -256,6 +256,16 @@ Restart Kivun Terminal. The wrapper will now strip the leading `●` from any li
 
 **The `_NET_WM_ICON` path still runs** alongside the `.desktop` registration under WSLg. The cmd "Launch Log" window keeps its own icon from the Desktop shortcut's `kivun_icon.ico`.
 
+## Symptom: The window title shows a `[WARN:...]` prefix (e.g. `[WARN:COPY MODE]`) in the Windows taskbar
+
+**This is NOT from Kivun; it's your corporate endpoint-security / DLP agent.** Kivun never sets this. The string exists in no Kivun file: not the launcher, the BiDi wrapper, the statusline, the Konsole profile, or the Claude binary.
+
+**Cause:** Kivun runs Konsole as a Linux GUI app, which Windows displays through WSLg's Remote-Desktop host process, `msrdc.exe`. A Data-Loss-Prevention / endpoint-monitoring agent (confirmed in the wild with **ESET Endpoint Security + ESET Inspect** EDR, centrally managed via an ESET PROTECT server) injects a "warn"-level label onto the *Windows* title of that `msrdc.exe` window, which is the Windows-to-Linux clipboard boundary. The prefix is applied on the Windows side, live: the Linux-side Konsole title (check with `xdotool getwindowname`) stays clean, and if you rename the Linux window the agent simply re-prepends the prefix. It usually shows only in the **taskbar thumbnail / hover tooltip**, because Konsole's in-window title bar uses the tab-title format (`%d`) while the agent stamps the window's `WM_NAME` that Windows surfaces to the taskbar.
+
+**Confirm it:** in `cmd`, `tasklist /v` lists the prefix only on the `msrdc.exe` window, not on any other app.
+
+**Fix:** It is cosmetic (a "warn", not a block, so copy and paste still work), and you **cannot** strip it locally because the agent re-applies it. Adjust the **Data Protection / Device and Web Control "warn" policy** in your endpoint-security console (for ESET, the managed ESET PROTECT policy), or ask whoever administers your corporate security software. Do not kill or unhook the security processes; they are protected and tamper-logged.
+
 ## Symptom: launcher worked then suddenly behaves like half the .bat is missing — wrong working directory, no early log lines, missing config
 
 **Cause (v1.1.16 updater regression, fixed in v1.1.17):** `Kivun-Update-To-V1116.bat` downloaded `kivun-terminal.bat` from GitHub raw via `curl -fsSL`, which preserves the repository's LF line endings. **cmd silently skips lines on LF-only `.bat` files** — many statements never execute, including the `WORK_DIR` setup. The launcher then falls through to the v1.1.16 path-conversion fallback and lands users at `~` (WSL home `/home/<user>`) instead of `%USERPROFILE%` (their Windows home `/mnt/c/Users/<user>`).
