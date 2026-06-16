@@ -160,21 +160,21 @@ Disable via `TERMINAL_COLOR=default` in your config to fall back to the terminal
 
 ## Terminal Font (Hebrew-friendly)
 
-Kivun ships **FreeMono at size 13** by default — a monospace font whose Hebrew glyphs fill the cell tightly, so Hebrew reads cleanly **without big gaps between letters**. You can change the font or size any time, right inside the terminal.
+Kivun ships **Miriam Mono CLM at size 12** by default: a Hebrew-first monospace whose Hebrew glyphs fill the cell tightly, so Hebrew reads cleanly **without big gaps between letters**. If Miriam Mono CLM isn't installed, it falls back to **FreeMono**. You can change the font or size any time, right inside the terminal.
 
 **To change the font** (in the Kivun / Konsole window):
 
 1. Open the menu — the **☰ button in the top-right corner** (or press `Ctrl+Shift+M` to show the menu bar).
 2. **Edit Current Profile** → **Appearance** tab → **Select Font**.
-3. Pick a font and size (e.g. **FreeMono**, 13) → **OK** → **OK**.
+3. Pick a font and size (e.g. **Miriam Mono CLM**, 12) → **OK** → **OK**.
 
 **Fonts that render Hebrew well (no gaps):**
 
 | Font | How to get it | Notes |
 |---|---|---|
-| **FreeMono** | ships with the installer (`fonts-freefont-ttf`) | Kivun's default — tight Hebrew, broad coverage |
+| **Miriam Mono CLM** | ships with the installer (`fonts-culmus`) | Kivun's default, Hebrew-first design, the nicest Hebrew, plainer Latin |
+| **FreeMono** | ships with the installer (`fonts-freefont-ttf`) | Automatic fallback, tight Hebrew, broad coverage |
 | **Liberation Mono** | usually already installed | Good Hebrew, Courier-like Latin |
-| **Miriam Mono CLM** | `sudo apt install fonts-culmus` | Hebrew-first design — the nicest Hebrew, plainer Latin |
 | **Cascadia Mono** | `sudo apt install fonts-cascadia-code` (Ubuntu 24.04+) | Matched Hebrew/Latin stroke weights |
 
 **Avoid for Hebrew:** *DejaVu Sans Mono* and *Noto Sans Mono* — their Hebrew letters sit narrow in the monospace cell, so words look split apart (e.g. קריפטו appears as separated letters). Full reference: [`docs/FONTS.md`](docs/FONTS.md).
@@ -379,21 +379,21 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 
 ### 🔤 פונט הטרמינל (ידידותי לעברית)
 
-ברירת המחדל היא **FreeMono בגודל 13** , פונט מונוספייס שאותיות העברית בו ממלאות את התא היטב, כך שהעברית נקראת צמוד ו**בלי רווחים גדולים בין האותיות**. אפשר להחליף פונט וגודל בכל רגע, ישר מתוך הטרמינל.
+ברירת המחדל היא **Miriam Mono CLM בגודל 12** , פונט מונוספייס עברי שאותיות העברית בו ממלאות את התא היטב, כך שהעברית נקראת צמוד ו**בלי רווחים גדולים בין האותיות**. אם Miriam Mono CLM לא מותקן, נעשה שימוש ב-**FreeMono** כברירת מחדל חלופית. אפשר להחליף פונט וגודל בכל רגע, ישר מתוך הטרמינל.
 
 **להחלפת הפונט** (בחלון Kivun):
 
 1. פותחים את התפריט , כפתור **☰ בפינה הימנית למעלה** (או `Ctrl+Shift+M` להצגת סרגל התפריט).
 2. **Edit Current Profile** ← לשונית **Appearance** ← **Select Font**.
-3. בוחרים פונט וגודל (למשל **FreeMono**, 13) ← **OK** ← **OK**.
+3. בוחרים פונט וגודל (למשל **Miriam Mono CLM**, 12) ← **OK** ← **OK**.
 
 **פונטים שמציגים עברית יפה (בלי רווחים):**
 
 | פונט | איך משיגים | הערות |
 |---|---|---|
-| **FreeMono** | מותקן עם הקובץ (`fonts-freefont-ttf`) | ברירת המחדל, עברית צמודה וכיסוי רחב |
+| **Miriam Mono CLM** | מותקן עם הקובץ (`fonts-culmus`) | ברירת המחדל, עיצוב עברי, העברית הכי יפה |
+| **FreeMono** | מותקן עם הקובץ (`fonts-freefont-ttf`) | ברירת מחדל חלופית, עברית צמודה וכיסוי רחב |
 | **Liberation Mono** | בדרך כלל כבר מותקן | עברית טובה |
-| **Miriam Mono CLM** | `sudo apt install fonts-culmus` | עיצוב עברי, העברית הכי יפה |
 | **Cascadia Mono** | `sudo apt install fonts-cascadia-code` | משקלי קו תואמים לעברית ואנגלית |
 
 **להימנע בעברית:** *DejaVu Sans Mono* ו-*Noto Sans Mono* , אותיות העברית בהם צרות בתוך התא, אז המילים נראות מפורקות. פירוט מלא: [`docs/FONTS.md`](docs/FONTS.md).
