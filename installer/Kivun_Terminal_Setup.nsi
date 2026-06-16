@@ -462,19 +462,35 @@ Section "Konsole + window tools" SEC_KONSOLE
     konsole_ok_3:
   ${EndIf}
 
-  DetailPrint "[4/7] Installing x11-utils + x11-xserver-utils + Hebrew/emoji fonts (~40-60 seconds)..."
-  ; fonts-culmus provides Miriam Mono CLM, a Hebrew-first monospace whose Hebrew
-  ; glyphs fill the cell tightly (no split-apart gaps). Konsole's profile pins
-  ; Miriam Mono CLM, with fonts-freefont-ttf (FreeMono) as the fallback the
-  ; profile writer uses if Culmus did not install. Installing both means EVERY
-  ; machine renders Hebrew the same, instead of the old "DejaVu Sans Mono" which
-  ; showed Hebrew with wide gaps on a fresh install.
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf fonts-culmus >> /tmp/kivun-apt.log 2>&1"'
+  DetailPrint "[4/7] Installing x11-utils + x11-xserver-utils + emoji + FreeMono fonts (~40-60 seconds)..."
+  ; These four packages exist in Ubuntu main/universe on every supported
+  ; release, so this batch should not fail on a healthy machine. fonts-freefont-ttf
+  ; (FreeMono) is the guaranteed Hebrew fallback the profile writer uses.
+  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install x11-utils (code $0).$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_4
       Abort "Cancelled by user."
     konsole_ok_4:
+  ${EndIf}
+
+  DetailPrint "[4b/7] Installing Hebrew font Miriam Mono CLM (Culmus)..."
+  ; The Culmus package provides Miriam Mono CLM, the Hebrew-first monospace the
+  ; Konsole profile pins (fills the cell tightly, no split-apart gaps). Its
+  ; package name is "culmus" on Ubuntu but "fonts-culmus" on some Debian spins.
+  ; CRITICAL: this MUST be its own apt call, separate from the x11 batch above.
+  ; apt-get install aborts the ENTIRE command with code 100 if one name is
+  ; unknown, so bundling "fonts-culmus" with x11-utils used to make the whole
+  ; step fail on Ubuntu (where that name does not exist) — silently dropping the
+  ; Hebrew font and forcing the FreeMono fallback. We try "culmus" first, then
+  ; "fonts-culmus". Best-effort: if both fail, FreeMono still renders Hebrew, so
+  ; we only note it in the log — no error dialog, no Abort.
+  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq culmus >> /tmp/kivun-apt.log 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fonts-culmus >> /tmp/kivun-apt.log 2>&1"'
+  Pop $0
+  ${If} $0 != 0
+    DetailPrint "      Note: Culmus (Miriam Mono CLM) did not install; Hebrew will use FreeMono. Non-fatal."
+  ${Else}
+    DetailPrint "      Miriam Mono CLM installed."
   ${EndIf}
 
   DetailPrint "[5/7] Ensuring Node.js is available..."

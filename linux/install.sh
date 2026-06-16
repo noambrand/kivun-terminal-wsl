@@ -154,9 +154,17 @@ esac
 # Culmus package. FreeMono is installed as the fallback the profile writer
 # uses if Miriam Mono CLM did not land. Both are best-effort: a missing font
 # only changes which of the two the profile selects (see the profile section).
+#
+# The Culmus package name differs by distro: it is "culmus" on Ubuntu (where
+# WSL runs) but "fonts-culmus" on some Debian spins. apt-get install aborts the
+# WHOLE command with exit 100 if a single name is unknown, so we (a) install
+# the always-present FreeMono fallback on its own line and (b) try "culmus"
+# first, then "fonts-culmus" — never both in one apt call. Passing both at once
+# was the bug that silently killed the Hebrew font on Ubuntu and forced FreeMono.
 log "Installing Hebrew terminal fonts (Miriam Mono CLM + FreeMono fallback)..."
 case "$PKG_MGR" in
-    apt)    install_pkgs fonts-culmus fonts-freefont-ttf || true ;;
+    apt)    install_pkgs fonts-freefont-ttf || true
+            install_pkgs culmus || install_pkgs fonts-culmus || true ;;
     dnf)    install_pkgs culmus-fonts gnu-free-mono-fonts || true ;;
     pacman) install_pkgs culmus gnu-free-fonts || true ;;
     zypper) install_pkgs culmus-fonts gnu-free-fonts || true ;;
