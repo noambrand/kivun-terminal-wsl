@@ -71,6 +71,8 @@ REM Read language preference
 call :LOG "INFO - Reading config.txt"
 set RESPONSE_LANGUAGE=english
 set PRIMARY_LANGUAGE=hebrew
+REM Legacy constant: VcXsrv support was removed (Konsole always uses WSLg).
+REM Kept only so kivun-launch.sh's 4th positional arg stays "false".
 set USE_VCXSRV=false
 set TEXT_DIRECTION=rtl
 set FOLDER_PICKER=false
@@ -97,19 +99,17 @@ if exist "%~dp0config.txt" (
     for /f "usebackq eol=# tokens=1,2 delims==" %%a in ("%~dp0config.txt") do (
         if "%%a"=="RESPONSE_LANGUAGE"     set "RESPONSE_LANGUAGE=%%b"
         if "%%a"=="PRIMARY_LANGUAGE"      set "PRIMARY_LANGUAGE=%%b"
-        if "%%a"=="USE_VCXSRV"            set "USE_VCXSRV=%%b"
         if "%%a"=="TEXT_DIRECTION"        set "TEXT_DIRECTION=%%b"
         if "%%a"=="FOLDER_PICKER"         set "FOLDER_PICKER=%%b"
         if "%%a"=="AUTO_INSTALL_CLAUDE"   set "AUTO_INSTALL_CLAUDE=%%b"
         if "%%a"=="CLAUDE_FLAGS"          set "CLAUDE_FLAGS=%%b"
     )
-    call :LOG "SUCCESS - Config loaded: language=%RESPONSE_LANGUAGE%, keyboard=%PRIMARY_LANGUAGE%, vcxsrv=%USE_VCXSRV%, textdir=%TEXT_DIRECTION%, folderpicker=%FOLDER_PICKER%, flags=%CLAUDE_FLAGS%"
+    call :LOG "SUCCESS - Config loaded: language=%RESPONSE_LANGUAGE%, keyboard=%PRIMARY_LANGUAGE%, textdir=%TEXT_DIRECTION%, folderpicker=%FOLDER_PICKER%, flags=%CLAUDE_FLAGS%"
 ) else (
     call :LOG "WARNING - config.txt not found, using defaults"
 )
 echo Language: %RESPONSE_LANGUAGE%
 echo Keyboard: %PRIMARY_LANGUAGE%
-echo VcXsrv: %USE_VCXSRV%
 
 REM If FOLDER_PICKER=true AND no folder was passed as arg (i.e. launched
 REM from the desktop shortcut, not from a right-click context menu), pop
@@ -190,6 +190,25 @@ if exist "%~dp0config.txt" (
     )
     call :LOG "INFO - CLAUDE_FLAGS after picker: %CLAUDE_FLAGS%"
 )
+
+REM One-shot resume flag (--continue / --resume) chosen in the HTA picker.
+REM The picker writes it to a sidecar (NOT config.txt) so it applies to THIS
+REM launch only. Apply it solely on the picker path (PICKER_INVOKED=1); on any
+REM other path just delete a stale file so it can never leak into a right-click
+REM launch and crash on a folder with no prior conversation.
+set "CONV_ONCE=%LOCALAPPDATA%\Kivun-WSL\kivun-conv-once.txt"
+if not exist "%CONV_ONCE%" goto :conv_done
+if "%PICKER_INVOKED%"=="1" goto :conv_apply
+del "%CONV_ONCE%" >nul 2>&1
+goto :conv_done
+:conv_apply
+set "CONV_FLAG="
+set /p CONV_FLAG=<"%CONV_ONCE%"
+del "%CONV_ONCE%" >nul 2>&1
+if not defined CONV_FLAG goto :conv_done
+set "CLAUDE_FLAGS=%CLAUDE_FLAGS% %CONV_FLAG%"
+call :LOG "INFO - Applied one-shot resume flag from picker: %CONV_FLAG%"
+:conv_done
 
 REM v1.4.0: pick up startup slash commands the HTA picker may have
 REM written (one command per line). kivun-launch.sh reads the file
@@ -367,31 +386,6 @@ if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Line endings fixed"
 ) else (
     call :LOG "WARNING - Failed to fix line endings (error %ERRORLEVEL%)"
-)
-
-REM Start VcXsrv if enabled and not running
-if /i "%USE_VCXSRV%"=="true" (
-    echo.
-    echo VcXsrv mode enabled - checking X server...
-    call :LOG "INFO - VcXsrv mode enabled, checking if running"
-    tasklist /FI "IMAGENAME eq vcxsrv.exe" 2>nul | find /I "vcxsrv.exe" >nul
-    if %ERRORLEVEL% NEQ 0 (
-        call :LOG "INFO - VcXsrv not running, attempting to start"
-        if exist "C:\Program Files\VcXsrv\xlaunch.exe" (
-            echo   Starting VcXsrv X server...
-            start "" "C:\Program Files\VcXsrv\xlaunch.exe" -run "%~dp0kivun.xlaunch"
-            timeout /t 2 /nobreak >nul
-            call :LOG "SUCCESS - VcXsrv started"
-        ) else (
-            call :LOG "WARNING - VcXsrv not installed at expected path, falling back to WSLg"
-            echo   WARNING: VcXsrv not installed at expected path.
-            echo   Falling back to WSLg mode.
-            set USE_VCXSRV=false
-        )
-    ) else (
-        call :LOG "SUCCESS - VcXsrv already running"
-        echo   VcXsrv: already running
-    )
 )
 
 REM Convert bash log path to WSL format

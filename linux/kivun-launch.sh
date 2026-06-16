@@ -178,10 +178,18 @@ if [ "$TERMINAL_COLOR" != "kivun" ]; then
     USE_KIVUN_COLORS="# ColorScheme not set — using Konsole default"
 fi
 
+# Default to Miriam Mono CLM (Hebrew-first monospace); fall back to the
+# always-present FreeMono if it is not installed. Re-evaluated every launch,
+# so installing Culmus later upgrades the font on the next start.
+if fc-list 2>/dev/null | grep -qiE "miriam *mono *clm"; then
+    KIVUN_FONT="Miriam Mono CLM"
+else
+    KIVUN_FONT="FreeMono"
+fi
 cat > "$KONSOLE_DIR/KivunTerminal.profile" <<PROF
 [Appearance]
 $USE_KIVUN_COLORS
-Font=DejaVu Sans Mono,11,-1,5,50,0,0,0,0,0
+Font=$KIVUN_FONT,12,-1,5,50,0,0,0,0,0
 
 [Cursor Options]
 CursorShape=0

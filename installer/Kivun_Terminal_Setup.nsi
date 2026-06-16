@@ -47,7 +47,7 @@ VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 !define MUI_WELCOMEFINISHPAGE_BITMAP_NOSTRETCH
 
 !define MUI_WELCOMEPAGE_TITLE "Welcome to ${PRODUCT_NAME} v${PRODUCT_VERSION}"
-!define MUI_WELCOMEPAGE_TEXT "This installer will set up ${PRODUCT_NAME} on your computer.$\r$\n$\r$\n${PRODUCT_DESCRIPTION}$\r$\n$\r$\nWhat will be installed:$\r$\n  - WSL2 + Ubuntu (if missing)$\r$\n  - Konsole terminal emulator (inside Ubuntu)$\r$\n  - wmctrl + xdotool (window management)$\r$\n  - Claude Code CLI (inside Ubuntu)$\r$\n  - VcXsrv X Server (optional, enables Alt+Shift keyboard switching)$\r$\n$\r$\nFeatures:$\r$\n  - Real RTL/BiDi text rendering (Hebrew, Arabic, Persian, Urdu, etc.)$\r$\n  - Light blue terminal color scheme$\r$\n  - Desktop shortcut + right-click folder integration$\r$\n  - 11 supported RTL languages$\r$\n$\r$\nNote: If WSL is not yet installed, Windows may require a reboot.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "This installer will set up ${PRODUCT_NAME} on your computer.$\r$\n$\r$\n${PRODUCT_DESCRIPTION}$\r$\n$\r$\nWhat will be installed:$\r$\n  - WSL2 + Ubuntu (if missing)$\r$\n  - Konsole terminal emulator (inside Ubuntu)$\r$\n  - wmctrl + xdotool (window management)$\r$\n  - Claude Code CLI (inside Ubuntu)$\r$\n$\r$\nFeatures:$\r$\n  - Real RTL/BiDi text rendering (Hebrew, Arabic, Persian, Urdu, etc.)$\r$\n  - Light blue terminal color scheme$\r$\n  - Desktop shortcut + right-click folder integration$\r$\n  - 11 supported RTL languages$\r$\n$\r$\nNote: If WSL is not yet installed, Windows may require a reboot.$\r$\n$\r$\nClick Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 !insertmacro MUI_PAGE_LICENSE "..\LICENSE"
@@ -165,14 +165,13 @@ Section "Core Files" SEC_CORE
   File "..\payload\kivun-launch.sh"
   File "..\payload\kivun-direct.sh"
   File "..\payload\kivun-install-claude.sh"
-  File "..\payload\kivun.xlaunch"
   File "..\payload\statusline.mjs"
   File "..\payload\configure-statusline.js"
   File "..\payload\folder-picker.wsf"
   File "..\payload\folder-picker.hta"
-  ; Window-icon override for VcXsrv (which ignores Konsole's empty icon
-  ; and shows its own X). kivun-set-icon.py reads kivun-icon.png and
-  ; writes _NET_WM_ICON via python-xlib. See payload/kivun-set-icon.py.
+  ; Window-icon helper: kivun-set-icon.py reads kivun-icon.png and writes
+  ; _NET_WM_ICON via python-xlib so the Konsole window + taskbar show the
+  ; Kivun icon under WSLg. See payload/kivun-set-icon.py.
   File "..\payload\kivun-set-icon.py"
   File "..\payload\kivun-icon.png"
   ; Kivun Diagnostics: a user-runnable report collector (Start Menu shortcut
@@ -464,12 +463,13 @@ Section "Konsole + window tools" SEC_KONSOLE
   ${EndIf}
 
   DetailPrint "[4/7] Installing x11-utils + x11-xserver-utils + Hebrew/emoji fonts (~40-60 seconds)..."
-  ; fonts-freefont-ttf provides FreeMono — a monospace font whose Hebrew glyphs
-  ; fill the cell tightly. Konsole's profile pins Font=FreeMono, so EVERY machine
-  ; renders Hebrew the same. Without this, "DejaVu Sans Mono" rendered Hebrew with
-  ; wide gaps between letters on a fresh install (it looked fine only on machines
-  ; that happened to have nicer Hebrew fonts installed).
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf >> /tmp/kivun-apt.log 2>&1"'
+  ; fonts-culmus provides Miriam Mono CLM, a Hebrew-first monospace whose Hebrew
+  ; glyphs fill the cell tightly (no split-apart gaps). Konsole's profile pins
+  ; Miriam Mono CLM, with fonts-freefont-ttf (FreeMono) as the fallback the
+  ; profile writer uses if Culmus did not install. Installing both means EVERY
+  ; machine renders Hebrew the same, instead of the old "DejaVu Sans Mono" which
+  ; showed Hebrew with wide gaps on a fresh install.
+  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf fonts-culmus >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install x11-utils (code $0).$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_4
@@ -569,54 +569,12 @@ Section "Claude Code CLI" SEC_CLAUDE
   ${EndIf}
 SectionEnd
 
-Section /o "Open VcXsrv download page (optional, manual install)" SEC_VCXSRV
-  ; Skip install if VcXsrv is already present in common locations.
-  ; NOTE: NSIS is 32-bit so $PROGRAMFILES gets WOW64-redirected to
-  ; "Program Files (x86)". Use $PROGRAMFILES64 for the real 64-bit path.
-  ${If} ${FileExists} "$PROGRAMFILES64\VcXsrv\vcxsrv.exe"
-    DetailPrint "VcXsrv already installed at $PROGRAMFILES64\VcXsrv - skipping."
-    Goto vcxsrv_done
-  ${EndIf}
-  ${If} ${FileExists} "$PROGRAMFILES32\VcXsrv\vcxsrv.exe"
-    DetailPrint "VcXsrv already installed at $PROGRAMFILES32\VcXsrv - skipping."
-    Goto vcxsrv_done
-  ${EndIf}
-  ; Fallback: check registry for VcXsrv uninstall entry
-  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VcXsrv is X server" "DisplayName"
-  ${If} $0 != ""
-    DetailPrint "VcXsrv detected via registry ($0) - skipping download."
-    Goto vcxsrv_done
-  ${EndIf}
-  SetRegView 64
-  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VcXsrv is X server" "DisplayName"
-  SetRegView 32
-  ${If} $0 != ""
-    DetailPrint "VcXsrv detected via 64-bit registry ($0) - skipping download."
-    Goto vcxsrv_done
-  ${EndIf}
-
-  ; SECURITY (#6): we intentionally do NOT download + silently-exec the
-  ; VcXsrv installer from this NSIS script. The combination of (a) a
-  ; curl-to-TEMP, (b) silent-exec of the downloaded binary, (c) under
-  ; elevation — previously — (d) from an unsigned parent, is the exact
-  ; cluster of heuristics that Microsoft Defender / SmartScreen flag as
-  ; a dropper. It also means we'd be executing a binary whose SHA we
-  ; can't pin (SourceForge "latest" URL changes per release). Instead:
-  ; open the official VcXsrv page in the user's browser, let them
-  ; download and install it themselves with full visibility.
-  DetailPrint "Opening the VcXsrv download page in your browser..."
-  ExecShell "open" "https://sourceforge.net/projects/vcxsrv/"
-  MessageBox MB_ICONINFORMATION "VcXsrv was not found on this system.$\r$\n$\r$\nTo enable Alt+Shift keyboard-layout switching inside Konsole, install VcXsrv from the page that just opened, then set USE_VCXSRV=true in $INSTDIR\config.txt.$\r$\n$\r$\nThis step is optional — if you skip it, Kivun Terminal falls back to WSLg (Alt+Shift will not work but everything else does)."
-  vcxsrv_done:
-SectionEnd
-
 ; Section descriptions for components page
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CORE}     "Launcher scripts, config, docs (required)."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_WSL}      "Install WSL2 and Ubuntu if missing (required)."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_KONSOLE}  "Install Konsole terminal and window tools inside Ubuntu (required)."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CLAUDE}   "Install Claude Code CLI inside Ubuntu (required)."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_VCXSRV}   "Opens the VcXsrv download page in your browser. Install it manually to enable Alt+Shift keyboard switching. Skip if you don't need it."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_SHORTCUT} "Desktop and Start Menu shortcuts."
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_RCLICK}   "Right-click any folder -> Open with Kivun Terminal."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
@@ -656,7 +614,6 @@ Section "Uninstall"
   Delete "$INSTDIR\kivun-set-icon.py"
   Delete "$INSTDIR\kivun-icon.png"
   Delete "$INSTDIR\config.txt"
-  Delete "$INSTDIR\kivun.xlaunch"
   Delete "$INSTDIR\VERSION"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\README_INSTALLATION.md"

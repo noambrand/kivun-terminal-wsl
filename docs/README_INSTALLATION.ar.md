@@ -45,7 +45,6 @@ wsl --status
 ١. **Welcome** — بيعرض شو رح ينثبّت.  
 ٢. **License** — MIT.  
 ٣. **Components** — كل الأقسام المطلوبة معلّمة من قبل. اختياري:  
-   - *Open VcXsrv download page* — بيفتح صفحة VcXsrv الرسمية على SourceForge بالمتصفح للتثبيت اليدوي (ما عدنا منثبّت بايناريز طرف-تالت تلقائياً). محتاجه بس إذا بدك Alt+Shift لتبديل الكيبورد جوّا Konsole.  
    - *Right-Click Menu Integration* — بيضيف "Open with Kivun Terminal" لقوائم الكبسة اليمنى عالمجلدات.  
 ٤. **Directory** — `%LOCALAPPDATA%\Kivun-WSL` الافتراضي مفضّل. ما تستعمل `%LOCALAPPDATA%\Kivun` (هاد تبع Launchpad CLI v2.4.x).  
 ٥. **Install** — بثبّت Ubuntu (إذا مش موجود)، Konsole، Claude Code. هاد ممكن ياخد ٥–١٥ دقيقة على Ubuntu نظيفة.  
@@ -75,7 +74,6 @@ FOLDER_PICKER=true             # عرض dialog البيكر من اختصار ا
 PRIMARY_LANGUAGE=arabic        # أو hebrew, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, azerbaijani
 RESPONSE_LANGUAGE=arabic       # بتحكّم بـ --append-system-prompt اللي بنبعت لـ Claude
 TEXT_DIRECTION=rtl             # rtl = العربي/العبري بيلتزق بحافة اليمين؛ ltr = افتراضي
-USE_VCXSRV=false               # true بدّو VcXsrv مثبّت (تثبيت يدوي — شوف خطوة ٣)
 AUTO_INSTALL_CLAUDE=true       # تثبيت Claude Code تلقائياً بأول تشغيل إذا مش موجود
 ```
 

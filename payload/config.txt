@@ -71,12 +71,6 @@ PRIMARY_LANGUAGE=hebrew
 # DISPLAY & INSTALL (occasional changes)
 # =================================================================
 
-# Use VcXsrv (true) instead of WSLg (false) for Konsole display.
-# VcXsrv enables Alt+Shift keyboard switching; WSLg doesn't.
-# Requires VcXsrv installed: https://sourceforge.net/projects/vcxsrv/
-# Default: true
-USE_VCXSRV=true
-
 # Input text alignment in the terminal:
 #   rtl  - Right-aligned (Hebrew/Arabic hugs the right edge)
 #   ltr  - Left-aligned  (default terminal behavior)

@@ -18,6 +18,7 @@ on:
       - 'payload/kivun-terminal.bat'
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
+      - 'payload/folder-picker.hta'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
   pull_request:
@@ -26,6 +27,7 @@ on:
       - 'payload/kivun-terminal.bat'
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
+      - 'payload/folder-picker.hta'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
 
@@ -191,6 +193,47 @@ jobs:
           grep -q 'KIVUN_SUPPRESS_ERROR_UI' "$CPP" \
             || (echo "FAIL: KIVUN_SUPPRESS_ERROR_UI escape hatch missing from $CPP"; exit 1)
           echo "PASS: all KIVUN_HIDDEN invariants intact"
+
+      - name: Verify v1.4.34 resume-sidecar invariants (picker --continue/--resume)
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          HTA=payload/folder-picker.hta
+          # The folder picker's conversation choice (--continue / --resume) is a
+          # PER-LAUNCH decision. It must NOT land in config.txt — right-click
+          # launches read that line and would crash on a folder with no prior
+          # session ("No conversation found to continue"). Instead the HTA writes
+          # a one-shot sidecar that the .bat applies to THIS launch only, guarded
+          # so it can never leak into a right-click launch. These greps keep every
+          # link of that chain from silently breaking (the bug was: choice shown
+          # in the preview, then dropped at Launch).
+
+          # ---- HTA: writes the sidecar, wires it into Launch, keeps it out of config ----
+          grep -q 'function writeConvFlag' "$HTA" \
+            || (echo "FAIL: $HTA missing writeConvFlag — picker resume choice never persisted"; exit 1)
+          grep -q 'kivun-conv-once\.txt' "$HTA" \
+            || (echo "FAIL: $HTA does not reference kivun-conv-once.txt — resume sidecar path missing"; exit 1)
+          awk '/function ok\(\)/{b=1} b{print} b&&/^  }/{exit}' "$HTA" | grep -q 'writeConvFlag' \
+            || (echo "FAIL: ok() does not call writeConvFlag — Launch drops the resume choice (the original bug)"; exit 1)
+          # composeFlagsForConfig is what gets written to config.txt; it must NOT
+          # include the conversation radio, or the leak-into-right-click bug returns.
+          if awk '/function composeFlagsForConfig/{b=1} b{print} b&&/^  }/{exit}' "$HTA" | grep -q 'flag-conv'; then
+            echo "FAIL: composeFlagsForConfig references flag-conv — conversation flags would leak into config.txt"; exit 1
+          fi
+          echo "PASS: HTA writes resume sidecar, wires it into Launch, keeps it out of config.txt"
+
+          # ---- .bat: applies the sidecar ONLY on the picker path, one-shot ----
+          grep -q 'kivun-conv-once\.txt' "$BAT" \
+            || (echo "FAIL: $BAT does not read kivun-conv-once.txt — picker resume choice ignored"; exit 1)
+          grep -q '^:conv_apply' "$BAT" \
+            || (echo "FAIL: :conv_apply label missing from $BAT"; exit 1)
+          awk '/CONV_ONCE=/{b=1} b{print} b&&/^:conv_apply/{exit}' "$BAT" | grep -q 'PICKER_INVOKED' \
+            || (echo "FAIL: conv apply not guarded by PICKER_INVOKED — --continue could leak into a right-click launch"; exit 1)
+          awk '/CONV_ONCE=/{b=1} b{print} b&&/^:conv_done/{exit}' "$BAT" | grep -q 'del "%CONV_ONCE%"' \
+            || (echo "FAIL: conv sidecar is never deleted — it would carry over to later launches"; exit 1)
+          awk '/^:conv_apply/{b=1} b{print} b&&/^:conv_done/{exit}' "$BAT" | grep -q 'CLAUDE_FLAGS=%CLAUDE_FLAGS% %CONV_FLAG%' \
+            || (echo "FAIL: conv flag is not appended to CLAUDE_FLAGS — resume never reaches claude"; exit 1)
+          echo "PASS: .bat applies resume sidecar only on the picker path, one-shot, into CLAUDE_FLAGS"
 
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.

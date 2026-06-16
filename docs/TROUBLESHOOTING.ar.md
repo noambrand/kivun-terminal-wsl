@@ -150,12 +150,6 @@ wsl --shutdown
 
 **Fallback - ارجع لوضع text:** الـ launcher برجع يشغّل Claude مباشرة بنافذة CMD لما Konsole ما بشتغل. رح تخسر الخلفية الزرقا و BiDi rendering، بس Claude رح يشتغل.
 
-**Fallback - استخدم VcXsrv بدل WSLg:**
-
-1. ركّب VcXsrv من https://sourceforge.net/projects/vcxsrv/
-2. عدّل `%LOCALAPPDATA%\Kivun-WSL\config.txt`: حط `USE_VCXSRV=true`
-3. شغّل من جديد.
-
 ## العَرَض: المثبّت بيبيّن متجمّد على "Installing Konsole..." لـ 10+ دقايق
 
 **السبب:** الـ launcher كان بستخدم `sudo apt-get ...` جوّا `wsl -d Ubuntu -- bash -c "..."`. لمّا مستخدم Ubuntu ما عنده passwordless sudo معدّ، sudo بستنى كلمة سر بدون TTY يقرأ منها — التثبيت بعلّق للأبد.
@@ -259,7 +253,7 @@ KIVUN_BIDI_STRIP_BULLET=on
 
 **ليش هاد ما انكشف من قبل:** الـ path تبع `python-xlib` بـ v1.1.7 *كان* بحدّد `_NET_WM_ICON` صح، وسطر الـ log تبع الـ launcher `SUCCESS - Window icon set` خلّى الإشي يبيّن إنه الأيقونة طُبّقت. تحت VcXsrv (target النشر الأصلي) كانت فعلاً مطبَّقة — VcXsrv بقرأ `_NET_WM_ICON`. تحت WSLg (الإفتراضي من v1.1+)، الخاصية بتتحدّد بس مش مستخدَمة. تسجيل الـ `.desktop` هو الـ path الأصيل لـ WSLg اللي فعلاً ببيّن أيقونة Windows taskbar.
 
-**path الـ `_NET_WM_ICON` لسا بشتغل كـ fallback** للمستخدمين على `USE_VCXSRV=true` (VcXsrv بقرأها). الـ pathين بكمّلوا بعض — `.desktop` لـ WSLg، `_NET_WM_ICON` لـ VcXsrv. نافذة الـ "Launch Log" تبعت cmd بتحتفظ بأيقونتها من `kivun_icon.ico` تبع شورتكت الـ Desktop.
+**path الـ `_NET_WM_ICON` لسا بشتغل** جنب تسجيل الـ `.desktop` تحت WSLg. نافذة الـ "Launch Log" تبعت cmd بتحتفظ بأيقونتها من `kivun_icon.ico` تبع شورتكت الـ Desktop.
 
 ## العَرَض: الـ launcher اشتغل بعدين فجأة بتصرّف زي إنه نص الـ .bat ضايع — working directory غلط، مفي سطور log أوّلية، config ناقص
 
@@ -462,17 +456,11 @@ wsl -d Ubuntu -- grep -i bidi ~/.local/share/konsole/KivunTerminal.profile
 
 ## العَرَض: Alt+Shift ما بغيّر تخطيط الكيبورد
 
-**هاد غالباً مش خربان.** Kivun بفتح باللغة اللي عم تستخدمها **هلق** وبربط **Alt+Shift** للتبديل بين الإنجليزي وتخطيط الـ RTL تبعك (متلاً العبري). على Windows 11 حديث + WSL2 (WSLg) هاد بشتغل **بدون** VcXsrv.
+**هاد غالباً مش خربان.** Kivun بفتح باللغة اللي عم تستخدمها **هلق** وبربط **Alt+Shift** للتبديل بين الإنجليزي وتخطيط الـ RTL تبعك (متلاً العبري). على Windows 11 حديث + WSL2، WSLg بتعالج هاد لحالها.
 
 **إذا أول Alt+Shift كأنه ما عمل إشي:** اضغط مرة على نافذة Konsole حتى تعطيها focus، وبعدين اضغط Alt+Shift. Kivun بعيد تطبيق التخطيط لحظة ما النافذة تفتح حتى يكون هاد موثوق (v1.4.25+).
 
-**Fallback (نادراً ما بتحتاجه):** شغّل X server كامل — حط `USE_VCXSRV=true` بـ `config.txt` وركّب VcXsrv:
-
-```
-USE_VCXSRV=true
-```
-
-ركّب VcXsrv إذا ما ركّبته. شغّل من جديد.
+**إذا لسا ما بغيّر:** تأكّد إنّو WSLg محدَّث: شغّل `wsl --update` وبعدين `wsl --shutdown` بـ Windows، وبعدين شغّل من جديد.
 
 ## العَرَض: النافذة ما بتتكبّر
 

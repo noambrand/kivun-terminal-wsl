@@ -148,6 +148,20 @@ case "$PKG_MGR" in
     zypper) install_pkgs noto-coloremoji-fonts || true ;;
 esac
 
+# --- Hebrew terminal fonts ---
+# The Konsole profile pins "Miriam Mono CLM" (a Hebrew-first monospace whose
+# Hebrew glyphs fill the cell tightly, no split-apart gaps), shipped by the
+# Culmus package. FreeMono is installed as the fallback the profile writer
+# uses if Miriam Mono CLM did not land. Both are best-effort: a missing font
+# only changes which of the two the profile selects (see the profile section).
+log "Installing Hebrew terminal fonts (Miriam Mono CLM + FreeMono fallback)..."
+case "$PKG_MGR" in
+    apt)    install_pkgs fonts-culmus fonts-freefont-ttf || true ;;
+    dnf)    install_pkgs culmus-fonts gnu-free-mono-fonts || true ;;
+    pacman) install_pkgs culmus gnu-free-fonts || true ;;
+    zypper) install_pkgs culmus-fonts gnu-free-fonts || true ;;
+esac
+
 # --- Claude Code (via official installer) ---
 # Download to a file *first*, then execute. A `curl | bash` pipeline
 # starts executing bytes as they arrive, so a mid-download network drop
@@ -420,10 +434,19 @@ fi
 # --- Konsole profile + color scheme ---
 KONSOLE_DIR="$HOME/.local/share/konsole"
 mkdir -p "$KONSOLE_DIR"
-cat > "$KONSOLE_DIR/KivunTerminal.profile" <<'PROF'
+# Default to Miriam Mono CLM (Hebrew-first monospace, from Culmus). If that
+# install did not land, fall back to FreeMono, which is always present. The
+# generic "monospace" is Konsole's own last resort if neither exists.
+if fc-list 2>/dev/null | grep -qiE "miriam *mono *clm"; then
+    KIVUN_FONT="Miriam Mono CLM"
+else
+    KIVUN_FONT="FreeMono"
+fi
+log "Konsole font: $KIVUN_FONT (12pt)"
+cat > "$KONSOLE_DIR/KivunTerminal.profile" <<PROF
 [Appearance]
 ColorScheme=ColorSchemeNoam
-Font=DejaVu Sans Mono,11,-1,5,50,0,0,0,0,0
+Font=$KIVUN_FONT,12,-1,5,50,0,0,0,0,0
 
 [Cursor Options]
 CursorShape=0
