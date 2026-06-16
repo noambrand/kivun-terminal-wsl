@@ -25,7 +25,7 @@ You'll need a **Claude Pro/Max subscription** or an [Anthropic API key](https://
 ### Once Claude is open
 
 - Hebrew / Arabic / etc. just work - type and read RTL normally.
-- **Alt+Shift** toggles between Hebrew and English keyboard layouts (with VcXsrv on, which is the default).
+- **Alt+Shift** toggles between Hebrew and English keyboard layouts (handled by WSLg on modern Windows 11 + WSL2).
 - The small **launcher cmd window** that appears alongside Konsole can be safely closed - as of v1.1.7 it no longer takes the Konsole session down with it.
 - The **statusline** at the bottom of every Claude session shows the active model, context %, and weekly/session usage limits.
 
@@ -45,7 +45,6 @@ Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt`:
 | `RESPONSE_LANGUAGE` | language Claude replies in | `english` |
 | `PRIMARY_LANGUAGE` | keyboard layout paired with `us` for Alt+Shift | `hebrew` |
 | `TEXT_DIRECTION` | `rtl` or `ltr` input alignment | `rtl` |
-| `USE_VCXSRV` | `true` to use VcXsrv X server (needed for Alt+Shift on most setups) | `true` |
 | `AUTO_INSTALL_CLAUDE` | `true` auto-installs Claude Code on first launch if missing | `true` |
 | `KIVUN_BIDI_WRAPPER` | master switch for the wrapper (the BiDi fix); `off` falls back to plain Claude | `on` |
 | `KIVUN_BIDI_STRIP_BULLET` | `on` strips the leading `●` from Hebrew bullet lines (workaround for Konsole 23.x where the bullet anchors lines LTR); usually only needed on Ubuntu 24.04 (v1.1.8+) | `on` |
@@ -68,7 +67,7 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 - The `kivun-claude-bidi` Node wrapper that does seven complementary BiDi fixes: line-start RLM injection, conditional RLE/PDF bracketing (LTR paragraphs only), bullet-strip on Hebrew lines (Konsole 23.x workaround), upstream bidi-control strip, SGR-color flatten on RTL lines, no-per-run-bracket on RTL lines, and **CSI cursor-forward → literal-space replacement on RTL lines (v1.1.16, user-confirmed working April 2026)**. See the [README.md BiDi Wrapper section](https://github.com/noambrand/kivun-terminal-wsl#bidi-wrapper) for the full table of what each fix solves
 - Custom Konsole profile + color scheme (`KivunTerminal`, `ColorSchemeNoam`) - light-blue background, dark text
 - Right-click Windows Explorer integration ("Open with Kivun Terminal")
-- `python3-xlib` + `python3-pil` (used to set the Konsole window icon over VcXsrv)
+- `python3-xlib` + `python3-pil` (used to set the Konsole window icon under WSLg)
 
 ### How it's different from the LTR sister project
 

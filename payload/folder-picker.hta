@@ -591,6 +591,7 @@
   var ASSET_NAME_RE = /^Kivun_Terminal_Setup\.exe$/i;
   var resultFile = kivunDir + "\\kivun-workdir.txt";
   var startupFile = kivunDir + "\\kivun-startup-cmds.txt";
+  var convFile = kivunDir + "\\kivun-conv-once.txt";
   var envFile = kivunDir + "\\kivun-env.txt";
   var profilesFile = kivunDir + "\\profiles.json";
   var configFile = installDir + "\\config.txt";
@@ -903,6 +904,16 @@
     writeUtf8NoBom(startupFile, cleaned.join("\n") + "\n");
   }
 
+  function writeConvFlag() {
+    // One-shot per-launch resume choice (--continue / --resume). Written to a
+    // sidecar that the .bat applies to THIS launch only, then deletes, so it
+    // never carries over to right-click launches. Those read CLAUDE_FLAGS from
+    // config.txt, where the conversation flags are deliberately excluded.
+    var conv = getRadioValue("flag-conv");
+    if (!conv) { deleteIfExists(convFile); return; }
+    writeUtf8NoBom(convFile, conv);
+  }
+
   function ok() {
     clearError();
     var p = document.getElementById("path").value;
@@ -933,6 +944,7 @@
     // read this line and would crash on folders with no prior session.
     try { writeFlagsToConfig(composeFlagsForConfig()); } catch (e) {}
     try { writeStartupCmds(); } catch (e) {}
+    try { writeConvFlag(); } catch (e) {}
     try { writeEnvFile(); } catch (e) {}
     writePath(p);
     window.close();

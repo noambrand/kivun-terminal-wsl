@@ -10,31 +10,44 @@ bottom.
 
 ## Current default
 
-Since **v1.4.31** the shipped Konsole profile pins **FreeMono** (size bumped to
-13 in v1.4.32), and the installer installs `fonts-freefont-ttf` so the font is
-always present:
+The shipped Konsole profile pins **Miriam Mono CLM** at size 12, with
+**FreeMono** as the fallback used only when Miriam Mono CLM is not installed:
 
 ```
-Font=FreeMono,13,-1,5,50,0,0,0,0,0
+Font=Miriam Mono CLM,12,-1,5,50,0,0,0,0,0
 ```
 
-FreeMono was chosen because its Hebrew glyphs fill the monospace cell tightly.
-The previous default, `DejaVu Sans Mono`, rendered Hebrew with wide gaps
-between letters on a clean machine (it only looked right where a nicer Hebrew
-font happened to be installed and "DejaVu Sans Mono" fell back to it).
+Miriam Mono CLM (from the Culmus project) is a Hebrew-first monospace whose
+Hebrew glyphs fill the cell tightly, with none of the split-apart gaps that
+proportional fonts (Noto Sans Hebrew, Heebo, Rubik, Assistant) show once
+Konsole locks every glyph to a fixed cell. The previous default,
+`DejaVu Sans Mono`, rendered Hebrew with wide gaps on a clean machine.
 
-This same line is written in three places, all to the same Konsole profile
+The font is **not hard-coded**. Each profile writer picks it at write time:
+
+```sh
+if fc-list 2>/dev/null | grep -qiE "miriam *mono *clm"; then
+    KIVUN_FONT="Miriam Mono CLM"   # installed via fonts-culmus
+else
+    KIVUN_FONT="FreeMono"          # always present via fonts-freefont-ttf
+fi
+```
+
+So if the Culmus install fails, the profile cleanly falls back to FreeMono,
+and a later `fonts-culmus` install upgrades the font on the next launch. The
+generic `monospace` is Konsole's own last resort if neither font exists.
+
+This selection is written in three places, all to the same Konsole profile
 at `~/.local/share/konsole/KivunTerminal.profile`:
 
 | File | Purpose |
 |---|---|
-| `linux/install.sh` (≈ line 385) | Written on first install |
-| `linux/kivun-launch.sh` (≈ line 160) | Re-written at launch if the profile is missing |
-| `payload/kivun-launch.sh` (≈ line 301) | Same fallback inside the Windows installer payload |
+| `linux/install.sh` | Written on first install |
+| `linux/kivun-launch.sh` | Re-written at launch (Linux path) |
+| `payload/kivun-launch.sh` | Re-written at launch inside the Windows installer payload |
 
-The installer installs `fonts-freefont-ttf` (FreeMono) and `fonts-noto-color-emoji`.
-**Cascadia Mono, Noto Sans Mono Hebrew, and Miriam Mono CLM are not installed**
-by the installer — install them yourself (see the table) if you want to switch.
+The installer installs `fonts-culmus` (Miriam Mono CLM), `fonts-freefont-ttf`
+(FreeMono fallback), and `fonts-noto-color-emoji`.
 
 ## Why English in mixed Hebrew/English lines can look "bold"
 

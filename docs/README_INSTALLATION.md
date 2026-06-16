@@ -43,7 +43,6 @@ The wizard steps:
 1. **Welcome** - lists what will be installed.
 2. **License** - MIT.
 3. **Components** - all required sections are pre-selected. Optional:
-   - *Open VcXsrv download page* - opens the official VcXsrv SourceForge page in your browser for manual install (we no longer auto-install third-party binaries). Only needed if you want Alt+Shift keyboard switching inside Konsole.
    - *Right-Click Menu Integration* - adds "Open with Kivun Terminal" to folder context menus.
 4. **Directory** - default `%LOCALAPPDATA%\Kivun-WSL` is recommended. Do not reuse `%LOCALAPPDATA%\Kivun` (that belongs to Launchpad CLI v2.4.x).
 5. **Install** - installs Ubuntu (if missing), Konsole, Claude Code. This can take 5–15 minutes on a fresh Ubuntu.
@@ -75,7 +74,6 @@ FOLDER_PICKER=true             # show the picker dialog from the desktop shortcu
 PRIMARY_LANGUAGE=hebrew        # or arabic, persian, urdu, pashto, kurdish, dari, uyghur, sindhi, azerbaijani
 RESPONSE_LANGUAGE=english      # controls --append-system-prompt sent to Claude
 TEXT_DIRECTION=rtl             # rtl = Hebrew/Arabic input hugs right edge; ltr = default
-USE_VCXSRV=false               # true requires VcXsrv installed (manual install - see Step 3)
 AUTO_INSTALL_CLAUDE=true       # auto-install Claude Code on first launch if missing
 ```
 

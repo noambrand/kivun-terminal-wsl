@@ -35,3 +35,6 @@ docs/*.docx
 
 # Native launcher build output (KivunTerminal.exe is built by CI / launcher/build.bat)
 launcher/out/
+
+# local font picker preview (scratch, not shipped)
+font-preview/

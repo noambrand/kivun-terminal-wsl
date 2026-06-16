@@ -59,8 +59,7 @@ Installer posture improvements in v1.0.6:
   - No longer runs as administrator. Installs to per-user
     %LOCALAPPDATA%\Kivun-WSL; HKCU registry only.
   - No longer downloads a third-party installer to %TEMP% for
-    silent execution. (VcXsrv is now opened in your browser for
-    manual install if you want it.)
+    silent execution.
   - Claude Code installer is downloaded to a file and size-checked
     before execution - not piped from curl to bash (which could
     execute a truncated script on network drop).

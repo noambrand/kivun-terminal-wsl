@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-# Kivun Terminal — set _NET_WM_ICON on the Konsole window so VcXsrv
-# (and other X servers that ignore Konsole's empty icon) show the
-# Kivun figure instead of the default X server logo.
+# Kivun Terminal: set _NET_WM_ICON on the Konsole window so the WSLg
+# (Xwayland) host shows the Kivun figure instead of a default/empty icon.
 #
-# Why a separate script: this is the only way to override the icon
-# under VcXsrv, which ignores xseticon-style runtime updates unless
-# we directly write the _NET_WM_ICON CARDINAL[] property via libX11.
-# Konsole itself sets only an empty _NET_WM_ICON_NAME.
+# Why a separate script: directly writing the _NET_WM_ICON CARDINAL[]
+# property via libX11 is the reliable way to override the icon, because
+# Konsole itself sets only an empty _NET_WM_ICON_NAME and xseticon-style
+# runtime updates are not always honored.
 #
 # Usage: kivun-set-icon.py <wid> <png-path>
 #

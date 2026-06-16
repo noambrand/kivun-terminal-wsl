@@ -138,12 +138,6 @@ wsl --shutdown
 
 **Fallback - fall back to text mode:** The launcher falls back to running Claude directly in the CMD window when Konsole won't start. You'll lose the blue background and BiDi rendering, but Claude will still work.
 
-**Fallback - use VcXsrv instead of WSLg:**
-
-1. Install VcXsrv from https://sourceforge.net/projects/vcxsrv/
-2. Edit `%LOCALAPPDATA%\Kivun-WSL\config.txt`: set `USE_VCXSRV=true`
-3. Re-launch.
-
 ## Symptom: Installer appears frozen on "Installing Konsole..." for 10+ minutes
 
 **Cause:** The launcher was using `sudo apt-get ...` inside `wsl -d Ubuntu -- bash -c "..."`. When the Ubuntu user doesn't have passwordless sudo configured, sudo waits for a password with no TTY to read from - the install hangs forever.
@@ -260,7 +254,7 @@ Restart Kivun Terminal. The wrapper will now strip the leading `●` from any li
 
 **Why this didn't get caught earlier:** the v1.1.7 `python-xlib` path *did* set `_NET_WM_ICON` correctly, and the launcher's log line `SUCCESS - Window icon set` made it look like the icon was applied. Under VcXsrv (the original deployment target) it WAS applied — VcXsrv reads `_NET_WM_ICON`. Under WSLg (the v1.1+ default), the property is set but unused. The `.desktop` registration is the WSLg-native path that actually drives the Windows taskbar.
 
-**The `_NET_WM_ICON` path still runs as a fallback** for users on `USE_VCXSRV=true` (VcXsrv reads it). The two paths complement each other — `.desktop` for WSLg, `_NET_WM_ICON` for VcXsrv. The cmd "Launch Log" window keeps its own icon from the Desktop shortcut's `kivun_icon.ico`.
+**The `_NET_WM_ICON` path still runs** alongside the `.desktop` registration under WSLg. The cmd "Launch Log" window keeps its own icon from the Desktop shortcut's `kivun_icon.ico`.
 
 ## Symptom: launcher worked then suddenly behaves like half the .bat is missing — wrong working directory, no early log lines, missing config
 
@@ -455,17 +449,11 @@ If missing, delete the profile file and relaunch - the launcher regenerates it.
 
 ## Symptom: Alt+Shift doesn't switch keyboard layout
 
-**This usually isn't broken.** Kivun opens in the language you're **currently** using and binds **Alt+Shift** to toggle between English and your RTL layout (e.g. Hebrew). On modern Windows 11 + WSL2 (WSLg) this works **without** VcXsrv.
+**This usually isn't broken.** Kivun opens in the language you're **currently** using and binds **Alt+Shift** to toggle between English and your RTL layout (e.g. Hebrew). On modern Windows 11 + WSL2, WSLg handles this out of the box.
 
 **If the _first_ Alt+Shift seems to do nothing:** click the Konsole window once to give it focus, then press Alt+Shift. Kivun re-applies the layout the moment the window opens to make this reliable (v1.4.25+).
 
-**Fallback (rarely needed):** run a full X server — set `USE_VCXSRV=true` in `config.txt` and install VcXsrv:
-
-```
-USE_VCXSRV=true
-```
-
-Install VcXsrv if you haven't. Relaunch.
+**If it still doesn't switch:** make sure WSLg is current: run `wsl --update` then `wsl --shutdown` in Windows, then relaunch.
 
 ## Symptom: The window doesn't maximize
 

@@ -2,7 +2,7 @@
 # Kivun Terminal - Bash Launcher (WSL side)
 # Handles Konsole profile, colors, RTL/BiDi, title, maximize.
 # Called by kivun-terminal.bat with:
-#   bash kivun-launch.sh <wsl_path> <claude_prompt> <primary_language> <use_vcxsrv> <log_file> <text_dir> [primary_monitor]
+#   bash kivun-launch.sh <wsl_path> <claude_prompt> <primary_language> <legacy_arg4> <log_file> <text_dir> [primary_monitor]
 #
 # primary_monitor format: "X Y W H" (Windows primary-monitor bounds, passed
 # in from the Windows launcher via PowerShell). When provided, Konsole is
@@ -11,6 +11,8 @@
 WSL_PATH="${1:-~}"
 CLAUDE_PROMPT="$2"
 PRIMARY_LANG="${3:-hebrew}"
+# $4 is a legacy positional arg (was USE_VCXSRV). VcXsrv support was removed;
+# it is kept only so $5-$9 below stay at their established positions.
 USE_VCXSRV="${4:-false}"
 LOG_FILE="${5:-/tmp/kivun-bash-launch.log}"
 TEXT_DIR="${6:-rtl}"
@@ -56,7 +58,6 @@ log "START - Bash launcher started (Kivun Terminal v$PRODUCT_VERSION)"
 log "INFO - Parameters received:"
 log "  WSL_PATH=$WSL_PATH"
 log "  PRIMARY_LANG=$PRIMARY_LANG"
-log "  USE_VCXSRV=$USE_VCXSRV"
 log "  LOG_FILE=$LOG_FILE"
 log "  TEXT_DIR=$TEXT_DIR"
 
@@ -301,59 +302,13 @@ else
   log "INFO - statusline.mjs not found in install dir, skipping"
 fi
 
-if [ "$USE_VCXSRV" = "true" ]; then
-  log "INFO - VcXsrv mode enabled, testing connection"
-  # The Windows host is the WSL default gateway, not /etc/resolv.conf's
-  # nameserver (that can be a corporate DNS like 10.x.x.x and won't be
-  # where VcXsrv listens). Prefer the gateway; fall back to resolv.conf.
-  WINDOWS_HOST=$(ip route show default 2>/dev/null | awk '/^default/{print $3; exit}')
-  if [ -z "$WINDOWS_HOST" ]; then
-    WINDOWS_HOST=$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf 2>/dev/null)
-    log "INFO - Gateway unavailable, using resolv.conf nameserver: $WINDOWS_HOST"
-  fi
-  export DISPLAY="${WINDOWS_HOST}:0"
-  log "INFO - DISPLAY set to $DISPLAY"
-
-  if timeout 3 xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
-    log "SUCCESS - VcXsrv is reachable"
-    # Authorize only THIS user to talk to the X server. `xhost +local:`
-    # allows every local UID; `xhost +si:localuser:$USER` limits to the
-    # invoking user via SI-authenticated ucred checks. Matches the
-    # access-control-on xlaunch config (-ac removed, DisableAC=False).
-    xhost "+si:localuser:$USER" 2>/dev/null || true
-    apply_kivun_keyboard
-    log "SUCCESS - Keyboard layout configured (VcXsrv mode, Alt+Shift enabled)"
-    echo "Keyboard mode: VcXsrv (Alt+Shift toggle enabled)"
-  else
-    # Falling back to WSLg here is NOT inherently a failure: on modern
-    # Windows 11 + WSL2 (WSLg >= 1.0.65) WSLg handles X11 keyboard +
-    # display fine, including Alt+Shift xkb layout switching. The
-    # message is INFO, not WARNING, because most users on a current
-    # build will have a working terminal even though USE_VCXSRV=true.
-    # The reason VcXsrv is unreachable here is almost always one of:
-    #   1. VcXsrv is not running (the launcher tried to start it but
-    #      it has not opened TCP yet, or the install lacks xlaunch.exe).
-    #   2. VcXsrv is running but Windows Firewall blocks inbound TCP
-    #      6000 from the WSL Hyper-V vEthernet adapter.
-    #   3. VcXsrv is running with -nolisten tcp (rare; most modern
-    #      builds default to listening).
-    # If keyboard switching DOES break for the user, that confirms WSLg
-    # is the actual problem and they need real VcXsrv connectivity --
-    # at which point they should check the firewall + that VcXsrv was
-    # launched with -listen tcp. See docs/VCXSRV_TROUBLESHOOTING.md.
-    log "INFO - VcXsrv configured but unreachable; using WSLg (works for most modern Windows 11 setups)"
-    echo "Display: WSLg (VcXsrv unreachable -- usually fine on Windows 11)"
-    export DISPLAY=:0
-    log "INFO - DISPLAY reset to :0 for WSLg"
-    apply_kivun_keyboard
-    log "SUCCESS - Keyboard layout configured (WSLg fallback mode)"
-  fi
-else
-  log "INFO - WSLg mode (default)"
-  apply_kivun_keyboard
-  log "SUCCESS - Keyboard layout configured (WSLg mode)"
-  echo "Keyboard: Alt+Shift switches layouts (opens in your current language)"
-fi
+# Display + keyboard: always WSLg. VcXsrv support was removed because modern
+# Windows 11 + WSL2 WSLg handles X11 display and Alt+Shift layout switching on
+# its own. DISPLAY already defaults to :0 earlier in this script.
+log "INFO - WSLg mode (default)"
+apply_kivun_keyboard
+log "SUCCESS - Keyboard layout configured (WSLg mode)"
+echo "Keyboard: Alt+Shift switches layouts (opens in your current language)"
 
 log "INFO - Deploying Konsole profile and color scheme"
 mkdir -p ~/.local/share/konsole
@@ -368,10 +323,17 @@ else
     log "INFO - BiDi disabled, lines forced to LTR"
 fi
 
+# Default to Miriam Mono CLM (Hebrew-first monospace, from Culmus); fall back
+# to the always-present FreeMono if Miriam Mono CLM is not installed.
+if fc-list 2>/dev/null | grep -qiE "miriam *mono *clm"; then
+    KIVUN_FONT="Miriam Mono CLM"
+else
+    KIVUN_FONT="FreeMono"
+fi
 cat > ~/.local/share/konsole/KivunTerminal.profile << PROFEOF
 [Appearance]
 ColorScheme=ColorSchemeNoam
-Font=FreeMono,13,-1,5,50,0,0,0,0,0
+Font=$KIVUN_FONT,12,-1,5,50,0,0,0,0,0
 
 [Cursor Options]
 CursorShape=0

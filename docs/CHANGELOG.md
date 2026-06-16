@@ -27,6 +27,35 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.34] - 2026-06-16
+
+### Changed — default terminal font is now Miriam Mono CLM (12pt), FreeMono fallback
+
+The Konsole profile pins **Miriam Mono CLM** (a Hebrew-first monospace from the
+Culmus package) at size 12. Its Hebrew glyphs fill the cell tightly, avoiding the
+split-apart gaps that proportional Hebrew fonts show once Konsole locks every glyph
+to a fixed cell. The installer now installs `fonts-culmus`; each profile writer picks
+Miriam Mono CLM when `fc-list` finds it and otherwise falls back to the always-present
+**FreeMono**, so a failed Culmus install degrades cleanly. Re-evaluated every launch,
+so installing Culmus later upgrades the font on the next start.
+
+### Fixed — "Continue last" / "Pick from history" in the folder picker now resume
+
+The picker's conversation choice (`--continue` / `--resume`) was shown in the flag
+preview but dropped at launch, because the flags written to `config.txt` deliberately
+exclude conversation flags (to avoid crashing right-click launches on folders with no
+prior session). The choice is now written to a one-shot sidecar that the launcher
+applies to that single launch only, then deletes. Picker resume works, with no leak
+into right-click launches.
+
+### Removed — VcXsrv support (Konsole always uses WSLg)
+
+VcXsrv was leftover from before WSLg handled X11 display and Alt+Shift keyboard
+switching on modern Windows 11 + WSL2. Removed the installer's VcXsrv section,
+welcome and component text, the `USE_VCXSRV` config option, the launcher's VcXsrv
+display branch, `kivun.xlaunch`, and the VcXsrv troubleshooting doc. Alt+Shift keeps
+working via WSLg.
+
 ## [1.4.33] - 2026-06-16
 
 ### Fixed — corrected the misleading "a moving bar means it is working" line
