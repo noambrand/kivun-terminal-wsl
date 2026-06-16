@@ -27,6 +27,34 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.35] - 2026-06-16
+
+### Fixed — Miriam Mono CLM now actually installs on Ubuntu (was silently falling back to FreeMono)
+
+v1.4.34 made Miriam Mono CLM the default font but installed it from the **wrong
+package name**. The Culmus fonts are packaged as `fonts-culmus` on Debian, but on
+**Ubuntu** (what WSL runs) the package is **`culmus`**. The installer asked for
+`fonts-culmus`, which Ubuntu cannot locate, so the font never installed and every
+fresh machine fell back to **FreeMono**.
+
+It was worse than a missing font: `fonts-culmus` was requested on the **same**
+`apt-get install` line as `x11-utils`, and apt aborts the *entire* command (exit
+code 100) when one package name is unknown. That is the **"Failed to install
+x11-utils (code 100)"** dialog some users saw during setup, the same single
+root cause behind both the popup and the wrong font.
+
+- **Windows installer** (`Kivun_Terminal_Setup.nsi`): the Hebrew font now installs
+  in its **own** step (`[4b/7]`), separate from the x11 tools, trying `culmus`
+  first and `fonts-culmus` second. It is best-effort: if both fail, FreeMono still
+  renders Hebrew, so there is no error dialog and the install is not aborted.
+- **`linux/install.sh`** (apt path): same `culmus || fonts-culmus` fallback, with
+  the FreeMono fallback installed on its own line so a bad Culmus name can no
+  longer take it down too.
+- **No launcher change needed**: each profile writer re-checks `fc-list` on every
+  launch, so existing v1.4.34 users get Miriam Mono CLM automatically on the next
+  start once Culmus is present — `sudo apt-get install -y culmus` is enough, no
+  reinstall required.
+
 ## [1.4.34] - 2026-06-16
 
 ### Changed — default terminal font is now Miriam Mono CLM (12pt), FreeMono fallback
