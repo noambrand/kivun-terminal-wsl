@@ -467,6 +467,31 @@ CSEOF
 
 log "SUCCESS - Profile and color scheme deployed"
 
+# v1.4.36: make "Kivun Terminal" the DEFAULT Konsole profile.
+# We launch the first window with `konsole --profile KivunTerminal`, but that
+# flag only governs THAT session — new tabs/windows the user opens (the +
+# button, Ctrl+Shift+T, "New Window") fall back to Konsole's configured default
+# profile (Built-in: black background, BiDi off). Users hit exactly this:
+# the first window was blue + right-aligned, every new tab came up black + LTR,
+# and they had to right-click -> Switch Profile every time. Konsole reads the
+# default from DefaultProfile= under [Desktop Entry] in ~/.config/konsolerc.
+# Write it idempotently, preserving any other keys the user already has.
+KONSOLERC="$HOME/.config/konsolerc"
+mkdir -p "$(dirname "$KONSOLERC")"
+if [ -f "$KONSOLERC" ]; then
+    if grep -q '^DefaultProfile=' "$KONSOLERC"; then
+        sed -i 's#^DefaultProfile=.*#DefaultProfile=KivunTerminal.profile#' "$KONSOLERC"
+    elif grep -q '^\[Desktop Entry\]' "$KONSOLERC"; then
+        sed -i '/^\[Desktop Entry\]/a DefaultProfile=KivunTerminal.profile' "$KONSOLERC"
+    else
+        printf '[Desktop Entry]\nDefaultProfile=KivunTerminal.profile\n' >> "$KONSOLERC"
+    fi
+    log "SUCCESS - Set DefaultProfile=KivunTerminal.profile in existing konsolerc"
+else
+    printf '[Desktop Entry]\nDefaultProfile=KivunTerminal.profile\n' > "$KONSOLERC"
+    log "SUCCESS - Created konsolerc with DefaultProfile=KivunTerminal.profile"
+fi
+
 log "INFO - Changing directory to: $WSL_PATH"
 cd "$WSL_PATH" 2>/dev/null || cd ~
 log "SUCCESS - Current directory: $(pwd)"

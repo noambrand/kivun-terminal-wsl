@@ -435,11 +435,25 @@ Section "Konsole + window tools" SEC_KONSOLE
   DetailPrint "appears and the title changes to 'Installation Complete'."
   DetailPrint "==================================================================="
 
+  ; Pre-flight: confirm Ubuntu is actually reachable before we blame apt.
+  ; The #1 real-world cause of "apt failed" here is NOT no-internet — it is the
+  ; installer not being run as Administrator (so the first-time WSL/Ubuntu setup
+  ; never completed), or Ubuntu not being registered yet. In those cases
+  ; `wsl -d Ubuntu` itself errors and apt never even runs. Catch that first and
+  ; tell the user the truth, instead of sending them to chase a network problem.
+  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "echo ubuntu_ok"'
+  Pop $0
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Ubuntu isn't ready yet (code $0).$\r$\n$\r$\nMost common cause: this installer was NOT run as Administrator, so the first-time WSL/Ubuntu setup couldn't finish (or Ubuntu hasn't been installed/rebooted yet).$\r$\n$\r$\nFIX: Close this, RIGHT-CLICK the installer and choose 'Run as administrator', then run it again. If WSL was just installed, REBOOT first.$\r$\n$\r$\nClick OK to try the package step anyway, or Cancel to abort." IDOK ubuntu_ready_ok
+      Abort "Cancelled by user."
+    ubuntu_ready_ok:
+  ${EndIf}
+
   DetailPrint "[1/7] Updating package lists (~30-60 seconds)..."
   nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "apt-get update -qq -y > /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "apt-get update failed (code $0).$\r$\n$\r$\nMost common cause: Ubuntu has no internet access.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue anyway, or Cancel to abort." IDOK konsole_ok_1
+    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Ubuntu packages couldn't be updated (code $0).$\r$\n$\r$\nMost common cause: the installer wasn't run as Administrator, or Ubuntu/WSL isn't fully set up yet. Close this, RIGHT-CLICK the installer -> 'Run as administrator', and run it again (reboot first if WSL was just installed).$\r$\n$\r$\nLess commonly: Ubuntu has no internet. Check the log: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue anyway, or Cancel to abort." IDOK konsole_ok_1
       Abort "Cancelled by user."
     konsole_ok_1:
   ${EndIf}
@@ -528,7 +542,7 @@ Section "Konsole + window tools" SEC_KONSOLE
   nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq konsole >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install Konsole (code $0).$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nYou can retry later via:$\r$\n  wsl -d Ubuntu -u root -- apt-get install -y konsole$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_6
+    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install Konsole (code $0).$\r$\n$\r$\nIf earlier package steps also failed, the usual cause is the installer not being run as Administrator (right-click -> 'Run as administrator' and run it again).$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nYou can retry later via:$\r$\n  wsl -d Ubuntu -u root -- apt-get install -y konsole$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_6
       Abort "Cancelled by user."
     konsole_ok_6:
   ${Else}

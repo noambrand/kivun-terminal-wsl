@@ -70,6 +70,17 @@ A signed build is planned once an Authenticode certificate is in
 place. At that point SmartScreen should stop warning after a short
 reputation-building period.
 
+As of v1.4.36 the build pipeline is signing-READY: the Windows
+workflow signs both KivunTerminal.exe and Kivun_Terminal_Setup.exe
+automatically when the repo has the secrets CODE_SIGN_PFX_BASE64
+(the .pfx, base64-encoded) and CODE_SIGN_PFX_PASSWORD. Until those
+secrets are added the build stays unsigned and behaves as above. The
+launcher also now ships an asInvoker application manifest, which —
+together with signing — reduces the Defender/SmartScreen false-positive
+"virus detected" flag some users saw on download. If you hit that flag
+on an unsigned build, it is a false positive; you can report it to
+Microsoft at https://www.microsoft.com/en-us/wdsi/filesubmission .
+
 REPORTING VULNERABILITIES
 -------------------------
 Open an issue at:
