@@ -294,6 +294,50 @@ Or just download the v1.1.17 installer fresh from the [releases page](https://gi
 
 **Manual fix on v1.1.16 and earlier:** download the v1.1.17 installer or the v1.1.17 updater bat — both ship the corrected logic. Hand-editing this case is brittle because the v1.1.16 fallback still resolves to `~` and you have to fix it BEFORE wslpath is called.
 
+## Symptom: clicking Launch does nothing, or auto-install fails with `/mnt/host/c/...: No such file or directory` (exit 127)
+
+**Telltale in `LAUNCH_LOG.txt`:** paths printed as `/mnt/host/c/...` (note the extra `host`) instead of `/mnt/c/...`, immediately followed by `No such file or directory`, `install.sh returned exit code 127`, or `WARNING - Failed to fix line endings (error 2)`. The `Kivun-Report.txt` `[5]` section may say `bash: not found`.
+
+**Cause (verified):** your **default** WSL distro is not Ubuntu — most commonly it's **Docker Desktop's `docker-desktop`**, which mounts your `C:` drive at `/mnt/host/c` instead of `/mnt/c`. Pre-v1.4.36 the launcher converted Windows paths with a bare `wsl wslpath` (which uses the *default* distro → `/mnt/host/c/...`) but then ran everything against **Ubuntu** (where only `/mnt/c` exists). The converted path didn't exist inside Ubuntu, so scripts silently weren't found and nothing launched. The diagnostic's `bash: not found` was the same bug — it probed the default distro, which has no bash.
+
+**Fixed in v1.4.36:** the launcher (and the diagnostics tool) now pin Ubuntu for **both** path conversion and execution, so it works no matter what your default distro is.
+
+**Manual fix on v1.4.35 and earlier:** make Ubuntu your default distro, then relaunch:
+
+```cmd
+wsl --set-default Ubuntu
+```
+
+This does not affect Docker Desktop.
+
+## Symptom: the first Kivun window is light-blue + right-aligned, but new tabs/windows open black + left-aligned
+
+**Cause:** Kivun launches its first window with `konsole --profile KivunTerminal`, but that flag only applies to that one session. Konsole opens **new tabs and windows** (the `+` button, Ctrl+Shift+T, "New Window") with its configured **default** profile — the Built-in one (black background, BiDi off) — so Hebrew renders left-aligned there. Pre-v1.4.36 nothing set Kivun as the default, so you had to right-click → Switch Profile → "Kivun Terminal" every time (this is the "blue = right-aligned, black = not" experience some users reported).
+
+**Fixed in v1.4.36:** the launcher/installer now writes `DefaultProfile=KivunTerminal.profile` into `~/.config/konsolerc`, so every new tab and window uses the Kivun profile automatically.
+
+**Manual fix on v1.4.35 and earlier** — either set it as default once via Konsole's Settings → Manage Profiles → select "Kivun Terminal" → "Set as Default", or run:
+
+```cmd
+wsl -d Ubuntu -- bash -lc "grep -q '^DefaultProfile=' ~/.config/konsolerc 2>/dev/null && sed -i 's#^DefaultProfile=.*#DefaultProfile=KivunTerminal.profile#' ~/.config/konsolerc || printf '[Desktop Entry]\nDefaultProfile=KivunTerminal.profile\n' >> ~/.config/konsolerc"
+```
+
+## Symptom: on Konsole 25.x, Hebrew is readable (correct letter order) but lines don't hug the right edge
+
+**Status: partly a structural limit, not a misconfiguration.** If your Konsole profile shows `BidiEnabled=true` and `BidiLineLTR=false`, the BiDi wrapper is active (`KIVUN_BIDI_WRAPPER=on`), and Hebrew letters read in the correct order, then the RTL pieces Kivun controls are configured correctly.
+
+Two things still limit true right-alignment:
+
+1. **Claude Code's TUI chrome is drawn at fixed left coordinates.** The prompt `>`, the `●` bullets, and the box borders are positioned by Claude at the left of the screen. The terminal's BiDi engine can reorder the *text* correctly (and does), but it can't relocate an application that paints its own frame on the left. This needs an upstream change in Claude Code; see `docs/FEATURE_REQUEST_ANTHROPIC.md`.
+
+2. **Konsole version drift.** Kivun's BiDi tunables (`KIVUN_BIDI_*`) are calibrated for Konsole **23.x** (the Ubuntu 24.04 default). On Konsole **25.x** the BiDi behavior may differ. If alignment looks off there, try toggling one knob in `%LOCALAPPDATA%\Kivun-WSL\config.txt`:
+
+   ```
+   KIVUN_BIDI_BRACKET_RTL_RUNS=on
+   ```
+
+   (Default `off` is correct for 23.x; `on` is worth testing on 24.x/25.x.) Relaunch and compare. If it helps on your version, please file an issue noting your `konsole --version` so the default can auto-adapt.
+
 ## Symptom: Konsole opens, then Claude immediately exits with `--dangerously-skip-permissions cannot be used with root/sudo privileges`
 
 **Cause:** Your WSL Ubuntu's default user is `root` (or WSLg's runtime-dir is owned by root, which usually means the same thing). Kivun detects the WSLg owner and runs as that user — when that user is `root`, Claude Code refuses to start because of its `--dangerously-skip-permissions` security guard. The launcher path you'll see in the error is `/root/.local/share/kivun-terminal/kivun-claude-bidi/...` — the `/root/` prefix confirms the diagnosis.

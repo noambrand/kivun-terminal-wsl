@@ -584,6 +584,26 @@ Color=50,255,241
 CS
 log "Konsole profile + color scheme deployed to $KONSOLE_DIR"
 
+# Make "Kivun Terminal" the DEFAULT Konsole profile. The launcher opens its
+# first window with `konsole --profile KivunTerminal`, but new tabs/windows the
+# user opens fall back to Konsole's configured default (Built-in: black, BiDi
+# off). Konsole reads that default from DefaultProfile= under [Desktop Entry] in
+# ~/.config/konsolerc. Write it idempotently, preserving the user's other keys.
+KONSOLERC="$HOME/.config/konsolerc"
+mkdir -p "$(dirname "$KONSOLERC")"
+if [ -f "$KONSOLERC" ]; then
+    if grep -q '^DefaultProfile=' "$KONSOLERC"; then
+        sed -i 's#^DefaultProfile=.*#DefaultProfile=KivunTerminal.profile#' "$KONSOLERC"
+    elif grep -q '^\[Desktop Entry\]' "$KONSOLERC"; then
+        sed -i '/^\[Desktop Entry\]/a DefaultProfile=KivunTerminal.profile' "$KONSOLERC"
+    else
+        printf '[Desktop Entry]\nDefaultProfile=KivunTerminal.profile\n' >> "$KONSOLERC"
+    fi
+else
+    printf '[Desktop Entry]\nDefaultProfile=KivunTerminal.profile\n' > "$KONSOLERC"
+fi
+log "Set DefaultProfile=KivunTerminal.profile in $KONSOLERC"
+
 # --- Desktop entry (app menu) ---
 APPS_DIR="$HOME/.local/share/applications"
 mkdir -p "$APPS_DIR"

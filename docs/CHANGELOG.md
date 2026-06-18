@@ -27,6 +27,53 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.36] - 2026-06-18
+
+### Fixed — launcher no longer breaks when the default WSL distro isn't Ubuntu (Docker Desktop)
+
+The launcher converted Windows paths to WSL paths with a **bare `wsl wslpath`**,
+which resolves against the user's **default** WSL distro, but ran every real
+operation against **Ubuntu**. When the default distro was Docker Desktop's
+`docker-desktop` (which mounts `C:` at `/mnt/host/c` instead of `/mnt/c`), the
+converted path pointed somewhere that doesn't exist inside Ubuntu, so the Claude
+auto-install and the launch both failed silently (`No such file or directory`,
+exit 127). One root cause, many symptoms. The launcher now pins a single
+`DISTRO=Ubuntu` knob for **both** path conversion and execution, so it works
+regardless of the user's default distro. `kivun-diagnostics.cmd` now probes
+Ubuntu explicitly too (no more false "bash: not found" on Docker-Desktop hosts).
+
+### Fixed — new Konsole tabs/windows now inherit the Kivun profile (RTL + light theme)
+
+The launcher opened its first window with `konsole --profile KivunTerminal`, but
+that flag only governs that one session — new tabs/windows fell back to Konsole's
+**Built-in** profile (black background, BiDi off), so Hebrew rendered left-aligned
+and the user had to right-click → Switch Profile every time. The installer/launcher
+now writes `DefaultProfile=KivunTerminal.profile` into `~/.config/konsolerc`, making
+Kivun the default for every new tab and window.
+
+### Fixed — install script CRLF safety
+
+`kivun-install-claude.sh` is now stripped of CR line endings before it runs (it was
+missing from the line-ending fix list), preventing the same exit-127 class of error
+on first install.
+
+### Changed — clearer installer error messages (admin vs. internet)
+
+When Ubuntu packages can't be installed, the most common real cause is the installer
+not being **Run as Administrator** (so first-time WSL/Ubuntu setup never finished),
+not "no internet." The installer now pre-checks that Ubuntu is reachable and leads
+with the "Run as administrator" guidance instead of sending users to chase a network
+problem.
+
+### Added — optional Authenticode code signing (reduces antivirus false positives)
+
+The Windows build can now sign both `KivunTerminal.exe` and `Kivun_Terminal_Setup.exe`
+when a `CODE_SIGN_PFX_BASE64` (+ `CODE_SIGN_PFX_PASSWORD`) secret is present; without
+the secret the build is unsigned exactly as before. The launcher also ships an
+`asInvoker` application manifest. Both reduce the SmartScreen/Defender false-positive
+"virus detected" heuristics. A code-signing certificate still has to be purchased and
+added as a secret to activate signing.
+
 ## [1.4.35] - 2026-06-16
 
 ### Fixed — Miriam Mono CLM now actually installs on Ubuntu (was silently falling back to FreeMono)

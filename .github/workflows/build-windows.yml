@@ -15,6 +15,14 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    env:
+      # Authenticode code signing is OPTIONAL: it only runs when the repo has a
+      # CODE_SIGN_PFX_BASE64 secret (and its password). Without the secret, CI
+      # still builds an UNSIGNED installer exactly as before — nothing breaks,
+      # the signing steps just skip. Add the secret once a cert is purchased to
+      # stop Defender/SmartScreen flagging the .exe as a false-positive virus.
+      # Secrets can't be used in `if:` directly, so surface presence as a bool.
+      HAS_SIGNING: ${{ secrets.CODE_SIGN_PFX_BASE64 != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -50,6 +58,36 @@ jobs:
           fi
           ls -la launcher/out/KivunTerminal.exe
 
+      # Decode the signing cert once and locate signtool from the Windows SDK.
+      # Exports SIGNTOOL + SIGN_PFX into $GITHUB_ENV for the two sign steps.
+      - name: Prepare code signing
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        env:
+          MSYS_NO_PATHCONV: '1'
+          SIGN_PFX_B64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
+        run: |
+          echo "$SIGN_PFX_B64" | base64 -d > "$RUNNER_TEMP/kivun-sign.pfx"
+          SIGNTOOL=$(find "/c/Program Files (x86)/Windows Kits/10/bin" -name signtool.exe -path '*x64*' 2>/dev/null | sort -V | tail -1)
+          if [ -z "$SIGNTOOL" ]; then
+            echo "::error::signtool.exe not found in Windows SDK — cannot sign." >&2
+            exit 1
+          fi
+          echo "SIGNTOOL=$SIGNTOOL" >> "$GITHUB_ENV"
+          echo "SIGN_PFX=$RUNNER_TEMP/kivun-sign.pfx" >> "$GITHUB_ENV"
+          echo "Using signtool: $SIGNTOOL"
+
+      # Sign the launcher BEFORE makensis runs — makensis embeds this exe into
+      # the installer, so it must already be signed for the embedded copy to be
+      # trusted.
+      - name: Sign launcher (KivunTerminal.exe)
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        env:
+          MSYS_NO_PATHCONV: '1'
+          SIGN_PASS: ${{ secrets.CODE_SIGN_PFX_PASSWORD }}
+        run: |
+          "$SIGNTOOL" sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "$SIGN_PFX" /p "$SIGN_PASS" launcher/out/KivunTerminal.exe
+          "$SIGNTOOL" verify /pa launcher/out/KivunTerminal.exe
+
       - name: Build installer
         working-directory: installer
         run: |
@@ -60,6 +98,16 @@ jobs:
           fi
           size_kb=$(( $(stat -c%s Kivun_Terminal_Setup.exe) / 1024 ))
           echo "Built Kivun_Terminal_Setup.exe (${size_kb} KB)"
+
+      - name: Sign installer (Kivun_Terminal_Setup.exe)
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        working-directory: installer
+        env:
+          MSYS_NO_PATHCONV: '1'
+          SIGN_PASS: ${{ secrets.CODE_SIGN_PFX_PASSWORD }}
+        run: |
+          "$SIGNTOOL" sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "$SIGN_PFX" /p "$SIGN_PASS" Kivun_Terminal_Setup.exe
+          "$SIGNTOOL" verify /pa Kivun_Terminal_Setup.exe
 
       - name: Upload installer as workflow artifact
         uses: actions/upload-artifact@v4

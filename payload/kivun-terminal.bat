@@ -10,6 +10,17 @@ if exist "%~dp0VERSION" (
     for /f "usebackq delims=" %%V in ("%~dp0VERSION") do set "PRODUCT_VERSION=%%V"
 )
 
+REM v1.4.36: pin the WSL distro for BOTH path conversion AND execution.
+REM A BARE "wsl wslpath" resolves against the user's DEFAULT distro, but every
+REM real operation runs against Ubuntu. When the default distro isn't Ubuntu
+REM (Docker Desktop's "docker-desktop" makes itself default and mounts C: at
+REM /mnt/host/c, not /mnt/c), the converted path points somewhere that does
+REM not exist inside Ubuntu -> "No such file or directory" / exit 127, and the
+REM auto-install + launch both fail silently. Routing every wslpath AND every
+REM -d call through one DISTRO knob keeps conversion and execution consistent
+REM no matter what the user's default distro is.
+set "DISTRO=Ubuntu"
+
 title Kivun Terminal v%PRODUCT_VERSION% - Launch Log: %LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt
 
 REM Initialize log file
@@ -216,7 +227,7 @@ REM content itself and types each line into Konsole after Claude is up.
 REM Convert the Windows path to a WSL path so bash can read it directly.
 set "STARTUP_CMDS_WSL="
 if exist "%LOCALAPPDATA%\Kivun-WSL\kivun-startup-cmds.txt" (
-    for /f "delims=" %%i in ('wsl wslpath "%LOCALAPPDATA%\Kivun-WSL\kivun-startup-cmds.txt" 2^>nul') do set "STARTUP_CMDS_WSL=%%i"
+    for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath "%LOCALAPPDATA%\Kivun-WSL\kivun-startup-cmds.txt" 2^>nul') do set "STARTUP_CMDS_WSL=%%i"
     call :LOG "INFO - Startup commands file: %STARTUP_CMDS_WSL%"
 )
 
@@ -246,14 +257,14 @@ call :LOG "SUCCESS - WSL is installed and working"
 echo   WSL: OK
 
 call :LOG "INFO - Checking Ubuntu distribution"
-wsl -d Ubuntu echo OK < nul 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% echo OK < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "WARNING - Ubuntu not responding, attempting WSL restart"
     echo Ubuntu not responding, restarting WSL...
     wsl --shutdown
     call :LOG "INFO - WSL shutdown command issued, waiting 3 seconds"
     timeout /t 3 /nobreak >nul
-    wsl -d Ubuntu echo OK < nul 2>&1 >> "%LOG_FILE%"
+    wsl -d %DISTRO% echo OK < nul 2>&1 >> "%LOG_FILE%"
     if %ERRORLEVEL% NEQ 0 (
         call :LOG "ERROR - Ubuntu not available after restart (error %ERRORLEVEL%)"
         echo ERROR: Ubuntu not available.
@@ -293,7 +304,7 @@ REM .profile, without requiring the user to set a config var. The
 REM resolver in kivun-claude-bidi/lib/resolve-claude-bin.js does the
 REM same thing on the wrapper side -- both paths agree about what
 REM "installed" means.
-wsl -d Ubuntu -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 goto :claude_present
 REM Standard slots empty -- ask a login shell to actively discover.
 REM bash -lc sources .profile/.bashrc so nvm/pnpm/yarn paths are
@@ -301,7 +312,7 @@ REM visible. `grep -q -v ^/mnt/` rejects a Windows npm claude reached
 REM through the appended Windows PATH (/mnt/c/.../npm/claude) -- not a
 REM runnable native Linux binary; accepting it made the launcher skip
 REM the native install and then drive the Windows binary (TUI dies).
-wsl -d Ubuntu -- bash -lc "command -v claude | grep -q -v ^/mnt/" < nul 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% -- bash -lc "command -v claude | grep -q -v ^/mnt/" < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 (
     call :LOG "INFO - Claude found via login-shell PATH (non-standard install location)"
     goto :claude_present
@@ -323,7 +334,7 @@ REM falls through to :run_direct via `goto`. Until v1.1.18 the goto
 REM jumped OVER both the path conversion (sets WSL_PATH + INST_WSL)
 REM and the WSLg-user detection (sets WSL_USER_FLAG), so the direct
 REM fallback ran with all three variables empty — bash got
-REM `wsl -d Ubuntu bash kivun-direct.sh` with no INST_WSL prefix,
+REM `wsl -d %DISTRO% bash kivun-direct.sh` with no INST_WSL prefix,
 REM couldn't find the script, the launch silently failed, and the
 REM launcher logged "Claude session ended" anyway because the exit
 REM code wasn't checked. Reordering puts all three variables in the
@@ -347,16 +358,16 @@ if "%WORK_DIR%"=="." (
     set "WORK_DIR=%USERPROFILE%"
     call :LOG "INFO - WORK_DIR was '.', substituting USERPROFILE=%USERPROFILE%"
 )
-for /f "delims=" %%i in ('wsl wslpath "%WORK_DIR%" 2^>nul') do set "WSL_PATH=%%i"
+for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath "%WORK_DIR%" 2^>nul') do set "WSL_PATH=%%i"
 REM Belt-and-suspenders: if wslpath still returned "" or ".", fall back
 REM to USERPROFILE via a second wslpath call (NOT to ~). v1.1.16 used ~
 REM which lands users in the WSL home; v1.1.17 keeps the Windows-home
 REM contract that the Desktop shortcut implies.
 if "%WSL_PATH%"=="" (
-    for /f "delims=" %%i in ('wsl wslpath "%USERPROFILE%" 2^>nul') do set "WSL_PATH=%%i"
+    for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath "%USERPROFILE%" 2^>nul') do set "WSL_PATH=%%i"
     call :LOG "WARNING - wslpath returned empty for '%WORK_DIR%', falling back to USERPROFILE"
 ) else if "%WSL_PATH%"=="." (
-    for /f "delims=" %%i in ('wsl wslpath "%USERPROFILE%" 2^>nul') do set "WSL_PATH=%%i"
+    for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath "%USERPROFILE%" 2^>nul') do set "WSL_PATH=%%i"
     call :LOG "WARNING - wslpath returned '.' for '%WORK_DIR%', falling back to USERPROFILE"
 ) else (
     call :LOG "SUCCESS - WSL work path: %WSL_PATH%"
@@ -365,7 +376,7 @@ call :LOG "INFO - Converting installation directory: %~dp0"
 REM %~dp0 ends with a backslash which confuses wslpath. Strip it.
 set "INST_DIR=%~dp0"
 if "%INST_DIR:~-1%"=="\" set "INST_DIR=%INST_DIR:~0,-1%"
-for /f "delims=" %%i in ('wsl wslpath -a "%INST_DIR%" 2^>nul') do set "INST_WSL=%%i"
+for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath -a "%INST_DIR%" 2^>nul') do set "INST_WSL=%%i"
 if "%INST_WSL%"=="" (
     call :LOG "WARNING - wslpath failed, using manual conversion for: %INST_DIR%"
     call :WIN_TO_WSL_PATH "%INST_DIR%" INST_WSL
@@ -378,10 +389,14 @@ echo.
 echo Path: %WSL_PATH%
 
 REM Fix line endings in launch script (Windows creates CRLF, bash needs LF)
-call :LOG "INFO - Fixing line endings in kivun-launch.sh + kivun-direct.sh + kivun-set-icon.py"
-wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-launch.sh" 2>&1 >> "%LOG_FILE%"
-wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-direct.sh" 2>&1 >> "%LOG_FILE%"
-wsl -d Ubuntu -- sed -i "s/\r$//" "%INST_WSL%kivun-set-icon.py" 2>&1 >> "%LOG_FILE%"
+call :LOG "INFO - Fixing line endings in kivun-launch.sh + kivun-direct.sh + kivun-set-icon.py + kivun-install-claude.sh"
+wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-launch.sh" 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-direct.sh" 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-set-icon.py" 2>&1 >> "%LOG_FILE%"
+REM v1.4.36: kivun-install-claude.sh runs from :INSTALL_CLAUDE_WSL (before this
+REM block on a first install) but is also re-stripped here so a CRLF-shipped
+REM copy never trips bash with the same exit-127 "No such file" class of error.
+wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-install-claude.sh" 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Line endings fixed"
 ) else (
@@ -389,7 +404,7 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 REM Convert bash log path to WSL format
-for /f "delims=" %%i in ('wsl wslpath "%LOCALAPPDATA%\Kivun-WSL\BASH_LAUNCH_LOG.txt" 2^>nul') do set "BASH_LOG_WSL=%%i"
+for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath "%LOCALAPPDATA%\Kivun-WSL\BASH_LAUNCH_LOG.txt" 2^>nul') do set "BASH_LOG_WSL=%%i"
 call :LOG "INFO - Bash log WSL path: %BASH_LOG_WSL%"
 
 REM Detect which user owns WSLg's runtime dir. Qt's QStandardPaths
@@ -397,7 +412,7 @@ REM refuses to use XDG_RUNTIME_DIR unless it's owned by the current user,
 REM which breaks Konsole's display when the default WSL user differs
 REM from the one WSLg was initialized with. We run as that user instead.
 set "WSLG_USER="
-for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- stat -c "%%U" /mnt/wslg/runtime-dir 2^>nul') do set "WSLG_USER=%%U"
+for /f "delims=" %%U in ('wsl -d %DISTRO% --user root -- stat -c "%%U" /mnt/wslg/runtime-dir 2^>nul') do set "WSLG_USER=%%U"
 REM v1.1.4: stat -c "%U" returns the literal string "UNKNOWN" when the
 REM directory's UID has no /etc/passwd entry (e.g. fresh WSL distros
 REM created via cloud images). Passing that to `wsl --user UNKNOWN`
@@ -419,15 +434,15 @@ REM subtle bugs.
 if /i "%WSLG_USER%"=="root" set "WSLG_USER="
 if not defined WSLG_USER (
     call :LOG "INFO - WSLg owner unusable; querying UID 1000 as non-root fallback"
-    for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
+    for /f "delims=" %%U in ('wsl -d %DISTRO% --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
 )
 if not defined WSLG_USER (
     call :LOG "INFO - No non-root user in Ubuntu; auto-creating one (Claude cannot run as root)"
     echo   Setting up your Linux user ^(one-time, a few seconds^)...
-    type "%~dp0kivun-ensure-user.sh" | wsl -d Ubuntu --user root -- bash -s >> "%LOG_FILE%" 2>&1
+    type "%~dp0kivun-ensure-user.sh" | wsl -d %DISTRO% --user root -- bash -s >> "%LOG_FILE%" 2>&1
     call :LOG "INFO - Restarting Ubuntu so the new default user owns WSLg"
     wsl --terminate Ubuntu >> "%LOG_FILE%" 2>&1
-    for /f "delims=" %%U in ('wsl -d Ubuntu --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
+    for /f "delims=" %%U in ('wsl -d %DISTRO% --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
 )
 if not defined WSLG_USER (
     call :LOG "ERROR - Could not auto-create a non-root user in Ubuntu"
@@ -443,12 +458,12 @@ set "WSL_USER_FLAG=--user %WSLG_USER%"
 
 REM Check if Konsole is installed
 call :LOG "INFO - Checking if Konsole is installed"
-wsl -d Ubuntu -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "WARNING - Konsole not found, attempting installation"
     echo   Konsole: NOT FOUND - installing...
-    wsl -d Ubuntu -- sudo apt-get install -y konsole 2>&1 >> "%LOG_FILE%"
-    wsl -d Ubuntu -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
+    wsl -d %DISTRO% -- sudo apt-get install -y konsole 2>&1 >> "%LOG_FILE%"
+    wsl -d %DISTRO% -- bash -c "command -v konsole" 2>&1 >> "%LOG_FILE%"
     if %ERRORLEVEL% NEQ 0 (
         call :LOG "ERROR - Konsole installation failed"
         echo   Konsole install failed - will run Claude directly.
@@ -466,10 +481,10 @@ REM is optional -- the launcher logs and skips if missing -- but the
 REM cost of pre-installing is low and gives every user the branded
 REM icon out of the box. Use --user root to avoid sudo password prompts.
 call :LOG "INFO - Checking python3-xlib + python3-pil for icon override"
-wsl -d Ubuntu -- bash -c "python3 -c 'import Xlib, PIL' 2>/dev/null" >> "%LOG_FILE%" 2>&1
+wsl -d %DISTRO% -- bash -c "python3 -c 'import Xlib, PIL' 2>/dev/null" >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 (
     call :LOG "INFO - Installing python3-xlib + python3-pil"
-    wsl -d Ubuntu --user root -- apt-get install -y python3-xlib python3-pil >> "%LOG_FILE%" 2>&1
+    wsl -d %DISTRO% --user root -- apt-get install -y python3-xlib python3-pil >> "%LOG_FILE%" 2>&1
     if %ERRORLEVEL% NEQ 0 (
         call :LOG "WARNING - python deps install failed; window will keep default X icon"
     ) else (
@@ -523,7 +538,7 @@ REM clutter the desktop; all its output still goes to BASH_LAUNCH_LOG.txt.
 echo.
 echo Launching Konsole...
 call :LOG "INFO - Launching Konsole via kivun-launch.sh"
-call :LOG "INFO - Command: wsl -d Ubuntu %WSL_USER_FLAG% bash %INST_WSL%kivun-launch.sh %WSL_PATH% [prompt] %PRIMARY_LANGUAGE% %USE_VCXSRV% %BASH_LOG_WSL% %TEXT_DIRECTION% %PRIMARY_MON% [flags]"
+call :LOG "INFO - Command: wsl -d %DISTRO% %WSL_USER_FLAG% bash %INST_WSL%kivun-launch.sh %WSL_PATH% [prompt] %PRIMARY_LANGUAGE% %USE_VCXSRV% %BASH_LOG_WSL% %TEXT_DIRECTION% %PRIMARY_MON% [flags]"
 title Kivun Terminal v%PRODUCT_VERSION% - Loading
 REM Hidden mode: /MIN would create a NEW minimized console for wsl.exe - a
 REM visible taskbar item, the exact thing the native launcher exists to kill.
@@ -533,11 +548,11 @@ REM via setsid inside kivun-launch.sh, so its lifetime never depended on
 REM wsl.exe in the first place. Goto-flat: %CLAUDE_PROMPT% may contain
 REM parens (e.g. "(Farsi)"), which break inside an if (...) block.
 if defined KIVUN_HIDDEN goto :launch_hidden
-start "Kivun Bash" /MIN wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-launch.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%PRIMARY_LANGUAGE%" "%USE_VCXSRV%" "%BASH_LOG_WSL%" "%TEXT_DIRECTION%" "%PRIMARY_MON%" "%CLAUDE_FLAGS%" "%STARTUP_CMDS_WSL%"
+start "Kivun Bash" /MIN wsl -d %DISTRO% %WSL_USER_FLAG% bash "%INST_WSL%kivun-launch.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%PRIMARY_LANGUAGE%" "%USE_VCXSRV%" "%BASH_LOG_WSL%" "%TEXT_DIRECTION%" "%PRIMARY_MON%" "%CLAUDE_FLAGS%" "%STARTUP_CMDS_WSL%"
 goto :launch_spawned
 :launch_hidden
 call :LOG "INFO - KIVUN_HIDDEN: start /B keeps the WSL bridge in this hidden console (no taskbar item)"
-start "Kivun Bash" /B wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-launch.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%PRIMARY_LANGUAGE%" "%USE_VCXSRV%" "%BASH_LOG_WSL%" "%TEXT_DIRECTION%" "%PRIMARY_MON%" "%CLAUDE_FLAGS%" "%STARTUP_CMDS_WSL%"
+start "Kivun Bash" /B wsl -d %DISTRO% %WSL_USER_FLAG% bash "%INST_WSL%kivun-launch.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%PRIMARY_LANGUAGE%" "%USE_VCXSRV%" "%BASH_LOG_WSL%" "%TEXT_DIRECTION%" "%PRIMARY_MON%" "%CLAUDE_FLAGS%" "%STARTUP_CMDS_WSL%"
 :launch_spawned
 if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Launch command executed"
@@ -578,7 +593,7 @@ REM Hidden mode: an INTERACTIVE Claude session cannot run in a console with
 REM no window. Open a fresh visible console for it and exit this hidden one.
 if not defined KIVUN_HIDDEN goto :run_direct_console
 call :LOG "INFO - KIVUN_HIDDEN: opening a visible console for the direct Claude session"
-start "Kivun Terminal" wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%CLAUDE_FLAGS%"
+start "Kivun Terminal" wsl -d %DISTRO% %WSL_USER_FLAG% bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%CLAUDE_FLAGS%"
 exit /b 0
 :run_direct_console
 echo ========================================
@@ -601,7 +616,7 @@ REM the Konsole-launch path but missed this one — when Konsole failed and
 REM we fell back to direct execution, we'd still spawn Claude as the wsl
 REM default user (which on root-default-user distros is root, and Claude
 REM refuses). Now both paths use the same resolved non-root user.
-wsl -d Ubuntu %WSL_USER_FLAG% bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%CLAUDE_FLAGS%"
+wsl -d %DISTRO% %WSL_USER_FLAG% bash "%INST_WSL%kivun-direct.sh" "%WSL_PATH%" "%CLAUDE_PROMPT%" "%CLAUDE_FLAGS%"
 call :LOG "COMPLETE - Claude session ended"
 echo.
 echo ========================================
@@ -786,10 +801,16 @@ REM later, after :claude_present). Strip trailing backslash from %~dp0
 REM before wslpath — wslpath returns "." for paths ending in `\`.
 set "_INST_DIR=%~dp0"
 if "%_INST_DIR:~-1%"=="\" set "_INST_DIR=%_INST_DIR:~0,-1%"
-for /f "delims=" %%i in ('wsl wslpath -a "%_INST_DIR%" 2^>nul') do set "_INST_WSL=%%i"
+for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath -a "%_INST_DIR%" 2^>nul') do set "_INST_WSL=%%i"
 if "%_INST_WSL%"=="" call :WIN_TO_WSL_PATH "%_INST_DIR%" _INST_WSL
 if not "%_INST_WSL:~-1%"=="/" set "_INST_WSL=%_INST_WSL%/"
 call :LOG "INFO - Install dir WSL path: %_INST_WSL%"
+
+REM v1.4.36: strip CRLF from the install script BEFORE running it. This is
+REM the FIRST-install path (Claude missing) and runs before the main launch
+REM block's line-ending fix, so a CRLF-shipped kivun-install-claude.sh would
+REM otherwise fail with bash's "No such file or directory" (exit 127).
+wsl -d %DISTRO% -- sed -i "s/\r$//" "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
 
 REM v1.1.31: SYNCHRONOUS install via `setsid -w`. v1.1.21–v1.1.30 tried
 REM backgrounded install + cmd-side polling — every cmd-side sleep
@@ -808,7 +829,7 @@ REM `setsid -w` runs the install in a new session AND waits for it.
 REM install.sh's forked daemons inherit the new session, so they don't
 REM keep wsl.exe alive after install completes. wsl.exe sees setsid
 REM exit, returns. ERRORLEVEL captures install.sh exit code.
-wsl -d Ubuntu -- setsid -w bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
+wsl -d %DISTRO% -- setsid -w bash "%_INST_WSL%kivun-install-claude.sh" >> "%LOG_FILE%" 2>&1
 set "INSTALL_RC=%ERRORLEVEL%"
 
 :_install_after
@@ -822,12 +843,12 @@ REM Windows paths like `/mnt/c/Program Files (x86)/sbt/bin` with literal
 REM `(` and `)`. Bash word-splits the unquoted assignment value, hits
 REM the `(` as a subshell-open token, and dies with a syntax error.
 REM Listing absolute paths sidesteps PATH entirely.
-wsl -d Ubuntu -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
+wsl -d %DISTRO% -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 goto :_install_failed
 REM Log the installed version so future bug reports include it.
 REM Same constraint: do not lean on $PATH expansion. Try the user-local
 REM install first; on failure fall back to whatever PATH lookup yields.
-wsl -d Ubuntu -- bash -lc "$HOME/.local/bin/claude --version 2>/dev/null || claude --version 2>/dev/null" < nul > "%TEMP%\kivun-claude-version.txt" 2>&1
+wsl -d %DISTRO% -- bash -lc "$HOME/.local/bin/claude --version 2>/dev/null || claude --version 2>/dev/null" < nul > "%TEMP%\kivun-claude-version.txt" 2>&1
 for /f "delims=" %%v in ('type "%TEMP%\kivun-claude-version.txt" 2^>nul') do call :LOG "INFO - Claude version: %%v"
 del "%TEMP%\kivun-claude-version.txt" 2>nul
 call :LOG "SUCCESS - Claude Code installed in WSL"
@@ -842,12 +863,12 @@ exit /b
 :_NPM_FALLBACK
 call :LOG "WARNING - Official installer failed, trying npm fallback"
 echo Official installer failed, trying npm fallback (~2-3 min)...
-wsl -d Ubuntu -u root -- bash -c "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
+wsl -d %DISTRO% -u root -- bash -c "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
 exit /b
 
 :_install_failed
 call :LOG "ERROR - Claude auto-install failed"
-echo Claude install failed. See: wsl -d Ubuntu -- cat /tmp/kivun-claude.log
+echo Claude install failed. See: wsl -d %DISTRO% -- cat /tmp/kivun-claude.log
 exit /b
 
 :no_claude_exit
@@ -859,7 +880,7 @@ echo.
 echo ========================================
 echo   Claude Code is required but not installed in Ubuntu.
 echo   Install manually:
-echo     wsl -d Ubuntu -- bash -lc "curl -fsSL https://claude.ai/install.sh ^| bash"
+echo     wsl -d %DISTRO% -- bash -lc "curl -fsSL https://claude.ai/install.sh ^| bash"
 echo   Then re-run Kivun Terminal.
 echo   NOTE: Windows-side Claude Code does NOT work here.
 echo ========================================

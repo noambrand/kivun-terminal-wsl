@@ -11,6 +11,11 @@ set "KDIR=%LOCALAPPDATA%\Kivun-WSL"
 if not exist "%KDIR%" mkdir "%KDIR%" 2>nul
 set "RPT=%KDIR%\Kivun-Report.txt"
 set "WSL=%WINDIR%\System32\wsl.exe"
+REM Probe the SAME distro the launcher actually uses (Ubuntu), never the user's
+REM default distro. On machines where Docker Desktop's "docker-desktop" is the
+REM default, a bare "wsl -- bash" runs in a distro that has no bash and reports
+REM a false "bash: not found", masking a perfectly healthy Ubuntu install.
+set "DISTRO=Ubuntu"
 set "CONTACT=noambbb@gmail.com"
 set "ISSUES=https://github.com/noambrand/kivun-terminal-wsl/issues"
 
@@ -62,7 +67,11 @@ tasklist 2>nul | findstr /i "mcafee mfe MsMpEng windefend avp avgnt egui avastsv
 
 >>"%RPT%" echo.
 >>"%RPT%" echo ===== [5] Inside WSL/Ubuntu (claude + node) =====
-"%WSL%" -- bash -lc "echo ubuntu_reachable; command -v claude || echo claude_missing; command -v node || echo node_missing" >>"%RPT%" 2>&1
+REM -d %DISTRO% targets Ubuntu explicitly; the [3] "wsl -l -v" above shows which
+REM distro is the user's DEFAULT (marked with *). If that is NOT Ubuntu (e.g.
+REM docker-desktop), the launcher's bare-wslpath path bug applied pre-v1.4.36.
+"%WSL%" -d %DISTRO% -- bash -lc "echo ubuntu_reachable; command -v claude || echo claude_missing; command -v node || echo node_missing" >>"%RPT%" 2>&1
+>>"%RPT%" echo [ubuntu probe exit=%errorlevel% via -d %DISTRO%]
 
 >>"%RPT%" echo.
 >>"%RPT%" echo ===== [6] Kivun install log =====

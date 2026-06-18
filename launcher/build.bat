@@ -50,7 +50,10 @@ if errorlevel 1 (
 )
 REM /MT statically links the CRT: the exe must run on a clean machine with
 REM no VC++ Redistributable installed (same rule the .bat lives by).
-cl.exe /nologo /W4 /WX /O1 /MT /GS /DUNICODE /D_UNICODE /Foout\ /Feout\KivunTerminal.exe kivun-launcher.cpp out\kivun-launcher.res /link /SUBSYSTEM:WINDOWS user32.lib
+REM /link /MANIFEST:NO: the linker embeds a default manifest unless told not to.
+REM We supply our own (kivun-launcher.manifest, via the .res) declaring
+REM asInvoker, so suppress the auto one to avoid a duplicate RT_MANIFEST.
+cl.exe /nologo /W4 /WX /O1 /MT /GS /DUNICODE /D_UNICODE /Foout\ /Feout\KivunTerminal.exe kivun-launcher.cpp out\kivun-launcher.res /link /SUBSYSTEM:WINDOWS /MANIFEST:NO user32.lib
 if errorlevel 1 (
     echo ERROR: cl.exe failed.
     popd
