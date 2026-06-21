@@ -27,6 +27,21 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.38] - 2026-06-21
+
+### Fixed — updater auto-repair now detects by filesystem slot (robust + CI-tested)
+
+Follow-up to v1.4.37's `:_REPAIR_UPDATER`. Its detection used
+`command -v claude` in a login shell, which can resolve to a `/mnt/c` Windows
+binary (the same reason the launcher's presence check carries the line-315
+`grep -v ^/mnt/` guard). The repair now checks the actual system slots
+(`/usr/local/bin/claude`, `/usr/bin/claude`) directly and runs that exact
+binary's `install` to migrate to user-writable `~/.local/bin` — no PATH/login
+dependence, no `command -v`. Same one-shot marker guard. This also made the
+behavior deterministic, so the new real-WSL CI job
+`test-updater-repair-migrates-root-install` (which fought the old command-based
+detection plus an auto-create/restart race) now validates the branch reliably.
+
 ## [1.4.37] - 2026-06-21
 
 ### Fixed — npm fallback no longer breaks Claude Code auto-update (users stuck on an old version)

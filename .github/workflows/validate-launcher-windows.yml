@@ -139,8 +139,12 @@ jobs:
             | grep -q 'updater-repaired' \
             || (echo "FAIL: :_REPAIR_UPDATER missing its one-shot marker guard (~/.kivun/updater-repaired)"; exit 1)
           awk '/^:_REPAIR_UPDATER/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
-            | grep -q 'claude install' \
-            || (echo "FAIL: :_REPAIR_UPDATER does not run the native 'claude install' migration"; exit 1)
+            | grep -qE '\$CC install|claude install' \
+            || (echo "FAIL: :_REPAIR_UPDATER does not run the native install migration"; exit 1)
+          # v1.4.38: detection is filesystem-based (system slots), not command -v.
+          awk '/^:_REPAIR_UPDATER/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
+            | grep -q '/usr/local/bin/claude' \
+            || (echo "FAIL: :_REPAIR_UPDATER no longer detects the /usr/local system slot"; exit 1)
           echo "PASS: one-time updater auto-repair branch is present and wired in"
 
           # The new ~/.npm-global/bin slot must be searched by BOTH the launcher
@@ -1709,23 +1713,20 @@ jobs:
           wsl_path=$(wsl wslpath -a "$tmp" | tr -d '\r')
           wsl -d Ubuntu --user root -- bash "$wsl_path"
 
-      - name: Sanity — confirm the default user's repair detection will fire
+      - name: Sanity — confirm the repair detection precondition holds
         shell: bash
         run: |
           set -e
-          # This is exactly what :_REPAIR_UPDATER evaluates. If `command -v claude`
-          # in a login shell does not resolve under /usr/local|/usr/bin (e.g. a
-          # /mnt/c Windows claude wins, or PATH lacks /usr/local/bin), the repair
-          # would no-op — surface that here BEFORE running the launcher.
-          echo "id:        $(wsl -d Ubuntu -- bash -lc 'id -un' | tr -d '\r')"
-          cb=$(wsl -d Ubuntu -- bash -lc 'command -v claude' | tr -d '\r')
-          echo "command -v claude (login): '$cb'"
-          echo "$cb" | grep -Eq '^/usr/(local|bin)/' \
-            || { echo "FAIL: claude does not resolve under /usr/local|/usr/bin for the default user; repair would no-op" >&2; \
-                 wsl -d Ubuntu -- bash -lc 'echo PATH=$PATH'; exit 1; }
+          # v1.4.38: detection is filesystem-based — :_REPAIR_UPDATER fires when a
+          # system-slot claude exists AND ~/.local/bin/claude does not. Verify both
+          # BEFORE running the launcher so a setup slip surfaces here, not as a
+          # confusing launcher failure.
+          echo "id: $(wsl -d Ubuntu -- bash -lc 'id -un' | tr -d '\r')"
+          wsl -d Ubuntu -- bash -c "test -x /usr/local/bin/claude" \
+            || { echo "FAIL: /usr/local/bin/claude (the simulated broken install) is missing" >&2; exit 1; }
           wsl -d Ubuntu -- bash -c "test ! -e /home/kivuntest/.local/bin/claude" \
             || { echo "FAIL: native slot already populated before test" >&2; exit 1; }
-          echo "PASS: detection precondition holds (claude at $cb, native slot empty)"
+          echo "PASS: detection precondition holds (system slot present, native slot empty)"
 
       - name: Build stdin and start launcher (run 1) in background
         shell: cmd

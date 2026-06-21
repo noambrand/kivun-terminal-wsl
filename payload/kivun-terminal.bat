@@ -893,13 +893,16 @@ REM Anthropic's native installer, which drops a user-writable copy in
 REM ~/.local/bin (no sudo) — exactly what `claude /doctor` recommends. Without
 REM this, those users see "Auto-update failed: no write permission to npm
 REM prefix" every session and stay stuck on an old version.
-REM   Guard: skip if the marker exists (runs once) or if claude is already in a
-REM   user-writable slot (command -v not under /usr/...). Non-fatal: on any
-REM   failure we just leave things as-is and continue the launch.
-REM   Quoting: single quotes for the regex, no inner double quotes, no ( ) — cmd
-REM   passes the whole arg to bash verbatim only when those are avoided.
+REM   v1.4.38: detect by FILESYSTEM slot, not `command -v claude`. A login
+REM   shell's PATH can resolve `claude` to a /mnt/c Windows binary (see the
+REM   line-315 guard), so command-based detection was unreliable. We now check
+REM   the actual system slots directly and run that exact binary's installer.
+REM   Guard: skip if the marker exists (one-shot), if no system-slot claude is
+REM   present, or if a user-writable ~/.local/bin/claude already exists.
+REM   Non-fatal. Quoting: no inner double quotes, no $(), no regex/pipe — every
+REM   path is space-free so it stays unquoted and cmd passes it through verbatim.
 call :LOG "INFO - Checking Claude updater health (one-time repair)"
-wsl -d %DISTRO% -- bash -lc "test -f $HOME/.kivun/updater-repaired && exit 0; CB=$(command -v claude 2>/dev/null); echo $CB | grep -Eq '^/usr/(local|bin)/' || exit 0; mkdir -p $HOME/.kivun; claude install >> /tmp/kivun-claude.log 2>&1 && touch $HOME/.kivun/updater-repaired" >> "%LOG_FILE%" 2>&1
+wsl -d %DISTRO% -- bash -lc "test -f $HOME/.kivun/updater-repaired && exit 0; CC=/usr/local/bin/claude; test -x $CC || CC=/usr/bin/claude; test -x $CC || exit 0; test -x $HOME/.local/bin/claude && exit 0; mkdir -p $HOME/.kivun; $CC install >> /tmp/kivun-claude.log 2>&1 && touch $HOME/.kivun/updater-repaired" >> "%LOG_FILE%" 2>&1
 exit /b
 
 :_install_failed
