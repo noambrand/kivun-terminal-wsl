@@ -27,6 +27,29 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.39] - 2026-06-21
+
+### Fixed — updater auto-repair now runs as a shipped script (the inline form never executed)
+
+v1.4.37/v1.4.38 ran `:_REPAIR_UPDATER` as an inline `wsl -- bash -lc "...; $CC
+install; ..."` one-liner. End-to-end CI proved that command never actually
+migrated anything: it reached `mkdir` but `$CC install` silently failed on the
+cmd.exe -> WSL quoting path (the same class of breakage that makes the launcher
+ship every other multi-step step as a `.sh` file). So the auto-repair shipped
+non-functional in v1.4.37/38 (new-install prevention was unaffected and worked).
+
+- The repair logic now lives in a shipped **`payload/kivun-repair-updater.sh`**,
+  CRLF-normalized and run via `wsl %WSL_USER_FLAG% bash <script>` — exactly how
+  `kivun-install-claude.sh` is run, which is immune to cmd quoting. Verified
+  end-to-end locally in WSL (migrate once, second run is a no-op).
+- It now runs as the resolved non-root user, after `INST_WSL` + the CRLF fix +
+  user detection (moved from `:claude_present`).
+- Detection stays filesystem-based (system slot present, `~/.local/bin` empty),
+  one-shot via `~/.kivun/updater-repaired`, always exits 0.
+- CI: the real-WSL `test-updater-repair-migrates-root-install` job now passes;
+  static-lint asserts the script is shipped, CRLF-fixed, NSIS-packaged, and
+  carries the guard/detection/install invariants.
+
 ## [1.4.38] - 2026-06-21
 
 ### Fixed — updater auto-repair now detects by filesystem slot (robust + CI-tested)

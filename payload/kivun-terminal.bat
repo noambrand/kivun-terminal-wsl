@@ -329,11 +329,9 @@ goto :no_claude_exit
 set "CLAUDE_IN_WSL=1"
 call :LOG "SUCCESS - Claude Code is installed"
 echo   Claude: OK
-REM v1.4.37: one-time auto-repair for users whose Claude was installed by the
-REM OLD root npm fallback into /usr/local (root-owned), where auto-update fails
-REM forever ("no write permission to npm prefix"). Runs at most once and never
-REM blocks launch. See :_REPAIR_UPDATER.
-call :_REPAIR_UPDATER
+REM v1.4.39: the one-time updater auto-repair (:_REPAIR_UPDATER) now runs later,
+REM after INST_WSL + the script's CRLF fix + the non-root user are resolved, so
+REM it can run the shipped kivun-repair-updater.sh as the right user.
 
 REM v1.1.18: do path conversion + WSLg-user detection BEFORE the
 REM Konsole check. The Konsole apt-install can fail (no GUI on a CI
@@ -405,6 +403,7 @@ REM v1.4.36: kivun-install-claude.sh runs from :INSTALL_CLAUDE_WSL (before this
 REM block on a first install) but is also re-stripped here so a CRLF-shipped
 REM copy never trips bash with the same exit-127 "No such file" class of error.
 wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-install-claude.sh" 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-repair-updater.sh" 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Line endings fixed"
 ) else (
@@ -463,6 +462,13 @@ if not defined WSLG_USER (
 )
 call :LOG "INFO - Will run as: %WSLG_USER%"
 set "WSL_USER_FLAG=--user %WSLG_USER%"
+
+REM v1.4.39: one-time auto-repair for users whose Claude was installed by the
+REM OLD root npm fallback into /usr/local (root-owned), where auto-update fails
+REM forever ("no write permission to npm prefix"). Runs here (not at
+REM :claude_present) so INST_WSL is set, the script is CRLF-fixed, and the
+REM non-root WSL_USER_FLAG is known. Runs at most once and never blocks launch.
+call :_REPAIR_UPDATER
 
 REM Check if Konsole is installed
 call :LOG "INFO - Checking if Konsole is installed"
@@ -887,22 +893,21 @@ wsl -d %DISTRO% -- bash -c "npm install -g @anthropic-ai/claude-code >> /tmp/kiv
 exit /b
 
 :_REPAIR_UPDATER
-REM v1.4.37: migrate an EXISTING Claude that lives in a root-owned system slot
+REM v1.4.39: migrate an EXISTING Claude that lives in a root-owned system slot
 REM (/usr/local or /usr/bin, the result of the old root npm fallback) over to
 REM Anthropic's native installer, which drops a user-writable copy in
 REM ~/.local/bin (no sudo) — exactly what `claude /doctor` recommends. Without
 REM this, those users see "Auto-update failed: no write permission to npm
 REM prefix" every session and stay stuck on an old version.
-REM   v1.4.38: detect by FILESYSTEM slot, not `command -v claude`. A login
-REM   shell's PATH can resolve `claude` to a /mnt/c Windows binary (see the
-REM   line-315 guard), so command-based detection was unreliable. We now check
-REM   the actual system slots directly and run that exact binary's installer.
-REM   Guard: skip if the marker exists (one-shot), if no system-slot claude is
-REM   present, or if a user-writable ~/.local/bin/claude already exists.
-REM   Non-fatal. Quoting: no inner double quotes, no $(), no regex/pipe — every
-REM   path is space-free so it stays unquoted and cmd passes it through verbatim.
+REM   The logic lives in the shipped kivun-repair-updater.sh and runs via
+REM   `wsl bash <script>` (NOT an inline `bash -lc "..."`). v1.4.37/38 used an
+REM   inline one-liner whose `$CC install` was mangled by cmd.exe quoting on the
+REM   way to WSL — running a CRLF-fixed script file sidesteps that entirely,
+REM   matching how kivun-install-claude.sh is run. The script is one-shot
+REM   (marker-guarded), filesystem-based, and always exits 0 so it can't block
+REM   the launch. Runs as the non-root %WSL_USER_FLAG% user.
 call :LOG "INFO - Checking Claude updater health (one-time repair)"
-wsl -d %DISTRO% -- bash -lc "test -f $HOME/.kivun/updater-repaired && exit 0; CC=/usr/local/bin/claude; test -x $CC || CC=/usr/bin/claude; test -x $CC || exit 0; test -x $HOME/.local/bin/claude && exit 0; mkdir -p $HOME/.kivun; $CC install >> /tmp/kivun-claude.log 2>&1 && touch $HOME/.kivun/updater-repaired" >> "%LOG_FILE%" 2>&1
+wsl -d %DISTRO% %WSL_USER_FLAG% bash "%INST_WSL%kivun-repair-updater.sh" >> "%LOG_FILE%" 2>&1
 exit /b
 
 :_install_failed
