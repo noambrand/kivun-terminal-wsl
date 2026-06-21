@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths:
       - 'payload/kivun-terminal.bat'
+      - 'payload/kivun-repair-updater.sh'
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
       - 'payload/folder-picker.hta'
@@ -26,6 +27,7 @@ on:
     branches: [main]
     paths:
       - 'payload/kivun-terminal.bat'
+      - 'payload/kivun-repair-updater.sh'
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
       - 'payload/folder-picker.hta'
@@ -130,22 +132,35 @@ jobs:
             || (echo "FAIL: :_NPM_FALLBACK no longer sets a user-owned ~/.npm-global prefix"; exit 1)
           echo "PASS: npm fallback installs into a user-owned prefix"
 
-          # The one-time auto-repair branch must exist and be wired into the flow.
+          # v1.4.39: the one-time auto-repair runs the SHIPPED kivun-repair-updater.sh
+          # via `wsl bash <script>` (the inline `bash -lc` form was mangled by cmd
+          # quoting). The .bat must define :_REPAIR_UPDATER, call it, and invoke the
+          # script; the script must carry the marker guard + filesystem detection +
+          # native install migration.
+          REPAIR=payload/kivun-repair-updater.sh
+          test -f "$REPAIR" \
+            || (echo "FAIL: shipped repair script $REPAIR is missing"; exit 1)
           grep -q '^:_REPAIR_UPDATER' "$BAT" \
             || (echo "FAIL: :_REPAIR_UPDATER helper missing — existing broken installs won't be migrated"; exit 1)
           grep -q 'call :_REPAIR_UPDATER' "$BAT" \
             || (echo "FAIL: :_REPAIR_UPDATER is never called"; exit 1)
           awk '/^:_REPAIR_UPDATER/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
-            | grep -q 'updater-repaired' \
-            || (echo "FAIL: :_REPAIR_UPDATER missing its one-shot marker guard (~/.kivun/updater-repaired)"; exit 1)
-          awk '/^:_REPAIR_UPDATER/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
-            | grep -qE '\$CC install|claude install' \
-            || (echo "FAIL: :_REPAIR_UPDATER does not run the native install migration"; exit 1)
-          # v1.4.38: detection is filesystem-based (system slots), not command -v.
-          awk '/^:_REPAIR_UPDATER/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
-            | grep -q '/usr/local/bin/claude' \
-            || (echo "FAIL: :_REPAIR_UPDATER no longer detects the /usr/local system slot"; exit 1)
-          echo "PASS: one-time updater auto-repair branch is present and wired in"
+            | grep -q 'kivun-repair-updater\.sh' \
+            || (echo "FAIL: :_REPAIR_UPDATER does not run the shipped kivun-repair-updater.sh"; exit 1)
+          # The .bat must CRLF-fix the repair script (like the other shipped .sh).
+          grep -q 'sed -i.*kivun-repair-updater\.sh' "$BAT" \
+            || (echo "FAIL: .bat does not CRLF-normalize kivun-repair-updater.sh"; exit 1)
+          # The NSIS installer must package + uninstall the script.
+          grep -q 'kivun-repair-updater\.sh' installer/Kivun_Terminal_Setup.nsi \
+            || (echo "FAIL: installer does not bundle kivun-repair-updater.sh"; exit 1)
+          # The script's own invariants: one-shot marker, filesystem detection, install.
+          grep -q 'updater-repaired' "$REPAIR" \
+            || (echo "FAIL: repair script missing one-shot marker guard"; exit 1)
+          grep -q '/usr/local/bin/claude' "$REPAIR" \
+            || (echo "FAIL: repair script does not detect the /usr/local system slot"; exit 1)
+          grep -qE '"\$CC" install|\$CC install' "$REPAIR" \
+            || (echo "FAIL: repair script does not run the native install migration"; exit 1)
+          echo "PASS: one-time updater auto-repair (shipped script) is present and wired in"
 
           # The new ~/.npm-global/bin slot must be searched by BOTH the launcher
           # presence checks and the wrapper's resolver, or a fallback install
