@@ -32,6 +32,9 @@ const DEFAULT_CLAUDE_BIN = 'claude';
 // for the standard install paths.
 const ABSOLUTE_CANDIDATES = [
   (env) => env.HOME && path.join(env.HOME, '.local/bin/claude'),
+  // v1.4.37: the npm fallback installs into a user-owned prefix here so
+  // Claude's auto-update keeps working (root-owned /usr/local did not).
+  (env) => env.HOME && path.join(env.HOME, '.npm-global/bin/claude'),
   () => '/usr/local/bin/claude',
   () => '/usr/bin/claude',
 ];
@@ -97,6 +100,7 @@ function isAllowedClaudeBinPath(p, env) {
   const home = env.HOME || env.USERPROFILE || '';
   const allowedPrefixes = [
     home && path.join(home, '.local', 'bin') + path.sep,
+    home && path.join(home, '.npm-global', 'bin') + path.sep,
     home && path.join(home, '.nvm') + path.sep,
     home && path.join(home, '.bun') + path.sep,
     '/usr/local/bin/',

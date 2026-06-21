@@ -27,6 +27,31 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.37] - 2026-06-21
+
+### Fixed — npm fallback no longer breaks Claude Code auto-update (users stuck on an old version)
+
+When Anthropic's official installer (`claude.ai/install.sh`) failed, the launcher
+and the NSIS installer fell back to `npm install -g @anthropic-ai/claude-code`
+**run as root**, so Claude landed in root-owned `/usr/local/lib/node_modules`.
+The runtime non-root user could run it but **could not write** there, so every
+auto-update failed (`no_permissions`) and the user was frozen on an old version,
+with a permanent red status-line warning: `Auto-update failed: no write
+permission to npm prefix · Run /doctor`.
+
+- **New installs:** the npm fallback now installs node/npm as root but installs
+  claude-code as the **default user** into a **user-owned prefix** (`~/.npm-global`,
+  added to `PATH` via `.bashrc`). Auto-update works. This matches `/doctor`'s own
+  remediation. (`installer/Kivun_Terminal_Setup.nsi`, `payload/kivun-terminal.bat`.)
+- **Existing broken installs:** the launcher now runs a one-time auto-repair
+  (`:_REPAIR_UPDATER`) — if Claude resolves under `/usr/local` or `/usr/bin` it
+  runs Anthropic's native installer `claude install` once (no sudo), migrating the
+  binary to user-writable `~/.local/bin`. Guarded by a marker
+  (`~/.kivun/updater-repaired`) so it runs at most once, and non-fatal so it never
+  blocks launch.
+- The launcher presence checks and the wrapper's `resolve-claude-bin.js` now also
+  search `~/.npm-global/bin`, so a fallback install is never reported as "missing".
+
 ## [1.4.36] - 2026-06-18
 
 ### Fixed — launcher no longer breaks when the default WSL distro isn't Ubuntu (Docker Desktop)

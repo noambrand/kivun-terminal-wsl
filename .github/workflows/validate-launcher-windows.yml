@@ -19,6 +19,7 @@ on:
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
       - 'payload/folder-picker.hta'
+      - 'kivun-claude-bidi/lib/resolve-claude-bin.js'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
   pull_request:
@@ -28,6 +29,7 @@ on:
       - 'payload/kivun-launch.sh'
       - 'payload/kivun-direct.sh'
       - 'payload/folder-picker.hta'
+      - 'kivun-claude-bidi/lib/resolve-claude-bin.js'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
 
@@ -106,6 +108,50 @@ jobs:
           ! grep -q 'sudo npm install -g @anthropic-ai/claude-code' "$BAT" \
             || (echo "FAIL: deprecated 'sudo npm install -g' message still in .bat"; exit 1)
           echo "PASS: all v1.1.1 invariants intact"
+
+      - name: Verify v1.4.37 updater-repair + user-prefix invariants
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          RES=kivun-claude-bidi/lib/resolve-claude-bin.js
+          # v1.4.37 fixed the permanent "Auto-update failed: no write permission
+          # to npm prefix" bug: the npm fallback used to `npm install -g` AS ROOT
+          # (Claude landed in root-owned /usr/local, auto-update could never
+          # write there), and there was no migration for users already stuck.
+          # These greps keep every link of that fix from silently breaking.
+
+          # The npm fallback must install into a USER-OWNED prefix, never -g as root.
+          if grep -Eq '\-u root.*npm install -g' "$BAT"; then
+            echo "FAIL: npm fallback still runs 'npm install -g' as root — auto-update will break again" >&2
+            exit 1
+          fi
+          awk '/^:_NPM_FALLBACK/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
+            | grep -q 'npm config set prefix .*\.npm-global' \
+            || (echo "FAIL: :_NPM_FALLBACK no longer sets a user-owned ~/.npm-global prefix"; exit 1)
+          echo "PASS: npm fallback installs into a user-owned prefix"
+
+          # The one-time auto-repair branch must exist and be wired into the flow.
+          grep -q '^:_REPAIR_UPDATER' "$BAT" \
+            || (echo "FAIL: :_REPAIR_UPDATER helper missing — existing broken installs won't be migrated"; exit 1)
+          grep -q 'call :_REPAIR_UPDATER' "$BAT" \
+            || (echo "FAIL: :_REPAIR_UPDATER is never called"; exit 1)
+          awk '/^:_REPAIR_UPDATER/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
+            | grep -q 'updater-repaired' \
+            || (echo "FAIL: :_REPAIR_UPDATER missing its one-shot marker guard (~/.kivun/updater-repaired)"; exit 1)
+          awk '/^:_REPAIR_UPDATER/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
+            | grep -q 'claude install' \
+            || (echo "FAIL: :_REPAIR_UPDATER does not run the native 'claude install' migration"; exit 1)
+          echo "PASS: one-time updater auto-repair branch is present and wired in"
+
+          # The new ~/.npm-global/bin slot must be searched by BOTH the launcher
+          # presence checks and the wrapper's resolver, or a fallback install
+          # would be reported as "missing" and reinstalled on every launch.
+          c=$(grep -c '\.npm-global/bin/claude' "$BAT" || true)
+          [ "${c:-0}" -ge 2 ] \
+            || (echo "FAIL: launcher presence checks don't include ~/.npm-global/bin (found $c, need >=2)"; exit 1)
+          grep -q '\.npm-global' "$RES" \
+            || (echo "FAIL: resolve-claude-bin.js does not search ~/.npm-global/bin"; exit 1)
+          echo "PASS: ~/.npm-global/bin is discoverable by launcher + resolver"
 
       - name: Verify v1.4.0 env-var loading invariants (Windows + Linux + picker)
         run: |
@@ -1559,4 +1605,189 @@ jobs:
         with:
           name: LAUNCH_LOG-hidden-exe-no-claude
           path: LAUNCH_LOG.txt
+          if-no-files-found: warn
+
+  # -------------------------------------------------------------------------
+  # Job 10 — v1.4.37 updater auto-repair (:_REPAIR_UPDATER).
+  # Reproduces the bug users hit: Claude installed by the OLD root npm
+  # fallback into a root-owned /usr/local slot, where auto-update can never
+  # write ("Auto-update failed: no write permission to npm prefix"). We plant
+  # a stub `claude` at /usr/local/bin whose `install` subcommand mimics
+  # Anthropic's native installer (drops a user-writable copy at
+  # ~/.local/bin/claude and records each call). The launcher's new
+  # :_REPAIR_UPDATER branch must, on first launch, detect the /usr/local slot
+  # and run `claude install` exactly once to migrate it; on a second launch
+  # the marker guard must keep it from running again.
+  # Hermetic on purpose: the stub stands in for the real installer so the test
+  # validates OUR branch, not Anthropic's network installer.
+  # -------------------------------------------------------------------------
+  test-updater-repair-migrates-root-install:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm WSL is available
+        shell: bash
+        run: |
+          set -e
+          wsl --status
+          wsl --version
+
+      - name: Install Ubuntu in WSL (no-launch)
+        shell: bash
+        run: |
+          set -e
+          wsl --install -d Ubuntu --no-launch
+          end=$((SECONDS + 120))
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "echo ready" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
+
+      - name: Plant a root-owned claude stub in /usr/local/bin (the old npm-fallback state)
+        shell: bash
+        run: |
+          set -e
+          # Build the planter on the Windows side (LF endings), then exec it in
+          # WSL — bash quoting inside the script is free of Win32 cmdline
+          # middleware. Nested heredoc (OUTER contains STUB) + sed dedent is the
+          # same pattern Job 5 uses. The stub: `claude install` copies itself to
+          # $HOME/.local/bin/claude and appends a line to /tmp/claude-install-calls
+          # (so we can count migrations); any other args print a version + exit 0
+          # so the launcher's later claude calls return immediately.
+          tmp="${RUNNER_TEMP//\\//}/plant-stub.sh"
+          cat > "$tmp" <<'OUTER'
+          #!/bin/bash
+          set -e
+          rm -f /tmp/claude-install-calls
+          rm -rf /root/.local/bin/claude /root/.kivun
+          cat > /usr/local/bin/claude <<'STUB'
+          #!/bin/bash
+          if [ "$1" = "install" ]; then
+            echo native-install >> /tmp/claude-install-calls
+            mkdir -p "$HOME/.local/bin"
+            cp /usr/local/bin/claude "$HOME/.local/bin/claude"
+            chmod +x "$HOME/.local/bin/claude"
+            exit 0
+          fi
+          echo "claude 9.9.9 (kivun-test stub)"
+          exit 0
+          STUB
+          chmod +x /usr/local/bin/claude
+          # Sanity: claude resolves to the root-owned slot, native slot is empty.
+          command -v claude
+          test ! -e /root/.local/bin/claude
+          OUTER
+          sed -i 's/^          //; s/\r$//' "$tmp"
+          echo "----- plant-stub.sh -----"; cat "$tmp"; echo "-------------------------"
+          wsl_path=$(wsl wslpath -a "$tmp" | tr -d '\r')
+          wsl -d Ubuntu --user root -- bash "$wsl_path"
+
+      - name: Build stdin and start launcher (run 1) in background
+        shell: cmd
+        # AUTO_INSTALL_CLAUDE=no: claude is already "present" via /usr/local/bin,
+        # so the launcher skips install and reaches :claude_present, which calls
+        # :_REPAIR_UPDATER. start /B detaches so this step returns immediately.
+        run: |
+          (echo AUTO_INSTALL_CLAUDE=no) > "payload\config.txt"
+          (echo.) > "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout1.txt 2> launcher_stderr1.txt"
+
+      - name: Wait for the repair marker (run 1), then kill
+        shell: bash
+        run: |
+          end=$((SECONDS + 240))
+          saw=0
+          while [ $SECONDS -lt $end ]; do
+            if wsl -d Ubuntu --user root -- bash -c "test -f /root/.kivun/updater-repaired" >/dev/null 2>&1; then
+              saw=1
+              break
+            fi
+            sleep 5
+          done
+          for img in claude.exe wsl.exe; do
+            taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
+          done
+          echo "saw_marker=$saw"
+          echo "RUN1_SAW_MARKER=$saw" >> "$GITHUB_ENV"
+
+      - name: Assert repair fired once and migrated to ~/.local/bin
+        shell: bash
+        run: |
+          set -e
+          log="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          echo "----- LAUNCH_LOG.txt (run 1) -----"
+          cat "$log" 2>/dev/null || echo "(log missing)"
+          echo "----------------------------------"
+          if [ "$RUN1_SAW_MARKER" != "1" ]; then
+            echo "FAIL: repair marker /root/.kivun/updater-repaired was never created" >&2
+            echo "----- /tmp/kivun-claude.log (WSL) -----"
+            wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null || echo '(empty)'"
+            exit 1
+          fi
+          grep -qF 'Checking Claude updater health' "$log" \
+            || (echo "FAIL: ':_REPAIR_UPDATER' log marker missing — branch did not run"; exit 1)
+          wsl -d Ubuntu --user root -- bash -c "test -x /root/.local/bin/claude" \
+            || (echo "FAIL: claude was not migrated to user-writable ~/.local/bin"; exit 1)
+          n=$(wsl -d Ubuntu --user root -- bash -c "wc -l < /tmp/claude-install-calls 2>/dev/null || echo 0" | tr -d '\r ')
+          echo "native 'claude install' calls after run 1: $n"
+          [ "$n" = "1" ] \
+            || (echo "FAIL: expected exactly 1 'claude install' migration, got $n"; exit 1)
+          echo "PASS: run 1 migrated the root-owned install to ~/.local/bin via a single 'claude install'"
+
+      - name: Run launcher again (run 2) — the one-shot guard must skip repair
+        shell: cmd
+        run: |
+          del "%LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt" >nul 2>&1
+          (echo.) > "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          (echo.) >> "%RUNNER_TEMP%\launcher_input.txt"
+          start "" /B cmd /c "call payload\kivun-terminal.bat C:\temp < %RUNNER_TEMP%\launcher_input.txt > launcher_stdout2.txt 2> launcher_stderr2.txt"
+
+      - name: Assert repair did NOT run a second time
+        shell: bash
+        run: |
+          set -e
+          # Give run 2 time to pass through :_REPAIR_UPDATER (which now hits the
+          # marker guard and exits immediately), then stop it.
+          sleep 45
+          for img in claude.exe wsl.exe; do
+            taskkill //F //IM "$img" //T >/dev/null 2>&1 || true
+          done
+          n=$(wsl -d Ubuntu --user root -- bash -c "wc -l < /tmp/claude-install-calls 2>/dev/null || echo 0" | tr -d '\r ')
+          echo "native 'claude install' calls after run 2: $n"
+          [ "$n" = "1" ] \
+            || (echo "FAIL: one-shot guard broken — 'claude install' ran again (count=$n, expected 1)"; exit 1)
+          echo "PASS: run 2 skipped repair via the ~/.kivun/updater-repaired marker"
+
+      - name: Copy LAUNCH_LOG into workspace for upload
+        if: always()
+        shell: bash
+        run: |
+          src="$LOCALAPPDATA/Kivun-WSL/LAUNCH_LOG.txt"
+          if [ -e "$src" ]; then
+            cp "$src" LAUNCH_LOG.txt
+          else
+            echo "(LAUNCH_LOG was not created)" > LAUNCH_LOG.txt
+          fi
+          wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null" > WSL_INSTALL_LOG.txt 2>/dev/null || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAUNCH_LOG-updater-repair
+          path: |
+            LAUNCH_LOG.txt
+            WSL_INSTALL_LOG.txt
+            launcher_stdout1.txt
+            launcher_stderr1.txt
+            launcher_stdout2.txt
+            launcher_stderr2.txt
           if-no-files-found: warn
