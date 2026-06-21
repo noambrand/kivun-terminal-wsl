@@ -304,7 +304,10 @@ REM .profile, without requiring the user to set a config var. The
 REM resolver in kivun-claude-bidi/lib/resolve-claude-bin.js does the
 REM same thing on the wrapper side -- both paths agree about what
 REM "installed" means.
-wsl -d %DISTRO% -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
+REM v1.4.37: ~/.npm-global/bin added — the npm fallback now installs into a
+REM user-owned prefix there (instead of root-owned /usr/local) so auto-update
+REM works; this slot must be searched or an existing install looks "missing".
+wsl -d %DISTRO% -- bash -c "test -x $HOME/.local/bin/claude || test -x $HOME/.npm-global/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 goto :claude_present
 REM Standard slots empty -- ask a login shell to actively discover.
 REM bash -lc sources .profile/.bashrc so nvm/pnpm/yarn paths are
@@ -326,6 +329,11 @@ goto :no_claude_exit
 set "CLAUDE_IN_WSL=1"
 call :LOG "SUCCESS - Claude Code is installed"
 echo   Claude: OK
+REM v1.4.37: one-time auto-repair for users whose Claude was installed by the
+REM OLD root npm fallback into /usr/local (root-owned), where auto-update fails
+REM forever ("no write permission to npm prefix"). Runs at most once and never
+REM blocks launch. See :_REPAIR_UPDATER.
+call :_REPAIR_UPDATER
 
 REM v1.1.18: do path conversion + WSLg-user detection BEFORE the
 REM Konsole check. The Konsole apt-install can fail (no GUI on a CI
@@ -843,7 +851,7 @@ REM Windows paths like `/mnt/c/Program Files (x86)/sbt/bin` with literal
 REM `(` and `)`. Bash word-splits the unquoted assignment value, hits
 REM the `(` as a subshell-open token, and dies with a syntax error.
 REM Listing absolute paths sidesteps PATH entirely.
-wsl -d %DISTRO% -- bash -c "test -x $HOME/.local/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
+wsl -d %DISTRO% -- bash -c "test -x $HOME/.local/bin/claude || test -x $HOME/.npm-global/bin/claude || test -x /usr/local/bin/claude || test -x /usr/bin/claude" < nul >> "%LOG_FILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 goto :_install_failed
 REM Log the installed version so future bug reports include it.
 REM Same constraint: do not lean on $PATH expansion. Try the user-local
@@ -861,9 +869,37 @@ call :LOG "INFO - User declined Claude auto-install"
 exit /b
 
 :_NPM_FALLBACK
-call :LOG "WARNING - Official installer failed, trying npm fallback"
+call :LOG "WARNING - Official installer failed, trying npm fallback (user-owned prefix)"
 echo Official installer failed, trying npm fallback (~2-3 min)...
-wsl -d %DISTRO% -u root -- bash -c "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
+REM v1.4.37: install node/npm system-wide as root (the node binary in /usr is
+REM fine to be root-owned), but install claude-code as the DEFAULT (non-root)
+REM user into a USER-OWNED npm prefix (~/.npm-global). The old code ran
+REM `npm install -g` AS ROOT, so Claude landed in root-owned /usr/local and the
+REM runtime user could not write there -> auto-update failed forever with
+REM "no write permission to npm prefix" and users were frozen on an old version
+REM (reports, 2026-06). A user-owned prefix keeps auto-update working; this is
+REM exactly `claude /doctor`'s own remediation. Quoting note: keep inner quotes
+REM single (cmd would mis-parse double quotes) and avoid ( ) in the bash arg.
+wsl -d %DISTRO% -u root -- bash -c "apt-get install -y -qq nodejs npm >> /tmp/kivun-claude.log 2>&1"
+wsl -d %DISTRO% -- bash -c "mkdir -p $HOME/.npm-global && npm config set prefix $HOME/.npm-global >> /tmp/kivun-claude.log 2>&1"
+wsl -d %DISTRO% -- bash -c "grep -qxF 'export PATH=$HOME/.npm-global/bin:$PATH' $HOME/.bashrc 2>/dev/null || echo 'export PATH=$HOME/.npm-global/bin:$PATH' >> $HOME/.bashrc"
+wsl -d %DISTRO% -- bash -c "npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"
+exit /b
+
+:_REPAIR_UPDATER
+REM v1.4.37: migrate an EXISTING Claude that lives in a root-owned system slot
+REM (/usr/local or /usr/bin, the result of the old root npm fallback) over to
+REM Anthropic's native installer, which drops a user-writable copy in
+REM ~/.local/bin (no sudo) — exactly what `claude /doctor` recommends. Without
+REM this, those users see "Auto-update failed: no write permission to npm
+REM prefix" every session and stay stuck on an old version.
+REM   Guard: skip if the marker exists (runs once) or if claude is already in a
+REM   user-writable slot (command -v not under /usr/...). Non-fatal: on any
+REM   failure we just leave things as-is and continue the launch.
+REM   Quoting: single quotes for the regex, no inner double quotes, no ( ) — cmd
+REM   passes the whole arg to bash verbatim only when those are avoided.
+call :LOG "INFO - Checking Claude updater health (one-time repair)"
+wsl -d %DISTRO% -- bash -lc "test -f $HOME/.kivun/updater-repaired && exit 0; CB=$(command -v claude 2>/dev/null); echo $CB | grep -Eq '^/usr/(local|bin)/' || exit 0; mkdir -p $HOME/.kivun; claude install >> /tmp/kivun-claude.log 2>&1 && touch $HOME/.kivun/updater-repaired" >> "%LOG_FILE%" 2>&1
 exit /b
 
 :_install_failed

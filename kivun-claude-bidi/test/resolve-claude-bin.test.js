@@ -72,6 +72,20 @@ describe('resolveClaudeBin', () => {
     assert.equal(resolveClaudeBin(env), target);
   });
 
+  it('returns ~/.npm-global/bin/claude when present and ~/.local/bin is absent', () => {
+    // v1.4.37: the npm fallback installs into a user-owned ~/.npm-global
+    // prefix so auto-update keeps working; the resolver must find that slot.
+    const home = fs.mkdtempSync(path.join(sandbox, 'npmglobal-home-'));
+    const binDir = path.join(home, '.npm-global/bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const target = path.join(binDir, 'claude');
+    fs.writeFileSync(target, '#!/bin/sh\nexit 0\n');
+    fs.chmodSync(target, 0o755);
+
+    const env = { HOME: home };
+    assert.equal(resolveClaudeBin(env), target);
+  });
+
   it('discovers claude from a custom PATH via bash -lc fallback (nvm/pnpm-style)', () => {
     // POSIX-only test. On Windows the `bash` on PATH is usually git-bash,
     // which translates between Win32 and POSIX paths in ways that don't

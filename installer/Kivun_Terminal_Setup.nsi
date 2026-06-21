@@ -584,7 +584,21 @@ Section "Claude Code CLI" SEC_CLAUDE
     Pop $0
     ${If} $0 != 0
       DetailPrint "Installer script failed, trying npm fallback (~2-3 minutes)..."
-      nsExec::Exec 'wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm && npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"'
+      ; v1.4.37: install node/npm system-wide as root (the node binary in /usr
+      ; is fine root-owned), but install claude-code as the DEFAULT (non-root)
+      ; user into a USER-OWNED npm prefix (~/.npm-global). The old code ran
+      ; `npm install -g` AS ROOT, so Claude landed in root-owned /usr/local and
+      ; the runtime user could not write there -> auto-update failed forever
+      ; ("no write permission to npm prefix") and users were frozen on an old
+      ; version. A user-owned prefix keeps auto-update working; this matches
+      ; `claude /doctor`'s own remediation. NSIS: '' is a literal single quote.
+      nsExec::Exec 'wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm >> /tmp/kivun-claude.log 2>&1"'
+      Pop $0
+      nsExec::Exec 'wsl -d Ubuntu -- bash -lc "mkdir -p $HOME/.npm-global && npm config set prefix $HOME/.npm-global >> /tmp/kivun-claude.log 2>&1"'
+      Pop $0
+      nsExec::Exec 'wsl -d Ubuntu -- bash -lc "grep -qxF ''export PATH=$HOME/.npm-global/bin:$PATH'' $HOME/.bashrc 2>/dev/null || echo ''export PATH=$HOME/.npm-global/bin:$PATH'' >> $HOME/.bashrc"'
+      Pop $0
+      nsExec::Exec 'wsl -d Ubuntu -- bash -lc "npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"'
       Pop $0
       ${If} $0 != 0
         MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Claude Code CLI installation failed.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-claude.log$\r$\n$\r$\nThis is usually a temporary network issue - clicking OK and re-running the installer often succeeds.$\r$\n$\r$\nIf it keeps failing, you can install it manually (in WSL):$\r$\n  T=$(mktemp) && curl -fsSL --retry 5 -o $T https://claude.ai/install.sh && [ -s $T ] && bash $T && rm -f $T$\r$\n$\r$\nStill stuck? Open $\"Kivun Diagnostics$\" from the Start Menu and email the report to noambbb@gmail.com.$\r$\n$\r$\nClick OK to continue, or Cancel to abort." IDOK claude_continue
