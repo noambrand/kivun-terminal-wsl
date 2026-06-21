@@ -1648,6 +1648,30 @@ jobs:
           done
           wsl -d Ubuntu --user root -- bash -c "echo Ubuntu ready"
 
+      - name: Create a normal default user (so the launcher routes, no auto-create/restart)
+        shell: bash
+        run: |
+          set -e
+          # A fresh `--no-launch` Ubuntu is root-only. If we leave it that way the
+          # launcher AUTO-CREATES a UID-1000 user and RESTARTS Ubuntu right around
+          # the repair step, making the test non-deterministic. Real users already
+          # have a normal account, so pre-create one (kivuntest, UID 1000) and make
+          # it the WSL default via /etc/wsl.conf. Then presence-check + :_REPAIR_UPDATER
+          # both run as kivuntest with a stable $HOME=/home/kivuntest, no restart.
+          wsl -d Ubuntu --user root -- bash -c "useradd -u 1000 -m -s /bin/bash kivuntest && id kivuntest"
+          wsl -d Ubuntu --user root -- bash -c "printf '[user]\ndefault=kivuntest\n' > /etc/wsl.conf"
+          wsl --terminate Ubuntu
+          # Confirm the default user took effect.
+          end=$((SECONDS + 60))
+          while [ $SECONDS -lt $end ]; do
+            who=$(wsl -d Ubuntu -- bash -c "whoami" 2>/dev/null | tr -d '\r')
+            [ "$who" = "kivuntest" ] && break
+            sleep 3
+          done
+          who=$(wsl -d Ubuntu -- bash -c "whoami" | tr -d '\r')
+          echo "default wsl user is now: '$who'"
+          [ "$who" = "kivuntest" ] || { echo "FAIL: default user is '$who', expected kivuntest" >&2; exit 1; }
+
       - name: Plant a root-owned claude stub in /usr/local/bin (the old npm-fallback state)
         shell: bash
         run: |
@@ -1658,13 +1682,14 @@ jobs:
           # same pattern Job 5 uses. The stub: `claude install` copies itself to
           # $HOME/.local/bin/claude and appends a line to /tmp/claude-install-calls
           # (so we can count migrations); any other args print a version + exit 0
-          # so the launcher's later claude calls return immediately.
+          # so the launcher's later claude calls return immediately. Mode 0755 so
+          # kivuntest can read+exec it (the real npm /usr/local install is too).
           tmp="${RUNNER_TEMP//\\//}/plant-stub.sh"
           cat > "$tmp" <<'OUTER'
           #!/bin/bash
           set -e
           rm -f /tmp/claude-install-calls
-          rm -rf /root/.local/bin/claude /root/.kivun
+          rm -rf /home/kivuntest/.local/bin/claude /home/kivuntest/.kivun
           cat > /usr/local/bin/claude <<'STUB'
           #!/bin/bash
           if [ "$1" = "install" ]; then
@@ -1677,15 +1702,30 @@ jobs:
           echo "claude 9.9.9 (kivun-test stub)"
           exit 0
           STUB
-          chmod +x /usr/local/bin/claude
-          # Sanity: claude resolves to the root-owned slot, native slot is empty.
-          command -v claude
-          test ! -e /root/.local/bin/claude
+          chmod 0755 /usr/local/bin/claude
           OUTER
           sed -i 's/^          //; s/\r$//' "$tmp"
           echo "----- plant-stub.sh -----"; cat "$tmp"; echo "-------------------------"
           wsl_path=$(wsl wslpath -a "$tmp" | tr -d '\r')
           wsl -d Ubuntu --user root -- bash "$wsl_path"
+
+      - name: Sanity — confirm the default user's repair detection will fire
+        shell: bash
+        run: |
+          set -e
+          # This is exactly what :_REPAIR_UPDATER evaluates. If `command -v claude`
+          # in a login shell does not resolve under /usr/local|/usr/bin (e.g. a
+          # /mnt/c Windows claude wins, or PATH lacks /usr/local/bin), the repair
+          # would no-op — surface that here BEFORE running the launcher.
+          echo "id:        $(wsl -d Ubuntu -- bash -lc 'id -un' | tr -d '\r')"
+          cb=$(wsl -d Ubuntu -- bash -lc 'command -v claude' | tr -d '\r')
+          echo "command -v claude (login): '$cb'"
+          echo "$cb" | grep -Eq '^/usr/(local|bin)/' \
+            || { echo "FAIL: claude does not resolve under /usr/local|/usr/bin for the default user; repair would no-op" >&2; \
+                 wsl -d Ubuntu -- bash -lc 'echo PATH=$PATH'; exit 1; }
+          wsl -d Ubuntu -- bash -c "test ! -e /home/kivuntest/.local/bin/claude" \
+            || { echo "FAIL: native slot already populated before test" >&2; exit 1; }
+          echo "PASS: detection precondition holds (claude at $cb, native slot empty)"
 
       - name: Build stdin and start launcher (run 1) in background
         shell: cmd
@@ -1702,10 +1742,10 @@ jobs:
       - name: Wait for the repair marker (run 1), then kill
         shell: bash
         run: |
-          end=$((SECONDS + 240))
+          end=$((SECONDS + 180))
           saw=0
           while [ $SECONDS -lt $end ]; do
-            if wsl -d Ubuntu --user root -- bash -c "test -f /root/.kivun/updater-repaired" >/dev/null 2>&1; then
+            if wsl -d Ubuntu --user root -- bash -c "test -f /home/kivuntest/.kivun/updater-repaired" >/dev/null 2>&1; then
               saw=1
               break
             fi
@@ -1726,14 +1766,14 @@ jobs:
           cat "$log" 2>/dev/null || echo "(log missing)"
           echo "----------------------------------"
           if [ "$RUN1_SAW_MARKER" != "1" ]; then
-            echo "FAIL: repair marker /root/.kivun/updater-repaired was never created" >&2
-            echo "----- /tmp/kivun-claude.log (WSL) -----"
-            wsl -d Ubuntu --user root -- bash -c "cat /tmp/kivun-claude.log 2>/dev/null || echo '(empty)'"
+            echo "FAIL: repair marker /home/kivuntest/.kivun/updater-repaired was never created" >&2
+            echo "----- diagnostics -----"
+            wsl -d Ubuntu --user root -- bash -c "echo 'install-calls:'; cat /tmp/claude-install-calls 2>/dev/null || echo '(none)'; echo 'kivun-claude.log:'; cat /tmp/kivun-claude.log 2>/dev/null || echo '(empty)'; echo 'home/.local/bin:'; ls -la /home/kivuntest/.local/bin 2>&1 || true; echo 'home/.kivun:'; ls -la /home/kivuntest/.kivun 2>&1 || true"
             exit 1
           fi
           grep -qF 'Checking Claude updater health' "$log" \
             || (echo "FAIL: ':_REPAIR_UPDATER' log marker missing — branch did not run"; exit 1)
-          wsl -d Ubuntu --user root -- bash -c "test -x /root/.local/bin/claude" \
+          wsl -d Ubuntu --user root -- bash -c "test -x /home/kivuntest/.local/bin/claude" \
             || (echo "FAIL: claude was not migrated to user-writable ~/.local/bin"; exit 1)
           n=$(wsl -d Ubuntu --user root -- bash -c "wc -l < /tmp/claude-install-calls 2>/dev/null || echo 0" | tr -d '\r ')
           echo "native 'claude install' calls after run 1: $n"
