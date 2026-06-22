@@ -144,8 +144,14 @@ A two-line live status bar at the bottom of every Claude Code session - the same
 |-------|---------------|
 | **Model** | Active Claude model (color-coded: green = Opus, yellow = Sonnet/Haiku) |
 | **Context** | % of context window consumed (green/yellow/red) |
-| **Tokens** | Combined input + output tokens this session |
+| **Tokens** | Combined input + output across the whole session, **including sub-agents** |
 | **Session / Weekly** | Usage limit % with countdown to reset |
+
+> **When do the numbers update?** The bottom **Session / Weekly** bars come from
+> Claude's rate-limit headers, which only arrive **when Claude finishes a reply**.
+> So they refresh after each answer returns, not on a timer — a value is current
+> as of the most recent response, and won't move while you're typing or reading.
+> **Tokens** counts the whole session (sub-agents included) and grows as Claude works.
 
 ## Terminal Theme
 
@@ -363,8 +369,13 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 |------|------------|
 | **מודל** | המודל הפעיל של Claude (צבעים: ירוק = Opus, צהוב = Sonnet/Haiku) |
 | **קונטקסט** | אחוז חלון הקונטקסט שנוצל (ירוק/צהוב/אדום) |
-| **טוקנים** | סכום קלט + פלט בסשן הזה |
+| **טוקנים** | סכום קלט + פלט לכל הסשן, **כולל סוכני משנה** |
 | **Session / Weekly** | אחוז מגבלת השימוש עם ספירה לאיפוס |
+
+> **מתי המספרים מתעדכנים?** הפסים התחתונים (**Session / Weekly**) מגיעים ממגבלות
+> השימוש שבכותרות התשובה של Claude, ולכן הם מתעדכנים **רק כש-Claude מסיים תשובה**,
+> לא לפי טיימר. כלומר הערך מדויק נכון לתשובה האחרונה, והוא לא יזוז בזמן שאתם מקלידים
+> או קוראים. **טוקנים** סופר את כל הסשן (כולל סוכני משנה) וגדל תוך כדי העבודה.
 
 ### 🎨 ערכת נושא לטרמינל
 

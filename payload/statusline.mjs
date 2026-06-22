@@ -89,11 +89,99 @@ function fieldProject(d) {
   return `${C.c}${folder}${C.n}`;
 }
 
-// ── Total Tokens ──────────────────────
+// ── Cumulative session tokens, INCLUDING sub-agents ──
+// Claude Code's context_window.total_* counts only the MAIN agent's current
+// context window (and, since v2.1.132, isn't even cumulative), so sub-agent
+// (Task) usage never shows up there. To get a true session total we sum
+// input+output across the session transcript PLUS the sibling subagents/ tree
+// (Claude Code writes each sub-agent to <session>/subagents/**/*.jsonl).
+//
+// Done per render, so it must stay cheap: results are cached per file by
+// size+mtime in a tmp file, and append-only growth is parsed INCREMENTALLY
+// (only the bytes added since last render). Any failure falls back to the
+// context_window value, so the field can never break or block the statusline.
+function collectJsonl(dir, out) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of entries) {
+    const p = dir + '/' + e.name;
+    if (e.isDirectory()) collectJsonl(p, out);
+    else if (e.name.endsWith('.jsonl')) out.push(p);
+  }
+}
+
+function sessionTokensInOut(d) {
+  const transcript = d.transcript_path;
+  if (!transcript) return null;
+  const files = [transcript];
+  collectJsonl(transcript.replace(/\.jsonl$/, '') + '/subagents', files);
+
+  const key = encodeURIComponent(transcript).replace(/[^a-z0-9]/gi, '_').slice(-60);
+  const cachePath = path.join(os.tmpdir(), 'kivun-sl-tokens-' + key + '.json');
+  let cache = {};
+  try { cache = JSON.parse(fs.readFileSync(cachePath, 'utf8')); } catch {}
+
+  let totalIn = 0, totalOut = 0, dirty = false;
+  for (const f of files) {
+    let st;
+    try { st = fs.statSync(f); } catch { continue; }
+    const ent = cache[f];
+    // Unchanged since last render → reuse the cached per-file totals.
+    if (ent && ent.size === st.size && ent.mtimeMs === st.mtimeMs) {
+      totalIn += ent.inTok; totalOut += ent.outTok;
+      continue;
+    }
+    // Resume from the last byte offset when the file only grew (append-only);
+    // otherwise (new/shrunk/rotated) reparse from the start.
+    let offset = 0, inTok = 0, outTok = 0;
+    if (ent && st.size >= ent.size && st.size >= ent.offset) {
+      offset = ent.offset; inTok = ent.inTok; outTok = ent.outTok;
+    }
+    try {
+      const len = st.size - offset;
+      let consumedBytes = 0;
+      if (len > 0) {
+        const fd = fs.openSync(f, 'r');
+        const buf = Buffer.allocUnsafe(len);
+        fs.readSync(fd, buf, 0, len, offset);
+        fs.closeSync(fd);
+        const text = buf.toString('utf8');
+        const lastNl = text.lastIndexOf('\n');
+        if (lastNl >= 0) {
+          const whole = text.slice(0, lastNl);          // only complete lines
+          for (const ln of whole.split('\n')) {
+            if (!ln) continue;
+            try {
+              const u = JSON.parse(ln).message?.usage;
+              if (u) { inTok += u.input_tokens || 0; outTok += u.output_tokens || 0; }
+            } catch {}
+          }
+          consumedBytes = Buffer.byteLength(whole, 'utf8') + 1; // + the '\n'
+        }
+      }
+      cache[f] = { size: st.size, mtimeMs: st.mtimeMs, offset: offset + consumedBytes, inTok, outTok };
+      dirty = true;
+      totalIn += inTok; totalOut += outTok;
+    } catch { /* unreadable file — skip, keep going */ }
+  }
+
+  if (dirty) {
+    try {
+      const tmp = cachePath + '.' + process.pid;
+      fs.writeFileSync(tmp, JSON.stringify(cache));
+      fs.renameSync(tmp, cachePath);
+    } catch {}
+  }
+  return totalIn + totalOut;
+}
+
+// ── Total Tokens (cumulative session, incl. sub-agents) ──
 function fieldTokens(d) {
-  const inp = d.context_window?.total_input_tokens || 0;
-  const out = d.context_window?.total_output_tokens || 0;
-  const total = inp + out;
+  let total = sessionTokensInOut(d);
+  if (total == null) {
+    // Fallback: no transcript_path (older Claude Code / tests) → main window.
+    total = (d.context_window?.total_input_tokens || 0) + (d.context_window?.total_output_tokens || 0);
+  }
   let label;
   if (total >= 1_000_000) label = (total / 1_000_000).toFixed(1) + 'M';
   else if (total >= 1_000) label = Math.round(total / 1_000) + 'K';

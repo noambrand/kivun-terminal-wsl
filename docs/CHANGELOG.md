@@ -27,6 +27,28 @@ reading actual `usage.output_tokens`) on **Opus 4.8** and **Sonnet 4.6**,
   the measured "no benefit." Findings posted to PR #102 / #84. The lossless
   normalization and meaning-safety guarantees from #98 are unchanged.
 
+## [1.4.40] - 2026-06-22
+
+### Fixed — statusline "total tokens" now counts the whole session, including sub-agents
+
+`context_window.total_input_tokens/total_output_tokens` (what the statusline used)
+only reflect the MAIN agent's current context window, and since Claude Code
+v2.1.132 aren't even cumulative — so sub-agent (Task) usage never showed up, and
+the number undercounted long sessions. There is no statusline-JSON field that
+exposes a subagent-inclusive total, so we compute it: `statusline.mjs` now sums
+input+output across the session transcript (`transcript_path`) PLUS the sibling
+`<session>/subagents/**/*.jsonl` tree (where Claude Code records sub-agents).
+Results are cached per file by size+mtime and parsed incrementally (only new
+bytes per render), so it stays cheap; any failure falls back to the old
+context-window value so the field can't break.
+
+### Documented — when the status-bar numbers update
+
+README (EN + HE) now explains that the Session / Weekly bars come from Claude's
+rate-limit headers, so they refresh only when Claude finishes a reply (after each
+answer returns), not on a timer — a value is current as of the most recent
+response. (Same note added to the website FAQ + llms-full.txt.)
+
 ## [1.4.39] - 2026-06-21
 
 ### Fixed — updater auto-repair now runs as a shipped script (the inline form never executed)
