@@ -158,12 +158,13 @@ A two-line live status bar at the bottom of every Claude Code session - the same
 Short spoken clips so you don't have to watch the screen, registered into
 `~/.claude/settings.json` automatically and **on by default**: **done** when Claude
 finishes a turn, **stuck** when it's waiting on you, and **save** (on demand) when you
-must act by hand. While Claude is waiting, a quiet **repeat reminder** replays the
-"stuck" clip every couple of minutes until you respond, then stops on its own (capped
-at 15 repeats).
+must act by hand. Optionally, a **repeat reminder** can re-play the "stuck" clip every
+couple of minutes while Claude waits, stopping the moment you respond (capped at 15
+repeats). The repeat is **off by default** — a repeating sound can annoy — so turn it
+on only if you want it: `node ~/.claude/sounds/voice.js repeat on`.
 
 Pure **Node.js** plus bundled `.wav` clips — no Python, no PowerShell. Toggle any time
-with `node ~/.claude/sounds/voice.js on|off|status`, or the **Sound ON/OFF**
+with `node ~/.claude/sounds/voice.js on|off|repeat|status`, or the **Sound ON/OFF**
 launchers; settings live in `~/.claude/sounds/config.json`.
 
 > **WSL/Linux note:** Kivun runs Claude Code inside WSL, where audio is best-effort
@@ -399,11 +400,13 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 
 קטעי קול קצרים כדי שלא תצטרכו להסתכל על המסך, נרשמים אוטומטית ב-`~/.claude/settings.json`
 ו**פעילים כברירת מחדל**: **done** כש-Claude מסיים תור, **stuck** כשהוא ממתין לכם,
-ו-**save** (לפי דרישה) כשצריך שתפעלו ידנית. כשהוא ממתין, **תזכורת חוזרת** שקטה משמיעה
-את קטע ה-stuck כל כמה דקות עד שאתם מגיבים, ואז נעצרת מעצמה (עד 15 חזרות).
+ו-**save** (לפי דרישה) כשצריך שתפעלו ידנית. אפשר גם להפעיל **תזכורת חוזרת** שמשמיעה
+שוב את קטע ה-stuck כל כמה דקות בזמן ש-Claude ממתין, ונעצרת ברגע שאתם מגיבים (עד 15
+חזרות). התזכורת החוזרת **כבויה כברירת מחדל** - צליל שחוזר שוב ושוב עלול להציק - אז
+הפעילו אותה רק אם תרצו: `node ~/.claude/sounds/voice.js repeat on`.
 
 **Node.js** בלבד עם קטעי `.wav` מצורפים - בלי Python, בלי PowerShell. אפשר להדליק ולכבות
-בכל רגע עם `node ~/.claude/sounds/voice.js on|off|status`, או עם קובצי **Sound ON/OFF**.
+בכל רגע עם `node ~/.claude/sounds/voice.js on|off|repeat|status`, או עם קובצי **Sound ON/OFF**.
 ההגדרות נמצאות ב-`~/.claude/sounds/config.json`.
 
 > **הערה ל-WSL/לינוקס:** Kivun מריץ את Claude Code בתוך WSL, ושם השמע הוא מאמץ-מיטבי
