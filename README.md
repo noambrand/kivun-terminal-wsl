@@ -157,8 +157,9 @@ A two-line live status bar at the bottom of every Claude Code session - the same
 
 Short spoken clips so you don't have to watch the screen, registered into
 `~/.claude/settings.json` automatically and **on by default**: **done** when Claude
-finishes a turn, **stuck** when it's waiting on you, and **save** (on demand) when you
-must act by hand. Optionally, a **repeat reminder** can re-play the "stuck" clip every
+finishes a turn, **permission** when it's waiting on you to approve or answer, and
+**save** (on demand) when you must act by hand. Optionally, a **repeat reminder** can
+re-play the "permission" clip every
 couple of minutes while Claude waits, stopping the moment you respond (capped at 15
 repeats). The repeat is **off by default** — a repeating sound can annoy — so turn it
 on only if you want it: `node ~/.claude/sounds/voice.js repeat on`.
@@ -399,9 +400,9 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 ### 🔔 התראות קוליות
 
 קטעי קול קצרים כדי שלא תצטרכו להסתכל על המסך, נרשמים אוטומטית ב-`~/.claude/settings.json`
-ו**פעילים כברירת מחדל**: **done** כש-Claude מסיים תור, **stuck** כשהוא ממתין לכם,
+ו**פעילים כברירת מחדל**: **done** כש-Claude מסיים תור, **permission** כשהוא ממתין לאישור או לתשובה שלכם,
 ו-**save** (לפי דרישה) כשצריך שתפעלו ידנית. אפשר גם להפעיל **תזכורת חוזרת** שמשמיעה
-שוב את קטע ה-stuck כל כמה דקות בזמן ש-Claude ממתין, ונעצרת ברגע שאתם מגיבים (עד 15
+שוב את קטע ה-permission כל כמה דקות בזמן ש-Claude ממתין, ונעצרת ברגע שאתם מגיבים (עד 15
 חזרות). התזכורת החוזרת **כבויה כברירת מחדל** - צליל שחוזר שוב ושוב עלול להציק - אז
 הפעילו אותה רק אם תרצו: `node ~/.claude/sounds/voice.js repeat on`.
 
