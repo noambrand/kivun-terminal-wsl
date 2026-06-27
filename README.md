@@ -156,12 +156,12 @@ A two-line live status bar at the bottom of every Claude Code session - the same
 ## Voice Alerts
 
 Short spoken clips so you don't have to watch the screen, registered into
-`~/.claude/settings.json` automatically and **on by default** — each tied to the event
+`~/.claude/settings.json` automatically and **on by default** — each tied to the moment
 that actually means it:
 
 | Alert | Plays when | Event |
 |-------|-----------|-------|
-| **done** | Claude finishes a turn (your turn) | `Stop` |
+| **done** | Claude has genuinely finished — nothing left to do | on-demand (Claude runs it) |
 | **permission** | The numbered **1. Yes / 2. No** confirm appears | `PermissionRequest` (real prompts only — never auto-approved tools) |
 | **waiting** | Claude has been waiting on you (~60s idle) | `Notification` (idle only) |
 | **save** | Manual intervention — act by hand | on-demand |
