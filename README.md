@@ -162,8 +162,8 @@ that actually means it:
 | Alert | Plays when | Event |
 |-------|-----------|-------|
 | **done** | Claude has genuinely finished — nothing left to do | on-demand (Claude runs it) |
-| **permission** | The numbered **1. Yes / 2. No** confirm appears | `PermissionRequest` (real prompts only — never auto-approved tools) |
-| **waiting** | Claude has been waiting on you (~60s idle) | `Notification` (idle only) |
+| **permission** | A genuine *allow this tool?* request (a file edit, a command) | `PermissionRequest` — real tool permissions only; question boxes & plan approval play *waiting* instead |
+| **waiting** | Claude has been waiting on you (~60s idle), or a question / plan-approval prompt is up | `Notification` (idle) + reclassified prompts |
 | **save** | Manual intervention — act by hand | on-demand |
 
 **Regular or Funny mode** — every alert has a plain recording and a joke one (e.g. done:
@@ -175,7 +175,28 @@ once you've gone idle, until you respond.
 Pure **Node.js** plus bundled `.wav` clips — no Python, no PowerShell. Toggle any time
 with `node ~/.claude/sounds/voice.js on|off|mode <m>|repeat on|off|status`, or the
 **Sound ON/OFF** / **Regular/Funny Sounds ON** launchers; settings live in
-`~/.claude/sounds/config.json`.
+`~/.claude/sounds/config.json` (inside WSL).
+
+### Turn all voice alerts off (one global switch)
+
+The on/off setting is **global** — a single switch for **every project, every folder, and
+every window**. It is **not** per-project and not per-profile. Turning it off silences
+**all** of it: the four alerts *and* the repeat reminder.
+
+Two ways to do it, no commands needed:
+
+1. **In the launcher's picker** — open Kivun Terminal's launcher, expand **Advanced options
+   → 🔊 Sound alerts**, and set **Sounds: Off**. It saves the instant you click, so you can
+   just close the window; you don't have to start a session.
+2. **Double-click `Sound OFF.cmd`** in the `sounds` folder inside your WSL home
+   (`~/.claude/sounds`).
+
+**When does it take effect?** Immediately — in every window that's already open, with **no
+restart**. (The setting is re-read before every sound, so the very next alert obeys it.) It
+also **survives updates and reinstalls**, so once it's off it stays off until you set it back
+to **On** the same way. Nothing is removed or uninstalled — it's a reversible switch. Because
+Kivun runs in WSL, the picker writes this setting through `wsl -d Ubuntu`, so it applies to
+every WSL Claude session.
 
 > **WSL/Linux note:** Kivun runs Claude Code inside WSL, where audio is best-effort
 > (`paplay`/`aplay` via WSLg) and stays silent if no audio bridge is present. The
@@ -413,9 +434,9 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 
 | התראה | מתי מתנגנת | אירוע |
 |-------|-----------|-------|
-| **done** | Claude סיים תור (תורכם) | `Stop` |
-| **permission** | מופיע אישור ממוספר **1. כן / 2. לא** | `PermissionRequest` (רק בקשות אמיתיות, אף פעם לא כלים שאושרו אוטומטית) |
-| **waiting** | Claude ממתין לכם (כ-60 שניות ללא פעילות) | `Notification` (idle בלבד) |
+| **done** | Claude באמת סיים, אין יותר מה לעשות | לפי דרישה (Claude מפעיל אותו) |
+| **permission** | בקשת *הרשאה אמיתית להפעלת כלי* (עריכת קובץ, הרצת פקודה) | `PermissionRequest`, רק הרשאות כלי אמיתיות. תיבות שאלה ואישור תוכנית מנגנים *waiting* במקום |
+| **waiting** | Claude ממתין לכם (כ-60 שניות ללא פעילות), או שמופיעה שאלה / אישור תוכנית | `Notification` (idle) ובקשות שסווגו מחדש |
 | **save** | התערבות ידנית - לעשות משהו בידיים | לפי דרישה |
 
 **מצב רגיל או מצחיק** - לכל התראה יש הקלטה רגילה והקלטת בדיחה (למשל done: *"Done."* מול
@@ -430,6 +451,23 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 > **הערה ל-WSL/לינוקס:** Kivun מריץ את Claude Code בתוך WSL, ושם השמע הוא מאמץ-מיטבי
 > (`paplay`/`aplay` דרך WSLg) ונשאר שקט אם אין גשר שמע. ההוקים והפקדים מותקנים בכל מקרה,
 > והשמעה מלאה מ-WSL ל-Windows מתוכננת בהמשך. ב-macOS ובלינוקס שולחני הקטעים מתנגנים כרגיל.
+
+#### כיבוי כל ההתראות הקוליות (מתג אחד, גלובלי)
+
+הגדרת ההדלקה/כיבוי היא **גלובלית**: מתג אחד לכל הפרויקטים, כל התיקיות וכל החלונות. זו
+**אינה** הגדרה נפרדת לכל פרויקט ולא לכל פרופיל. כיבוי משתיק את **הכול**: ארבע ההתראות וגם
+התזכורת החוזרת. שתי דרכים, בלי שום פקודה:
+
+1. **מתוך הפיקר של המשגר:** פותחים את המשגר של Kivun, פותחים **Advanced options →
+   🔊 Sound alerts**, ומעבירים את **Sounds** ל-**Off**. ההגדרה נשמרת ברגע הלחיצה, אפשר
+   פשוט לסגור את החלון, אין צורך להתחיל סשן.
+2. **לחיצה כפולה על `Sound OFF.cmd`** בתיקיית `sounds` שבתוך בית ה-WSL (`~/.claude/sounds`).
+
+**מתי זה נכנס לתוקף?** מיד, בכל חלון שכבר פתוח, בלי להפעיל מחדש. ההגדרה נקראת מחדש לפני כל
+צליל, כך שההתראה הבאה כבר תכבד אותה. הכיבוי גם **שורד עדכונים והתקנות מחדש**, כך שברגע
+שכיביתם הוא נשאר כבוי עד שתחזירו ל-**On** באותה דרך. שום דבר לא נמחק ולא מוסר, זהו מתג הפיך.
+כיוון ש-Kivun רץ בתוך WSL, הפיקר כותב את ההגדרה דרך `wsl -d Ubuntu`, כך שהיא חלה על כל סשן
+של Claude ב-WSL.
 
 ### 🎨 ערכת נושא לטרמינל
 
