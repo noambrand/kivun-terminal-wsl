@@ -3,6 +3,26 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.5] - 2026-06-28
+
+### Changed — clearer "turn off all voice alerts" guidance (English + Hebrew)
+
+Documented and clarified the single **global** off switch for the voice alerts, so a
+non-technical user can silence everything for good without commands:
+
+- **README (English + Hebrew)** gained a "Turn all voice alerts off" / "כיבוי כל ההתראות
+  הקוליות" section: the on/off setting is **global** (every project, folder and window — *not*
+  per-project/per-profile), takes effect **immediately** with no restart (the flag is re-read
+  before every sound), and **survives updates/reinstalls**. Two no-command ways: the picker's
+  **Sounds: Off**, or `Sound OFF.cmd`. Because Kivun runs in WSL, the picker writes the
+  setting through `wsl -d Ubuntu`, so it applies to every WSL Claude session.
+- **Picker** — the 🔊 Sound alerts help text now states plainly that it's a global, instant,
+  persistent switch (not per-project).
+- Fixed stale Hebrew table rows (`done` was still `Stop`; `permission`/`waiting` now match the
+  v1.5.4 reclassification — real tool permissions only; questions/plan approval play *waiting*).
+
+No behavior change to the alert engine — discoverability and wording only.
+
 ## [1.5.4] - 2026-06-28
 
 ### Fixed — "permission" alert no longer fires for questions / plan approval
