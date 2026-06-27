@@ -302,6 +302,16 @@ else
   log "INFO - statusline.mjs not found in install dir, skipping"
 fi
 
+# --- Voice alerts setup ---
+# Deploy the sounds toolkit to ~/.claude/sounds and register the Stop/Notification
+# hooks. Playback inside WSL is best-effort (paplay/aplay via WSLg; see
+# sounds/README.md) and silent-safe — it never blocks or breaks a session.
+if [ -f "$SCRIPT_DIR/sounds/configure-sound-hooks.js" ] && command -v node >/dev/null 2>&1; then
+  node "$SCRIPT_DIR/sounds/configure-sound-hooks.js" \
+    && log "SUCCESS - Voice alerts registered (~/.claude/sounds)" \
+    || log "WARNING - configure-sound-hooks.js failed"
+fi
+
 # Display + keyboard: always WSLg. VcXsrv support was removed because modern
 # Windows 11 + WSL2 WSLg handles X11 display and Alt+Shift layout switching on
 # its own. DISPLAY already defaults to :0 earlier in this script.

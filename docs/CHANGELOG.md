@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — voice alerts (done / stuck / save) with a repeat reminder
+
+Claude Code now speaks short clips so you don't have to watch the screen: **done**
+when it finishes a turn, **stuck** when it's waiting on you, and **save** (on demand)
+when you must act by hand. While Claude waits, a quiet **nag** replays the stuck clip
+every couple of minutes until you respond, then disarms (`UserPromptSubmit` /
+`PostToolUse`), capped at 15 repeats. On by default; toggle with
+`node ~/.claude/sounds/voice.js on|off` or the **Sound ON/OFF** launchers.
+
+Pure **Node.js** plus bundled `.wav` clips — no Python, no PowerShell. The sounds
+toolkit ships in `payload/sounds/` and is deployed to `~/.claude/sounds/` with its
+hooks merged into `~/.claude/settings.json` by `configure-sound-hooks.js` (idempotent;
+preserves the user's on/off choice across upgrades). Wired into the Windows installer,
+`linux/install.sh`, and the WSL launcher (`kivun-launch.sh`). **Playback inside WSL is
+best-effort** (`paplay`/`aplay` via WSLg) and silent-safe; full Windows-from-WSL audio
+is a planned follow-up. macOS and native Linux desktops play normally.
+
 ### Documented — RTL cost optimizer measured: no token saving (follow-up to #98 / #102 / #84)
 
 The v1.4.27 RTL cost optimizer experiment was measured with paired A/B

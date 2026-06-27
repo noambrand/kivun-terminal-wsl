@@ -153,6 +153,24 @@ A two-line live status bar at the bottom of every Claude Code session - the same
 > as of the most recent response, and won't move while you're typing or reading.
 > **Tokens** counts the whole session (sub-agents included) and grows as Claude works.
 
+## Voice Alerts
+
+Short spoken clips so you don't have to watch the screen, registered into
+`~/.claude/settings.json` automatically and **on by default**: **done** when Claude
+finishes a turn, **stuck** when it's waiting on you, and **save** (on demand) when you
+must act by hand. While Claude is waiting, a quiet **repeat reminder** replays the
+"stuck" clip every couple of minutes until you respond, then stops on its own (capped
+at 15 repeats).
+
+Pure **Node.js** plus bundled `.wav` clips — no Python, no PowerShell. Toggle any time
+with `node ~/.claude/sounds/voice.js on|off|status`, or the **Sound ON/OFF**
+launchers; settings live in `~/.claude/sounds/config.json`.
+
+> **WSL/Linux note:** Kivun runs Claude Code inside WSL, where audio is best-effort
+> (`paplay`/`aplay` via WSLg) and stays silent if no audio bridge is present. The
+> hooks and controls install regardless; full Windows-from-WSL playback is a planned
+> follow-up. On macOS and native Linux desktops the clips play normally.
+
 ## Terminal Theme
 
 A custom **light-blue Kivun color scheme** (`#C8E6FF` background, dark text, blue cursor) ships with every installer and is enabled by default:
@@ -376,6 +394,21 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 > השימוש שבכותרות התשובה של Claude, ולכן הם מתעדכנים **רק כש-Claude מסיים תשובה**,
 > לא לפי טיימר. כלומר הערך מדויק נכון לתשובה האחרונה, והוא לא יזוז בזמן שאתם מקלידים
 > או קוראים. **טוקנים** סופר את כל הסשן (כולל סוכני משנה) וגדל תוך כדי העבודה.
+
+### 🔔 התראות קוליות
+
+קטעי קול קצרים כדי שלא תצטרכו להסתכל על המסך, נרשמים אוטומטית ב-`~/.claude/settings.json`
+ו**פעילים כברירת מחדל**: **done** כש-Claude מסיים תור, **stuck** כשהוא ממתין לכם,
+ו-**save** (לפי דרישה) כשצריך שתפעלו ידנית. כשהוא ממתין, **תזכורת חוזרת** שקטה משמיעה
+את קטע ה-stuck כל כמה דקות עד שאתם מגיבים, ואז נעצרת מעצמה (עד 15 חזרות).
+
+**Node.js** בלבד עם קטעי `.wav` מצורפים - בלי Python, בלי PowerShell. אפשר להדליק ולכבות
+בכל רגע עם `node ~/.claude/sounds/voice.js on|off|status`, או עם קובצי **Sound ON/OFF**.
+ההגדרות נמצאות ב-`~/.claude/sounds/config.json`.
+
+> **הערה ל-WSL/לינוקס:** Kivun מריץ את Claude Code בתוך WSL, ושם השמע הוא מאמץ-מיטבי
+> (`paplay`/`aplay` דרך WSLg) ונשאר שקט אם אין גשר שמע. ההוקים והפקדים מותקנים בכל מקרה,
+> והשמעה מלאה מ-WSL ל-Windows מתוכננת בהמשך. ב-macOS ובלינוקס שולחני הקטעים מתנגנים כרגיל.
 
 ### 🎨 ערכת נושא לטרמינל
 
