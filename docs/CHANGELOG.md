@@ -3,7 +3,7 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.5.0] - 2026-06-27
 
 ### Added — voice alerts (done / permission / waiting / save), regular or funny
 
