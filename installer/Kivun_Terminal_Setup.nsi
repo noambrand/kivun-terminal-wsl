@@ -168,6 +168,12 @@ Section "Core Files" SEC_CORE
   File "..\payload\kivun-repair-updater.sh"
   File "..\payload\statusline.mjs"
   File "..\payload\configure-statusline.js"
+  ; Voice-alert sounds toolkit. Lands as a sibling of the launcher so that
+  ; kivun-launch.sh (running in WSL) finds it at $SCRIPT_DIR/sounds and deploys
+  ; it into ~/.claude on first launch. See payload\sounds\README.md.
+  SetOutPath "$INSTDIR\sounds"
+  File /r "..\payload\sounds\*.*"
+  SetOutPath "$INSTDIR"
   File "..\payload\folder-picker.wsf"
   File "..\payload\folder-picker.hta"
   ; Window-icon helper: kivun-set-icon.py reads kivun-icon.png and writes
@@ -659,6 +665,7 @@ Section "Uninstall"
   Delete "$INSTDIR\kivun-repair-updater.sh"
   Delete "$INSTDIR\kivun-set-icon.py"
   Delete "$INSTDIR\kivun-icon.png"
+  RMDir /r "$INSTDIR\sounds"
   Delete "$INSTDIR\config.txt"
   Delete "$INSTDIR\VERSION"
   Delete "$INSTDIR\README.md"

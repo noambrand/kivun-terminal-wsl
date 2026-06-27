@@ -247,6 +247,15 @@ if [ -f "$PAYLOAD_DIR/configure-statusline.js" ] && command -v node >/dev/null 2
         || err "configure-statusline.js failed"
 fi
 
+# voice alerts — deploy the sounds toolkit to ~/.claude/sounds and wire the hooks.
+# Playback on Linux/WSL is best-effort (paplay/aplay; see payload/sounds/README.md)
+# and silent-safe; it never blocks or breaks a session.
+if [ -f "$PAYLOAD_DIR/sounds/configure-sound-hooks.js" ] && command -v node >/dev/null 2>&1; then
+    node "$PAYLOAD_DIR/sounds/configure-sound-hooks.js" 2>&1 | tee -a "$LOG_FILE" \
+        && log "Voice alerts registered in ~/.claude/settings.json" \
+        || err "configure-sound-hooks.js failed"
+fi
+
 # --- BiDi wrapper (kivun-claude-bidi) ---
 # Bundled the same way Windows does: ship the wrapper source under the
 # user's local share dir and run `npm install --production` once at install

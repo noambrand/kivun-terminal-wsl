@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — voice alerts (done / permission / waiting / save), regular or funny
+
+Claude Code now speaks short clips so you don't have to watch the screen, each bound to
+the event that actually means it: **done** (`Stop`), **permission** — the numbered
+**1. Yes / 2. No** confirm — on `PermissionRequest` (interactive prompts only, never
+auto-approved tools), **waiting** (~60s idle) on `Notification` with
+`matcher: "idle_prompt"` so it never fires just because a permission prompt appeared,
+and **save** (on-demand) for manual intervention. Each alert has a plain recording and
+a joke one — switch with the **Regular / Funny Sounds ON** launchers or
+`node ~/.claude/sounds/voice.js mode regular|funny` (clips under `regular/` and
+`funny/`, `funny → regular → flat` fallback). An optional repeat reminder (off by
+default) re-plays the *waiting* clip every couple of minutes once you've gone idle,
+disarming on `UserPromptSubmit` / `PostToolUse` (capped at 15).
+
+Pure **Node.js** plus bundled `.wav` clips — no Python, no PowerShell. The sounds
+toolkit ships in `payload/sounds/` (both clip sets) and is deployed to
+`~/.claude/sounds/` with its hooks merged into `~/.claude/settings.json` by
+`configure-sound-hooks.js` (idempotent; preserves the user's settings across upgrades).
+Wired into the Windows installer, `linux/install.sh`, and the WSL launcher
+(`kivun-launch.sh`). **Playback inside WSL is best-effort** (`paplay`/`aplay` via WSLg)
+and silent-safe; full Windows-from-WSL audio is a planned follow-up. macOS and native
+Linux desktops play normally.
+
 ### Documented — RTL cost optimizer measured: no token saving (follow-up to #98 / #102 / #84)
 
 The v1.4.27 RTL cost optimizer experiment was measured with paired A/B

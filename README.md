@@ -153,6 +153,35 @@ A two-line live status bar at the bottom of every Claude Code session - the same
 > as of the most recent response, and won't move while you're typing or reading.
 > **Tokens** counts the whole session (sub-agents included) and grows as Claude works.
 
+## Voice Alerts
+
+Short spoken clips so you don't have to watch the screen, registered into
+`~/.claude/settings.json` automatically and **on by default** — each tied to the event
+that actually means it:
+
+| Alert | Plays when | Event |
+|-------|-----------|-------|
+| **done** | Claude finishes a turn (your turn) | `Stop` |
+| **permission** | The numbered **1. Yes / 2. No** confirm appears | `PermissionRequest` (real prompts only — never auto-approved tools) |
+| **waiting** | Claude has been waiting on you (~60s idle) | `Notification` (idle only) |
+| **save** | Manual intervention — act by hand | on-demand |
+
+**Regular or Funny mode** — every alert has a plain recording and a joke one (e.g. done:
+*"Done."* vs *"Done. I'll pretend that took effort."*). Switch with **Regular Sounds ON** /
+**Funny Sounds ON** or `node ~/.claude/sounds/voice.js mode regular|funny`. An optional
+**repeat reminder** (off by default) re-plays the *waiting* clip every couple of minutes
+once you've gone idle, until you respond.
+
+Pure **Node.js** plus bundled `.wav` clips — no Python, no PowerShell. Toggle any time
+with `node ~/.claude/sounds/voice.js on|off|mode <m>|repeat on|off|status`, or the
+**Sound ON/OFF** / **Regular/Funny Sounds ON** launchers; settings live in
+`~/.claude/sounds/config.json`.
+
+> **WSL/Linux note:** Kivun runs Claude Code inside WSL, where audio is best-effort
+> (`paplay`/`aplay` via WSLg) and stays silent if no audio bridge is present. The
+> hooks and controls install regardless; full Windows-from-WSL playback is a planned
+> follow-up. On macOS and native Linux desktops the clips play normally.
+
 ## Terminal Theme
 
 A custom **light-blue Kivun color scheme** (`#C8E6FF` background, dark text, blue cursor) ships with every installer and is enabled by default:
@@ -376,6 +405,31 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 > השימוש שבכותרות התשובה של Claude, ולכן הם מתעדכנים **רק כש-Claude מסיים תשובה**,
 > לא לפי טיימר. כלומר הערך מדויק נכון לתשובה האחרונה, והוא לא יזוז בזמן שאתם מקלידים
 > או קוראים. **טוקנים** סופר את כל הסשן (כולל סוכני משנה) וגדל תוך כדי העבודה.
+
+### 🔔 התראות קוליות
+
+קטעי קול קצרים כדי שלא תצטרכו להסתכל על המסך, נרשמים אוטומטית ב-`~/.claude/settings.json`
+ו**פעילים כברירת מחדל**, כל אחד קשור לאירוע שבאמת מתאר אותו:
+
+| התראה | מתי מתנגנת | אירוע |
+|-------|-----------|-------|
+| **done** | Claude סיים תור (תורכם) | `Stop` |
+| **permission** | מופיע אישור ממוספר **1. כן / 2. לא** | `PermissionRequest` (רק בקשות אמיתיות, אף פעם לא כלים שאושרו אוטומטית) |
+| **waiting** | Claude ממתין לכם (כ-60 שניות ללא פעילות) | `Notification` (idle בלבד) |
+| **save** | התערבות ידנית - לעשות משהו בידיים | לפי דרישה |
+
+**מצב רגיל או מצחיק** - לכל התראה יש הקלטה רגילה והקלטת בדיחה (למשל done: *"Done."* מול
+*"Done. I'll pretend that took effort."*). מחליפים עם **Regular Sounds ON** / **Funny Sounds ON**
+או `node ~/.claude/sounds/voice.js mode regular|funny`. אפשר גם **תזכורת חוזרת** (כבויה כברירת
+מחדל) שמשמיעה שוב את קטע ה-waiting כל כמה דקות אחרי שהפסקתם להגיב, עד שתגיבו.
+
+**Node.js** בלבד עם קטעי `.wav` מצורפים - בלי Python, בלי PowerShell. אפשר להדליק ולכבות
+בכל רגע עם `node ~/.claude/sounds/voice.js on|off|mode <m>|repeat on|off|status`, או עם קובצי
+**Sound ON/OFF** / **Regular/Funny Sounds ON**. ההגדרות נמצאות ב-`~/.claude/sounds/config.json`.
+
+> **הערה ל-WSL/לינוקס:** Kivun מריץ את Claude Code בתוך WSL, ושם השמע הוא מאמץ-מיטבי
+> (`paplay`/`aplay` דרך WSLg) ונשאר שקט אם אין גשר שמע. ההוקים והפקדים מותקנים בכל מקרה,
+> והשמעה מלאה מ-WSL ל-Windows מתוכננת בהמשך. ב-macOS ובלינוקס שולחני הקטעים מתנגנים כרגיל.
 
 ### 🎨 ערכת נושא לטרמינל
 
