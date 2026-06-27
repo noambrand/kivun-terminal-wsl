@@ -3,6 +3,28 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.3] - 2026-06-28
+
+### Added — voice-alert controls in the folder picker
+
+The picker now has a **🔊 Sound alerts (voice)** section (under **Advanced options**) so you
+can manage the voice alerts without hunting for the `.cmd` files:
+
+- **Sounds: On / Off**, **Voice pack: Regular / Funny**, and a **Repeat reminder** toggle
+  with a minutes box (clamped to the system's 15-minute maximum).
+- **▶ Test Sounds** plays the four alerts (done / permission / waiting / save) in the
+  selected pack.
+
+Because Kivun runs Claude inside WSL, its `config.json` lives in the distro's home
+(`~/.claude/sounds/`), so the controls read and write it through `wsl -d Ubuntu` (the same
+distro the launcher uses). Writes go through `voice.js`, which preserves unknown keys and
+re-reads config on every play, so changes **apply immediately, no restart**. The whole
+desired state is written in one batched call, so the four fields can't drift apart. These
+are **global** settings (every folder, profile and session), and every handler is wrapped
+never-to-throw. The section shows a clear note when WSL is unreachable or the sounds aren't
+installed yet. Note: WSL audio needs WSLg/PulseAudio, so the **Test** button may be silent
+on some machines even though the settings still take effect.
+
 ## [1.5.2] - 2026-06-28
 
 ### Fixed — installer is now fully idempotent (no duplicate sound hooks)

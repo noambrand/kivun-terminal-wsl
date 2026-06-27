@@ -587,7 +587,7 @@
   // installs that predate the file). The picker fetches the latest tag
   // from the GitHub API on launch and shows a banner if newer.
   var GITHUB_REPO = "noambrand/kivun-terminal-wsl";
-  var FALLBACK_VERSION = "1.5.2";
+  var FALLBACK_VERSION = "1.5.3";
   var ASSET_NAME_RE = /^Kivun_Terminal_Setup\.exe$/i;
   var resultFile = kivunDir + "\\kivun-workdir.txt";
   var startupFile = kivunDir + "\\kivun-startup-cmds.txt";
@@ -595,6 +595,20 @@
   var envFile = kivunDir + "\\kivun-env.txt";
   var profilesFile = kivunDir + "\\profiles.json";
   var configFile = installDir + "\\config.txt";
+
+  // Voice-alert ("Sound alerts") controls. Kivun runs Claude inside WSL, so the
+  // live config the alert scripts read lives in the DISTRO's home at
+  // ~/.claude/sounds/config.json — NOT a Windows path. We reach it the same way
+  // the launcher does: `wsl -d Ubuntu` (the hardcoded DISTRO in
+  // kivun-terminal.bat). Reads capture WSL stdout into a Windows temp file;
+  // writes go through voice.js, which preserves any unknown keys and re-reads
+  // config on every play, so changes apply immediately. Quirk handled in
+  // wslSetStateCmd: `voice.js every N` also turns repeat ON, so repeat is set
+  // LAST. soundCfg is the parsed config, or null when WSL is unreachable or
+  // voice alerts aren't installed in the distro yet.
+  var SND_DISTRO = "Ubuntu";  // keep in sync with DISTRO in kivun-terminal.bat
+  var soundReadTmp = kivunDir + "\\kivun-sound-config.tmp.json";
+  var soundCfg = null;
 
   // v1.4.0: profiles state. profiles.json is now the source of truth for
   // CLAUDE_FLAGS / model / conv / startup commands / env vars; config.txt
@@ -1305,6 +1319,131 @@
     updateFlagPreview();
   }
 
+  // ---- Voice alerts (Sound alerts) — WSL-routed ------------------------
+  // Inline equivalent of the Sound ON/OFF, Regular/Funny and repeat .cmd
+  // controls. Kivun's config.json lives inside the WSL distro, so every read
+  // and write goes through `wsl -d Ubuntu`. Findings (wav/CLAUDE.md):
+  // config.json is the single source of truth, re-read on every play (instant
+  // apply), and repeat_minutes is capped at 15. Everything is wrapped
+  // never-to-throw so a sound action can't break the picker or the launch.
+
+  function clampSoundMinutes(v) {
+    var n = parseInt(v, 10);
+    if (isNaN(n) || n < 1) n = 2;
+    if (n > 15) n = 15;   // the system ignores anything above 15 minutes
+    return n;
+  }
+
+  function loadSoundConfig() {
+    soundCfg = null;
+    try {
+      deleteIfExists(soundReadTmp);
+      // cmd /c so we can redirect WSL stdout into a Windows temp file. The path
+      // has no spaces, so the sh -c argument needs no inner quoting.
+      var readCmd = 'cmd /c wsl.exe -d ' + SND_DISTRO +
+        ' -- sh -c "cat $HOME/.claude/sounds/config.json" > "' + soundReadTmp + '" 2>nul';
+      wshShell.Run(readCmd, 0, true);   // hidden, wait
+      if (!fso.FileExists(soundReadTmp)) return;
+      var raw = readUtf8(soundReadTmp);
+      deleteIfExists(soundReadTmp);
+      if (!raw || !raw.replace(/^\s+|\s+$/g, "")) return;
+      var c = JSON.parse(raw);
+      if (!c || typeof c !== "object") return;
+      soundCfg = {
+        enabled: (c.enabled !== false),
+        mode: (c.mode === "funny") ? "funny" : "regular",
+        repeat_enabled: (c.repeat_enabled === true),
+        repeat_minutes: clampSoundMinutes(c.repeat_minutes)
+      };
+    } catch (e) { soundCfg = null; }
+  }
+
+  function wslSetStateCmd(cfg) {
+    // Drive voice.js to the exact desired state in one wsl call. Order matters:
+    // `every N` also flips repeat ON, so the final `repeat on|off` runs LAST.
+    // voice.js does load-modify-save, so any unknown keys in config.json survive.
+    var seq = "cd $HOME/.claude/sounds && " +
+              "node voice.js mode " + cfg.mode + " && " +
+              "node voice.js " + (cfg.enabled ? "on" : "off") + " && " +
+              "node voice.js every " + cfg.repeat_minutes + " && " +
+              "node voice.js repeat " + (cfg.repeat_enabled ? "on" : "off");
+    return 'wsl.exe -d ' + SND_DISTRO + ' -- sh -c "' + seq + '"';
+  }
+
+  function saveSoundConfig() {
+    if (!soundCfg) return;
+    try { wshShell.Run(wslSetStateCmd(soundCfg), 0, true); } catch (e) {}  // hidden, wait
+  }
+
+  function applySoundConfigToUI() {
+    var checking = document.getElementById("sound-checking");
+    var block = document.getElementById("sound-block");
+    var na = document.getElementById("sound-na");
+    var help = document.getElementById("sound-help");
+    if (checking) checking.style.display = "none";
+    if (!soundCfg) {
+      if (block) block.style.display = "none";
+      if (help) help.style.display = "none";
+      if (na) na.style.display = "block";
+      return;
+    }
+    if (na) na.style.display = "none";
+    if (block) block.style.display = "block";
+    if (help) help.style.display = "block";
+    setRadioValue("snd-enabled", soundCfg.enabled ? "on" : "off");
+    setRadioValue("snd-mode", soundCfg.mode);
+    var rep = document.getElementById("snd-repeat");
+    if (rep) rep.checked = soundCfg.repeat_enabled;
+    var mins = document.getElementById("snd-minutes");
+    if (mins) mins.value = soundCfg.repeat_minutes;
+  }
+
+  function flashSoundStatus() {
+    var s = document.getElementById("snd-status");
+    if (!s) return;
+    s.className = "status saved";
+    s.innerText = "✓ saved";
+    try { setTimeout(function () { try { s.innerText = ""; s.className = "status"; } catch (_) {} }, 1400); } catch (_) {}
+  }
+
+  function captureSoundUI() {
+    if (!soundCfg) return;
+    soundCfg.enabled = (getRadioValue("snd-enabled") === "on");
+    soundCfg.mode = (getRadioValue("snd-mode") === "funny") ? "funny" : "regular";
+    var rep = document.getElementById("snd-repeat");
+    soundCfg.repeat_enabled = !!(rep && rep.checked);
+    var mins = document.getElementById("snd-minutes");
+    var n = clampSoundMinutes(mins ? mins.value : 2);
+    soundCfg.repeat_minutes = n;
+    if (mins && ("" + mins.value) !== ("" + n)) mins.value = n;  // reflect clamp
+  }
+
+  // Every control writes the FULL desired state (one wsl call), so the four
+  // fields can never drift apart regardless of voice.js side effects.
+  function onSoundChange() {
+    if (!soundCfg) return;
+    captureSoundUI();
+    saveSoundConfig();
+    flashSoundStatus();
+  }
+
+  function testSounds() {
+    try {
+      var seq = "cd $HOME/.claude/sounds && for a in done permission waiting save; do node voice.js test $a; sleep 2; done";
+      wshShell.Run('wsl.exe -d ' + SND_DISTRO + ' -- sh -c "' + seq + '"', 0, false);  // hidden, no wait
+    } catch (e) {}
+  }
+
+  // Deferred: the first wsl.exe call can be slow on a cold distro, so we render
+  // the picker first (with a "checking…" note) and populate once the read returns.
+  function initSoundControls() {
+    try {
+      loadSoundConfig();
+      applySoundConfigToUI();
+      autoSizeToContent();
+    } catch (e) {}
+  }
+
   function init() {
     try {
       deleteIfExists(startupFile);   // start each session fresh
@@ -1321,6 +1460,8 @@
       // Defer the GitHub check so the picker renders first; the sync
       // WinHttp call can briefly block the UI thread on slow links.
       try { window.setTimeout(checkForUpdate, 100); } catch (_) {}
+      // Populate the sound controls after first render (cold-distro safe).
+      try { window.setTimeout(initSoundControls, 140); } catch (_) {}
     } catch (e) {
       try { showError("init error: " + (e.message || e.description || e)); } catch (_) {}
     }
@@ -1428,6 +1569,41 @@
       <textarea id="env-vars" rows="3" onkeyup="updateFlagPreview()" placeholder="KEY=VAL, one per line. Lines starting with # are ignored.&#10;e.g.&#10;ANTHROPIC_API_KEY=sk-ant-...&#10;DEBUG=1"></textarea>
     </div>
     <div class="flag-help">Per-profile environment variables passed into the Claude session. Values are masked in the preview by default for screenshot safety — click <b>👁 show values</b> above to reveal.</div>
+  </div>
+
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label"><span class="opt-num">6</span> 🔊 Sound alerts (voice):</div>
+    <div id="sound-checking" class="flag-help">Checking voice-alert settings in WSL…</div>
+    <div id="sound-na" class="flag-help" style="display:none">Voice alerts aren't set up in WSL yet (or WSL is unreachable). They install automatically the first time you launch Kivun.</div>
+    <div id="sound-block" style="display:none">
+      <div class="flag-grid">
+        <div class="lbl">Sounds:</div>
+        <div class="radio-row">
+          <label><input type="radio" name="snd-enabled" value="on" onclick="onSoundChange()" /> On</label>
+          <label><input type="radio" name="snd-enabled" value="off" onclick="onSoundChange()" /> Off</label>
+        </div>
+
+        <div class="lbl">Voice pack:</div>
+        <div class="radio-row">
+          <label><input type="radio" name="snd-mode" value="regular" onclick="onSoundChange()" /> Regular</label>
+          <label><input type="radio" name="snd-mode" value="funny" onclick="onSoundChange()" /> Funny <span style="color:#707070">(playful phrasing)</span></label>
+        </div>
+
+        <div class="lbl">Repeat reminder:</div>
+        <div class="check-row">
+          <label><input type="checkbox" id="snd-repeat" onclick="onSoundChange()" /> Remind me again every</label>
+          <input type="text" id="snd-minutes" value="2" onchange="onSoundChange()" style="width:46px; padding:6px 8px; font-size:13px;" />
+          <span>minutes <span style="color:#707070">(max 15)</span></span>
+        </div>
+
+        <div class="lbl"></div>
+        <div>
+          <button type="button" onclick="testSounds()" title="Play the four alerts (done, permission, waiting, save) in the selected voice pack">▶ Test Sounds</button>
+          <span class="status" id="snd-status" style="margin-left:10px;"></span>
+        </div>
+      </div>
+    </div>
+    <div class="flag-help" id="sound-help" style="display:none">These are <b>global</b> settings inside WSL — one switch for every folder, profile and session (not per-profile like the options above). Changes save the moment you click and apply immediately — no restart needed. Note: playing sound from WSL needs WSLg/PulseAudio, so the <b>Test</b> button may be silent on some machines even though the settings still take effect.</div>
   </div>
 
   </div><!-- /advanced-body -->
