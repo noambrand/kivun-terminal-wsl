@@ -8,7 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added — voice alerts (done / permission / waiting / save), regular or funny
 
 Claude Code now speaks short clips so you don't have to watch the screen, each bound to
-the event that actually means it: **done** (`Stop`), **permission** — the numbered
+the moment that actually means it: **done** (on-demand, played when Claude has genuinely
+finished, *not* on `Stop`, which fires at the end of every turn), **permission** — the numbered
 **1. Yes / 2. No** confirm — on `PermissionRequest` (interactive prompts only, never
 auto-approved tools), **waiting** (~60s idle) on `Notification` with
 `matcher: "idle_prompt"` so it never fires just because a permission prompt appeared,
