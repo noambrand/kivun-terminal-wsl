@@ -3,6 +3,17 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.2] - 2026-06-28
+
+### Fixed — installer is now fully idempotent (no duplicate sound hooks)
+
+`configure-sound-hooks.js` now treats **any** of our sound scripts as "ours" when it
+de-dupes — the Node `play.js` / `reminder.js` **and** a legacy Python `notify.py` /
+`reminder.py` from an earlier hand-install. Before, a machine that already had the
+Python prototype wired would end up with **both** systems on every event, so each alert
+played (and logged) twice. Now repeat installs — and a Python→Node switch — always
+collapse to a single Node hook set.
+
 ## [1.5.1] - 2026-06-27
 
 ### Added — voice-alert trigger log (`alerts.log`)
