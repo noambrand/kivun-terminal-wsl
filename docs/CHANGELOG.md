@@ -3,6 +3,27 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.6] - 2026-06-29
+
+### Fixed — "Continue last conversation" no longer kills the terminal on a fresh folder
+
+If you chose **Continue last** in the picker (or pinned `CLAUDE_FLAGS=--continue` in
+`config.txt`) and then launched a folder that had **no previous conversation**, Claude Code
+printed *"No conversation found to continue"* and exited immediately — the Konsole window
+opened and died on its own, looking like the launcher failed to start.
+
+- The launcher (`kivun-launch.sh` and the direct-fallback `kivun-direct.sh`) now detects that
+  fast failure and **automatically reopens a fresh Claude session** with the resume flag
+  stripped, instead of leaving you with a dead terminal. The retry happens once; a real
+  session you worked in and then closed is never retried (a 10-second guard tells the two
+  apart). Affects `--continue`/`-c` and `--resume`/`-r`.
+
+### Note — your settings are kept on upgrade
+
+Installing a newer version over an existing one **preserves your `config.txt`** (language,
+keyboard, flags, BiDi tunables) and your **saved picker profiles** (`profiles.json` — the
+folders/combos you saved). Neither is overwritten or deleted by the upgrade.
+
 ## [1.5.5] - 2026-06-28
 
 ### Changed — clearer "turn off all voice alerts" guidance (English + Hebrew)

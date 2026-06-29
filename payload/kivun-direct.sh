@@ -47,16 +47,49 @@ cd "$1" 2>/dev/null || cd "$HOME"
 # into two argv entries. If $3 is empty, no extra args reach claude.
 EXTRA_FLAGS="${3:-}"
 
+# Resolve the claude binary once. The Anthropic curl installer drops it at
+# ~/.local/bin/claude, which is NOT on the default non-interactive PATH.
 if [ -x "$HOME/.local/bin/claude" ]; then
-    exec "$HOME/.local/bin/claude" --append-system-prompt "$2" $EXTRA_FLAGS
+    CLAUDE_BIN="$HOME/.local/bin/claude"
+elif [ -x "$HOME/.npm-global/bin/claude" ]; then
+    CLAUDE_BIN="$HOME/.npm-global/bin/claude"
 elif [ -x /usr/local/bin/claude ]; then
-    exec /usr/local/bin/claude --append-system-prompt "$2" $EXTRA_FLAGS
+    CLAUDE_BIN="/usr/local/bin/claude"
 elif command -v claude >/dev/null 2>&1; then
-    exec claude --append-system-prompt "$2" $EXTRA_FLAGS
+    CLAUDE_BIN="claude"
 else
     echo "ERROR: claude binary not found in any of:" >&2
     echo "  \$HOME/.local/bin/claude" >&2
+    echo "  \$HOME/.npm-global/bin/claude" >&2
     echo "  /usr/local/bin/claude" >&2
     echo "  PATH" >&2
     exit 127
 fi
+
+# Resume-flag safety net (v1.5.6): same logic as kivun-launch.sh. If the flags
+# ask to resume (--continue / -c / --resume / -r) but this folder has no prior
+# conversation, Claude exits immediately with "No conversation found to
+# continue". Detect that fast failure and reopen a FRESH session rather than
+# leaving the user with a closed terminal. We DON'T exec the first attempt so we
+# can fall back; the retry uses exec since there's nothing left to recover.
+case " $EXTRA_FLAGS " in
+    *" --continue "*|*" -c "*|*" --resume "*|*" -r "*) RESUMING=1 ;;
+    *) RESUMING=0 ;;
+esac
+
+if [ "$RESUMING" = "1" ]; then
+    START=$(date +%s 2>/dev/null || echo 0)
+    "$CLAUDE_BIN" --append-system-prompt "$2" $EXTRA_FLAGS
+    RC=$?
+    END=$(date +%s 2>/dev/null || echo 0)
+    if [ "$RC" -ne 0 ] && [ $(( END - START )) -lt 10 ]; then
+        FRESH_FLAGS=$(echo " $EXTRA_FLAGS " | sed -E 's/ (--continue|--resume|-c|-r)( [^ -][^ ]*)?/ /g; s/  */ /g; s/^ //; s/ $//')
+        echo ""
+        echo " No previous conversation found in this folder — starting fresh..."
+        echo ""
+        exec "$CLAUDE_BIN" --append-system-prompt "$2" $FRESH_FLAGS
+    fi
+    exit "$RC"
+fi
+
+exec "$CLAUDE_BIN" --append-system-prompt "$2" $EXTRA_FLAGS

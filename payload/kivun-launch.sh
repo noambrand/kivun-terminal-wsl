@@ -762,12 +762,50 @@ echo ""
 # statusLine command that Linux node cannot execute.
 KT_SETTINGS="\$HOME/.local/share/kivun-terminal/settings.json"
 
-if [ -n "$CLAUDE_PROMPT" ]; then
-    $CLAUDE_EXEC --settings "\$KT_SETTINGS" --append-system-prompt "$CLAUDE_PROMPT" $CLAUDE_FLAGS
-else
-    $CLAUDE_EXEC --settings "\$KT_SETTINGS" $CLAUDE_FLAGS
-fi
+# Resume-flag safety net (v1.5.6). When the flags ask to resume a previous
+# conversation (--continue / -c / --resume / -r) but THIS folder has no prior
+# session, Claude Code prints "No conversation found to continue" and exits
+# immediately. The user-visible result was a terminal that opened and died on
+# its own — exactly what the picker's "Continue last" option, or a pinned
+# CLAUDE_FLAGS=--continue in config.txt, triggers on a fresh folder. Instead of
+# leaving a dead window, we detect that fast non-zero exit and reopen a FRESH
+# session with the resume flag stripped. The retry runs at most once.
+KIVUN_FLAGS="$CLAUDE_FLAGS"
+
+run_claude() {
+    # \$1 = flag string; left unquoted on purpose so the shell word-splits
+    # "--a --b" into separate argv entries (empty \$1 adds nothing).
+    if [ -n "$CLAUDE_PROMPT" ]; then
+        $CLAUDE_EXEC --settings "\$KT_SETTINGS" --append-system-prompt "$CLAUDE_PROMPT" \$1
+    else
+        $CLAUDE_EXEC --settings "\$KT_SETTINGS" \$1
+    fi
+}
+
+case " \$KIVUN_FLAGS " in
+    *" --continue "*|*" -c "*|*" --resume "*|*" -r "*) KIVUN_RESUMING=1 ;;
+    *) KIVUN_RESUMING=0 ;;
+esac
+
+KIVUN_START=\$(date +%s 2>/dev/null || echo 0)
+run_claude "\$KIVUN_FLAGS"
 EXIT_CODE=\$?
+KIVUN_END=\$(date +%s 2>/dev/null || echo 0)
+
+# Only retry when we actually asked to resume, Claude failed, and it failed
+# FAST (<10s) — i.e. it never became an interactive session. A real session the
+# user worked in and then quit lasts longer than that and is never retried.
+if [ "\$EXIT_CODE" -ne 0 ] && [ "\$KIVUN_RESUMING" = "1" ] && [ \$(( KIVUN_END - KIVUN_START )) -lt 10 ]; then
+    KIVUN_FRESH=\$(echo " \$KIVUN_FLAGS " | sed -E 's/ (--continue|--resume|-c|-r)( [^ -][^ ]*)?/ /g; s/  */ /g; s/^ //; s/ \$//')
+    echo ""
+    echo "==============================================="
+    echo " No previous conversation found in this folder."
+    echo " Starting a fresh Claude session instead..."
+    echo "==============================================="
+    echo ""
+    run_claude "\$KIVUN_FRESH"
+    EXIT_CODE=\$?
+fi
 
 echo ""
 echo "==============================================="
