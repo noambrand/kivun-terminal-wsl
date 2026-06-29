@@ -854,33 +854,38 @@ log "SUCCESS - Launch script created: $LAUNCH_TMP (CLAUDE_PROMPT length: ${#CLAU
 # the terminal window never open at all. Probe once and only pass --name where
 # this Konsole accepts it; without it we lose the custom WM_CLASS (taskbar icon
 # grouping) but the window opens, which matters far more.
-# DISPLAY BACKEND — v1.5.14: plain WSLg (Wayland) is the DEFAULT again.
+# DISPLAY BACKEND — XWayland (xcb) is the default. It is REQUIRED for keyboard
+# switching, AND it fixes the "window only in the taskbar / minimized" bug.
 #
-# History: v1.5.9 FORCED Konsole onto Xwayland (xcb) so xdotool/wmctrl could
-# find/raise the window (a native-Wayland Qt6 window is invisible to those X11
-# tools). But that force turned Konsole into an X11 client whose keyboard is
-# driven by setxkbmap — which collides with Windows' own Alt+Shift and BROKE the
-# Hebrew/English switching that worked on plain WSLg through the last v1.4.
-# Verified live on a real machine: on plain WSLg the window opens visibly AND
-# Alt+Shift switches. So forcing xcb was the regression, not the fix.
-#
-# Default is therefore plain Wayland (WSLg drives the Alt+Shift toggle). xcb is
-# OPT-IN only, for the rare machine whose Wayland window opens minimized and
-# needs the X11 window tooling.
-#   off / auto (default) - plain WSLg/Wayland (WSLg handles Alt+Shift switching)
-#   on                   - force Xwayland (xcb) for window management; NOTE this
-#                          can disturb Windows-driven Alt+Shift switching.
-KIVUN_FORCE_XCB="off"
+# Hard-won lesson (v1.5.9 -> v1.5.15, verified live on real machines): plain
+# WSLg/Wayland CANNOT do live keyboard-layout switching — the window shows but
+# Alt+Shift does nothing (confirmed TWICE from a clean state). Switching only
+# works when Konsole is an X11 client (xcb) so the launcher's setxkbmap us,<rtl>
+# + Alt+Shift toggle applies. The last v1.4 "just worked" because older Ubuntu
+# ran Konsole on X11 BY DEFAULT; newer Ubuntu defaults Qt6 to Wayland — THAT is
+# the real regression. Forcing xcb also lets xdotool/wmctrl find + un-minimize
+# the window. NOTE: v1.5.14 wrongly flipped this to Wayland after a test that was
+# contaminated by leftover X-server state (and a tabbed-into old window). Only
+# trust a CLEAN test: reset WSLg (wsl --shutdown) AND close every Konsole window.
+#   auto (default) - force xcb when the probe passes (safe fallback if missing)
+#   on             - force xcb without probing
+#   off            - plain Wayland; window may hide and Alt+Shift will NOT switch
+KIVUN_FORCE_XCB="auto"
 if [ -f "$SCRIPT_DIR/config.txt" ]; then
     val=$(grep -E '^[[:space:]]*KIVUN_FORCE_XCB[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
         | sed -e 's/^[[:space:]]*KIVUN_FORCE_XCB[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
     [ -n "$val" ] && KIVUN_FORCE_XCB="$val"
 fi
-if [ "$KIVUN_FORCE_XCB" = "on" ]; then
+if [ "$KIVUN_FORCE_XCB" = "off" ]; then
+    log "INFO - KIVUN_FORCE_XCB=off; plain Wayland backend (Alt+Shift switching will NOT work)"
+elif [ "$KIVUN_FORCE_XCB" = "on" ]; then
     export QT_QPA_PLATFORM=xcb
-    log "INFO - KIVUN_FORCE_XCB=on; forcing Konsole onto Xwayland (xcb) for window management"
+    log "INFO - KIVUN_FORCE_XCB=on; forcing Konsole onto Xwayland (xcb)"
+elif timeout 10 env QT_QPA_PLATFORM=xcb konsole --version >/dev/null 2>&1; then
+    export QT_QPA_PLATFORM=xcb
+    log "SUCCESS - Konsole on Xwayland (xcb): window visible/manageable + Alt+Shift switching works"
 else
-    log "INFO - Plain WSLg/Wayland backend (default); WSLg drives Alt+Shift layout switching"
+    log "WARNING - xcb plugin unavailable; keeping Wayland (window may hide, Alt+Shift won't switch)"
 fi
 
 KIVUN_NAME_OPT="--name kivun-terminal"

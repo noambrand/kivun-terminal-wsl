@@ -92,20 +92,17 @@ AUTO_INSTALL_CLAUDE=yes
 KIVUN_TABBED=on
 
 # Display backend for the Konsole window.
-# DEFAULT is plain WSLg (Wayland): WSLg handles the Hebrew/English Alt+Shift
-# toggle, and the window opens visibly. (Forcing XWayland/xcb in v1.5.9-v1.5.13
-# broke Alt+Shift switching, so plain Wayland is the default again as of v1.5.14.)
-# Switch to 'on' ONLY if your Konsole window opens minimized / "only in the
-# taskbar" and won't show — that forces XWayland so the launcher can raise it,
-# at the cost of possibly disturbing Alt+Shift switching.
-#   off / auto - plain WSLg/Wayland (default; WSLg handles Alt+Shift)
-#   on         - force XWayland (xcb) for window management
-KIVUN_FORCE_XCB=off
+# DEFAULT is XWayland (xcb) — REQUIRED for Hebrew/English Alt+Shift switching AND
+# for a visible (non-minimized) window. Plain WSLg/Wayland CANNOT switch layouts
+# live (verified on real machines): the window shows but Alt+Shift does nothing.
+# Leave this on the default unless you have a specific reason not to.
+#   auto - force XWayland (xcb) when available (default; recommended)
+#   on   - always force XWayland (xcb)
+#   off  - plain Wayland; the window may open minimized AND Alt+Shift won't switch
+KIVUN_FORCE_XCB=auto
 
-# Key that switches keyboard layout — ONLY used when KIVUN_FORCE_XCB=on (xcb).
-# On the default (plain Wayland) WSLg/Windows handles Alt+Shift directly and this
-# setting is ignored. When forcing xcb, the default is Alt+Shift; if Windows' own
-# Alt+Shift hotkey collides, pick a non-colliding key:
+# Key that switches keyboard layout inside the terminal. Default is Alt+Shift.
+# If Windows' own Alt+Shift hotkey ever competes, pick a non-colliding key here:
 #   grp:alt_shift_toggle - Alt+Shift (default)
 #   grp:caps_toggle      - Caps Lock switches the layout
 #   grp:win_space_toggle - Win+Space
