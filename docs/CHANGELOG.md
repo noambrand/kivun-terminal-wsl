@@ -3,6 +3,25 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.11] - 2026-06-29
+
+### Changed — the installer now untangles WSL graphics for you (no commands)
+
+v1.5.10 is verified working: once WSLg (the Linux-graphics bridge) is healthy, the
+window opens and stays. The remaining issue was that a *wedged* WSLg paints no window
+at all, and the cure — `wsl --shutdown` — was a command we asked the user to type.
+**It no longer is.** At the end of setup the installer now does it automatically:
+
+- runs **`wsl --update`** (best-effort, time-bounded) so a newer bridge is less likely
+  to wedge, then **`wsl --shutdown`** so the first launch starts on a clean bridge.
+  Both are safe at install time (WSL was just set up) and can never hang the installer.
+
+For the rare case the window goes blank again later, there's now a one-click
+**"Repair Kivun Display"** in the Start menu (it restarts WSL graphics) — so you fix it
+with a click, never a typed command. The first launch can take ~10–15 seconds to paint
+(it spins up the BiDi wrapper and Claude first); the launcher now waits up to ~15s and
+finds the window by its process id so it doesn't give up early.
+
 ## [1.5.10] - 2026-06-29
 
 ### Fixed — the Konsole window now stays put (it was forking itself away)

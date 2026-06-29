@@ -105,19 +105,17 @@ After install, verify: `wsl -d Ubuntu -- claude --version`. Then relaunch Kivun 
 
 ## Symptom: Konsole window never appears (WSLg mode)
 
-**TRY THIS FIRST (fixes most cases on Windows 11 24H2+ / bleeding-edge WSLg):**
-WSLg (the Linux-graphics bridge) can get "wedged" and stop painting *any* Linux
-window — even a trivial one. A full restart of the bridge clears it. From a normal
-Windows terminal run:
+**TRY THIS FIRST — no commands needed (v1.5.11+):** WSLg (the Linux-graphics bridge)
+can get "wedged" and stop painting *any* Linux window. The installer already restarts
+it for you at the end of setup, but if the window goes blank again later, open the
+**Start menu → "Repair Kivun Display"** (one click). It restarts the graphics bridge;
+then open Kivun again. The first launch can take ~10–15 seconds to appear.
 
-```cmd
-wsl --shutdown
-```
-
-then launch Kivun again. If that doesn't help, also try `wsl --update`. We do **not**
-do `wsl --shutdown` automatically because it would close any other WSL work you have
-open. On a **pre-release Ubuntu** (e.g. 25.10 "resolute" / 26.04) with a very new
-Konsole/Qt6, this wedge is more common; a stable **Ubuntu 24.04 LTS** is steadier.
+> Under the hood that one click runs `wsl --shutdown`. You can run it yourself from a
+> Windows terminal if you prefer, then also `wsl --update`. We don't auto-run it on
+> every launch because it closes any other WSL work you have open. On a **pre-release
+> Ubuntu** (e.g. 25.10 "resolute" / 26.04) with a very new Konsole/Qt6 this wedge is
+> more common; a stable **Ubuntu 24.04 LTS** is steadier.
 
 **About the window itself (v1.5.10):** Konsole forks by default, which on WSLg could
 hand the window off to a second, unmanaged instance that came up minimized. Kivun now

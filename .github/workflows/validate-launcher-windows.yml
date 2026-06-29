@@ -24,6 +24,7 @@ on:
       - 'installer/Kivun_Terminal_Setup.nsi'
       - 'payload/kivun-detect-distro.cmd'
       - 'payload/kivun-diagnostics.cmd'
+      - 'payload/kivun-fix-display.cmd'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
   pull_request:
@@ -508,6 +509,30 @@ jobs:
           grep -q 'xdotool search --pid' "$LAUNCH" \
             || (echo "FAIL: $LAUNCH no longer finds the window by PID — loses it to the fork hand-off"; exit 1)
           echo "PASS: Konsole launched --nofork/--separate and the window is re-found by PID"
+
+      - name: Verify v1.5.11 installer auto-untangles WSLg (no user commands)
+        run: |
+          set -eu
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          FIX=payload/kivun-fix-display.cmd
+          # The user must NEVER have to type `wsl --shutdown`. The installer must
+          # do it at the end (after a best-effort `wsl --update`), so the first
+          # launch gets a clean graphics bridge.
+          grep -qE 'nsExec::Exec /TIMEOUT=[0-9]+ .\"\$R7\" --shutdown' "$NSI" \
+            || (echo "FAIL: installer no longer runs 'wsl --shutdown' to clear the WSLg wedge"; exit 1)
+          grep -qE 'nsExec::Exec /TIMEOUT=[0-9]+ .\"\$R7\" --update' "$NSI" \
+            || (echo "FAIL: installer no longer runs 'wsl --update' in finalize"; exit 1)
+          # And a one-click repair must ship + be on the Start menu for recurrence.
+          test -f "$FIX" \
+            || (echo "FAIL: $FIX (one-click display repair) is missing"; exit 1)
+          grep -q 'kivun-fix-display.cmd' "$NSI" \
+            || (echo "FAIL: installer does not bundle kivun-fix-display.cmd"; exit 1)
+          grep -q 'Repair Kivun Display.lnk' "$NSI" \
+            || (echo "FAIL: no 'Repair Kivun Display' Start-menu shortcut"; exit 1)
+          # The repair must restart WSL graphics (wsl --shutdown), not ask for a command.
+          grep -q '%WSL%" --shutdown' "$FIX" \
+            || (echo "FAIL: $FIX does not run 'wsl --shutdown'"; exit 1)
+          echo "PASS: install auto-runs wsl --update + --shutdown; one-click Repair shortcut ships"
 
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.

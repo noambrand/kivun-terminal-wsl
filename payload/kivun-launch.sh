@@ -1074,8 +1074,11 @@ if command -v xdotool >/dev/null 2>&1; then
   # window, so search by --pid first (most reliable; immune to the fork hand-off
   # that left a stale class match on WSLg). Retry briefly because the window can
   # take a moment to map. Fall back to the kivun-terminal class, then konsole.
+  # Retry for ~15s: Kivun's window can take longer to map than a trivial X app
+  # on a cold start (npm install + BiDi wrapper + Claude TUI spin up first), per
+  # the v1.5.10 field verification. Cheap — the loop exits as soon as it's found.
   WID=""
-  for _try in 1 2 3 4 5 6; do
+  for _try in $(seq 1 15); do
     [ -n "$KPID" ] && WID=$(xdotool search --pid "$KPID" 2>/dev/null | tail -1)
     [ -z "$WID" ] && WID=$(xdotool search --class kivun-terminal 2>/dev/null | tail -1)
     [ -z "$WID" ] && WID=$(xdotool search --class konsole 2>/dev/null | tail -1)
