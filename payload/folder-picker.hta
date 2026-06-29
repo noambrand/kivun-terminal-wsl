@@ -570,7 +570,15 @@
 
   function openUpdateUrl(url) {
     if (!isTrustedUpdateUrl(url)) return;
-    try { wshShell.Run('"' + url + '"', 1, false); } catch (e) {}
+    // WScript.Shell.Run executes a PROGRAM; a bare https:// URL is not a program,
+    // so Run('"https://..."') threw and the click silently did nothing (the
+    // "button doesn't go to the latest release" bug). Open the URL through
+    // ShellExecute (protocol handler / default browser), with a cmd-start fallback.
+    try {
+      new ActiveXObject("Shell.Application").ShellExecute(url, "", "", "open", 1);
+    } catch (e) {
+      try { wshShell.Run('cmd /c start "" "' + url + '"', 0, false); } catch (e2) {}
+    }
   }
 
   function dismissUpdateBanner() {
@@ -587,7 +595,7 @@
   // installs that predate the file). The picker fetches the latest tag
   // from the GitHub API on launch and shows a banner if newer.
   var GITHUB_REPO = "noambrand/kivun-terminal-wsl";
-  var FALLBACK_VERSION = "1.5.15";
+  var FALLBACK_VERSION = "1.5.16";
   var ASSET_NAME_RE = /^Kivun_Terminal_Setup\.exe$/i;
   var resultFile = kivunDir + "\\kivun-workdir.txt";
   var startupFile = kivunDir + "\\kivun-startup-cmds.txt";

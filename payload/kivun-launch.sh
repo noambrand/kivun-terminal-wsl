@@ -1019,8 +1019,22 @@ if [ "$KIVUN_MODE" = "tab" ]; then
         WID=$(xdotool search --class kivun-terminal 2>/dev/null | head -1)
         [ -z "$WID" ] && WID=$(xdotool search --class konsole 2>/dev/null | head -1)
         if [ -n "$WID" ]; then
-            xdotool windowactivate "$WID" 2>/dev/null
-            log "SUCCESS - Activated existing Kivun window (ID: $WID)"
+            # A reused window is frequently MINIMIZED (the user minimized it, or
+            # WSLg mapped it minimized). windowactivate ALONE does not un-minimize
+            # it, so the new tab lands in an invisible window — the field-confirmed
+            # "reopen shows nothing" bug. Run the SAME un-hide/map/raise sequence
+            # the cold-start path uses (remove,hidden + windowmap + activate --sync
+            # + raise + wmctrl -a) so the window actually comes back to the front.
+            # NOTE: a truly WSLg-"wedged" window cannot be recovered by any X call
+            # (verified: every call reports success yet the window stays hidden) —
+            # that case still needs the one-click "Repair Kivun Display"
+            # (wsl --shutdown). This only fixes the ordinary-minimized reuse case.
+            command -v wmctrl >/dev/null 2>&1 && wmctrl -i -r "$WID" -b remove,hidden 2>/dev/null
+            xdotool windowmap "$WID" 2>/dev/null
+            xdotool windowactivate --sync "$WID" 2>/dev/null
+            xdotool windowraise "$WID" 2>/dev/null
+            command -v wmctrl >/dev/null 2>&1 && wmctrl -i -a "$WID" 2>/dev/null
+            log "SUCCESS - Reused Kivun window un-minimized + raised (ID: $WID)"
         else
             log "WARNING - Could not find existing Kivun window to activate"
         fi

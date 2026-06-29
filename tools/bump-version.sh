@@ -58,8 +58,19 @@ sed -i \
   -e "s|^# Kivun Terminal v[0-9][0-9.]* - Troubleshooting|# Kivun Terminal v$NEW - Troubleshooting|" \
   docs/TROUBLESHOOTING.md
 
+# 5. payload/folder-picker.hta — the update-check FALLBACK_VERSION (used when no
+#    VERSION file is present in the install dir). Must track the shipped version
+#    or the picker nags about a "newer" release that is actually the installed one.
+sed -i -E "s/(var FALLBACK_VERSION = \")[0-9]+\.[0-9]+\.[0-9]+(\";)/\1$NEW\2/" payload/folder-picker.hta
+
+# 6. installer/Kivun_Terminal_Setup.nsi — the !ifndef PRODUCT_VERSION fallback
+#    for LOCAL makensis builds (CI overrides it via -DPRODUCT_VERSION from VERSION).
+#    Keeping it current means even a hand-run local build never stamps a stale
+#    version — the drift that showed the installer as "v1.4.25" all the way to v1.5.15.
+sed -i -E "s/(!define PRODUCT_VERSION \")[0-9]+\.[0-9]+\.[0-9]+(\")/\1$NEW\2/" installer/Kivun_Terminal_Setup.nsi
+
 echo "Bumped. Diff summary:"
-git diff --stat VERSION docs/README.md docs/README_INSTALLATION.md docs/TROUBLESHOOTING.md
+git diff --stat VERSION docs/README.md docs/README_INSTALLATION.md docs/TROUBLESHOOTING.md payload/folder-picker.hta installer/Kivun_Terminal_Setup.nsi
 echo ""
 echo "Next steps:"
 echo "  git diff                                # review"

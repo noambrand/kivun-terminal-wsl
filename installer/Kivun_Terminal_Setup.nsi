@@ -1,11 +1,19 @@
-; Kivun Terminal v1.4.25 - Professional Installer
+; Kivun Terminal - Professional Installer (version is stamped from the repo VERSION file at build time)
 ; WSL + Ubuntu + Konsole launcher for Claude Code with full RTL/BiDi support.
 ; Encoding: UTF-8
 
 Unicode True
 
 !define PRODUCT_NAME "Kivun Terminal"
-!define PRODUCT_VERSION "1.4.25"
+; Single source of truth for the installer's displayed version. CI passes
+; -DPRODUCT_VERSION=<contents of the repo VERSION file> to makensis (see
+; .github/workflows/build-windows.yml), so the installer title / welcome page /
+; "Uninstall" entry can NEVER again drift from VERSION. This !ifndef fallback is
+; used only for local/manual makensis builds that don't pass the flag — keep it
+; current with VERSION (tools/bump-version.sh updates it).
+!ifndef PRODUCT_VERSION
+  !define PRODUCT_VERSION "1.5.16"
+!endif
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
 !define PRODUCT_DESCRIPTION "WSL+Konsole launcher for Claude Code with RTL/BiDi support"
@@ -31,12 +39,12 @@ InstallDir "${INSTALL_DIR}"
 ShowInstDetails show
 ShowUnInstDetails show
 
-VIProductVersion "1.4.25.0"
+VIProductVersion "${PRODUCT_VERSION}.0"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
-VIAddVersionKey "FileVersion" "1.4.25.0"
+VIAddVersionKey "FileVersion" "${PRODUCT_VERSION}.0"
 VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 
 !define MUI_ABORTWARNING
