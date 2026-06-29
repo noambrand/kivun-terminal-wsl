@@ -22,6 +22,8 @@ on:
       - 'payload/folder-picker.hta'
       - 'kivun-claude-bidi/lib/resolve-claude-bin.js'
       - 'installer/Kivun_Terminal_Setup.nsi'
+      - 'payload/kivun-detect-distro.cmd'
+      - 'payload/kivun-diagnostics.cmd'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
   pull_request:
@@ -34,6 +36,8 @@ on:
       - 'payload/folder-picker.hta'
       - 'kivun-claude-bidi/lib/resolve-claude-bin.js'
       - 'installer/Kivun_Terminal_Setup.nsi'
+      - 'payload/kivun-detect-distro.cmd'
+      - 'payload/kivun-diagnostics.cmd'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
 
@@ -376,6 +380,55 @@ jobs:
           grep -q 'Preserving existing config.txt' "$NSI" \
             || (echo "FAIL: $NSI no longer preserves an existing config.txt on upgrade"; exit 1)
           echo "PASS: installer preserves an existing config.txt on upgrade"
+
+      - name: Verify v1.5.8 distro-reuse + window-visible + diagnostics-desktop invariants
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          LAUNCH=payload/kivun-launch.sh
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          DET=payload/kivun-detect-distro.cmd
+          DIAG=payload/kivun-diagnostics.cmd
+
+          # --- Never-duplicate-Ubuntu: shared distro picker used by both sides ---
+          test -f "$DET" \
+            || (echo "FAIL: $DET (the shared distro picker) is missing — duplicate-Ubuntu guard gone"; exit 1)
+          # The picker must prefer an exact "Ubuntu" and otherwise the first "Ubuntu-*".
+          grep -q 'WSL_UTF8=1' "$DET" \
+            || (echo "FAIL: $DET does not set WSL_UTF8=1 — wsl -l -q output would be unparseable UTF-16"; exit 1)
+          grep -q 'findstr /i /b /c:"Ubuntu"' "$DET" \
+            || (echo "FAIL: $DET no longer matches Ubuntu-family distro names"; exit 1)
+          # The launcher must SOURCE its distro from the picker (not hardcode Ubuntu).
+          grep -q 'kivun-detect-distro.cmd' "$BAT" \
+            || (echo "FAIL: $BAT no longer detects the distro — it would assume 'Ubuntu' and could mismatch/duplicate"; exit 1)
+          # The launcher must route execution through %DISTRO%, not a hardcoded name.
+          ! grep -qE "wsl +-d +Ubuntu\b" "$BAT" \
+            || (echo "FAIL: $BAT still has a hardcoded 'wsl -d Ubuntu' execution — use %DISTRO%"; exit 1)
+          # The installer must detect + use \$DISTRO, and must NOT have stray hardcoded
+          # 'wsl -d Ubuntu' execution calls (messages/comments are fine).
+          grep -q 'kivun-detect-distro.cmd' "$NSI" \
+            || (echo "FAIL: $NSI never runs the distro picker — it could register a duplicate Ubuntu"; exit 1)
+          grep -q "wsl -d \$DISTRO" "$NSI" \
+            || (echo "FAIL: $NSI no longer routes wsl calls through \$DISTRO"; exit 1)
+          if grep -nE "nsExec::Exec.*'wsl -d Ubuntu" "$NSI"; then
+            echo "FAIL: $NSI has a hardcoded 'wsl -d Ubuntu' nsExec call — should use \$DISTRO" >&2
+            exit 1
+          fi
+          echo "PASS: distro is detected + reused (no duplicate Ubuntu) in launcher and installer"
+
+          # --- Window must be forced visible (minimized/hidden-on-some-PCs fix) ---
+          grep -q 'windowactivate --sync' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost 'windowactivate --sync' — window can come up minimized/hidden again"; exit 1)
+          grep -q 'remove,hidden' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer un-hides the window via wmctrl remove,hidden"; exit 1)
+          grep -q 'xdotool windowmap' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer maps the window (windowmap)"; exit 1)
+          echo "PASS: launcher forces the Konsole window visible (un-minimize/map/raise/activate)"
+
+          # --- Diagnostics report must land on the REAL (OneDrive-aware) Desktop ---
+          grep -q 'User Shell Folders' "$DIAG" \
+            || (echo "FAIL: $DIAG no longer resolves the real Desktop — OneDrive users see no report"; exit 1)
+          echo "PASS: diagnostics copies the report to the resolved real Desktop"
 
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.

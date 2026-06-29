@@ -86,7 +86,20 @@ type "%KDIR%\install-log.txt" >>"%RPT%" 2>&1
 >>"%RPT%" echo ===== end of report =====
 
 REM Put a copy on the Desktop so it is easy to find and attach.
-copy /y "%RPT%" "%USERPROFILE%\Desktop\Kivun-Report.txt" >nul 2>&1
+REM v1.5.8: resolve the REAL Desktop. On most PCs the Desktop is redirected to
+REM OneDrive (%USERPROFILE%\OneDrive\Desktop), so copying to the literal
+REM %USERPROFILE%\Desktop dropped the file somewhere the user never sees it
+REM ("Diagnostics put nothing on my Desktop"). The authoritative location is the
+REM "Desktop" value under User Shell Folders; expand it (it may use %USERPROFILE%
+REM or %OneDrive%), fall back to the classic path, and copy to BOTH to be safe.
+set "DESKTOP="
+for /f "tokens=2,*" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Desktop 2^>nul ^| findstr /i "REG_"') do set "DESKTOP=%%B"
+call set "DESKTOP=%DESKTOP%"
+if not defined DESKTOP set "DESKTOP=%USERPROFILE%\Desktop"
+if not exist "%DESKTOP%" set "DESKTOP=%USERPROFILE%\Desktop"
+if not exist "%DESKTOP%" md "%DESKTOP%" 2>nul
+copy /y "%RPT%" "%DESKTOP%\Kivun-Report.txt" >nul 2>&1
+if /i not "%DESKTOP%"=="%USERPROFILE%\Desktop" copy /y "%RPT%" "%USERPROFILE%\Desktop\Kivun-Report.txt" >nul 2>&1
 
 cls
 echo ============================================================
@@ -94,6 +107,7 @@ echo   KIVUN DIAGNOSTIC REPORT CREATED
 echo ============================================================
 echo.
 echo   Saved to your Desktop:  Kivun-Report.txt
+echo   Full path:  %DESKTOP%\Kivun-Report.txt
 echo   (also at: %RPT%)
 echo.
 echo   PLEASE SEND IT so we can help:

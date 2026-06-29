@@ -3,6 +3,35 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.8] - 2026-06-29
+
+### Fixed — window opened minimized/hidden and wouldn't show
+
+On some PCs Kivun appeared only in the taskbar and the blue window never became
+visible (it came up minimized/hidden and wouldn't restore on click). The launcher
+now, after creating the Konsole window, **forces it to a visible foreground state**
+— un-minimize, map, raise and activate (with `--sync`) — and, when no monitor size
+is detected, places it at a guaranteed on-screen spot instead of trusting WSLg's
+default placement. It also matches the window by the `kivun-terminal` class first.
+
+### Fixed — never create a duplicate Ubuntu; reuse the one you have
+
+If your PC already had Ubuntu registered under a different name (the Microsoft Store
+often installs **`Ubuntu-24.04`**), Kivun looked only for a distro named exactly
+`Ubuntu` — so it could set up a **second, empty `Ubuntu`** and run against the wrong
+one. Kivun now **detects and reuses any existing Ubuntu** (prefers an exact `Ubuntu`,
+otherwise the first `Ubuntu-*`), in **both the installer and the launcher**, via a
+small shared picker (`kivun-detect-distro.cmd`). A brand-new machine with no Ubuntu
+still gets a clean `Ubuntu` install — but an existing one is never duplicated.
+
+### Fixed — "Kivun Diagnostics" now actually lands on your Desktop
+
+The report is saved as `Kivun-Report.txt`, but it was copied to the literal
+`%USERPROFILE%\Desktop` — which is the wrong place on the many PCs whose Desktop is
+redirected to **OneDrive**, so nothing appeared. It now resolves your **real**
+Desktop (OneDrive-aware) and copies there (and to the classic path as a fallback),
+and prints the full path it used.
+
 ## [1.5.7] - 2026-06-29
 
 ### Fixed — installer no longer freezes when WSL was installed but Windows wasn't restarted

@@ -20,6 +20,15 @@ REM auto-install + launch both fail silently. Routing every wslpath AND every
 REM -d call through one DISTRO knob keeps conversion and execution consistent
 REM no matter what the user's default distro is.
 set "DISTRO=Ubuntu"
+REM v1.5.8: don't assume the distro is literally "Ubuntu". The Microsoft Store
+REM often registers it as "Ubuntu-24.04"/"Ubuntu-22.04". kivun-detect-distro.cmd
+REM picks the right one (exact "Ubuntu" if present, else the first "Ubuntu-*"),
+REM so every `wsl -d %DISTRO%` below targets the user's real distro instead of a
+REM name that doesn't exist. Default stays "Ubuntu" if detection finds nothing.
+if exist "%~dp0kivun-detect-distro.cmd" (
+    for /f "usebackq delims=" %%i in (`call "%~dp0kivun-detect-distro.cmd" 2^>nul`) do set "DISTRO=%%i"
+)
+if not defined DISTRO set "DISTRO=Ubuntu"
 
 title Kivun Terminal v%PRODUCT_VERSION% - Launch Log: %LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt
 
@@ -448,7 +457,7 @@ if not defined WSLG_USER (
     echo   Setting up your Linux user ^(one-time, a few seconds^)...
     type "%~dp0kivun-ensure-user.sh" | wsl -d %DISTRO% --user root -- bash -s >> "%LOG_FILE%" 2>&1
     call :LOG "INFO - Restarting Ubuntu so the new default user owns WSLg"
-    wsl --terminate Ubuntu >> "%LOG_FILE%" 2>&1
+    wsl --terminate %DISTRO% >> "%LOG_FILE%" 2>&1
     for /f "delims=" %%U in ('wsl -d %DISTRO% --user root -- id -un 1000 2^>nul') do set "WSLG_USER=%%U"
 )
 if not defined WSLG_USER (
