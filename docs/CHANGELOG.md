@@ -3,6 +3,29 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.7] - 2026-06-29
+
+### Fixed — installer no longer freezes when WSL was installed but Windows wasn't restarted
+
+If a first run installed WSL (which **requires a restart**) and the user re-ran the installer
+**before** restarting, the installer could **hang** — every `wsl` call sat waiting for a Linux
+engine that can't start until the reboot, so the window looked frozen.
+
+- **Detect-and-notify, never stall.** The installer now records when *it* installed WSL, and on
+  the next run checks that marker **before** any `wsl` probe. If WSL still isn't responding, it
+  **aborts cleanly with a clear, attention-getting notice** that explains *why* the restart is
+  needed (Windows turned on its Linux engine; it only activates after a reboot) and exactly what
+  to do. It does **not** restart the PC or do it for the user — it only notifies. The marker is
+  set only when we installed WSL, so this is never a false alarm, and it clears itself once WSL
+  is confirmed working.
+- **Time limits on every quick WSL probe** (`wsl --status`, `wsl --version`, `wsl -d Ubuntu echo`,
+  the Ubuntu-ready check) so a stuck `wsl.exe` can never freeze the installer — a timeout is
+  treated as "not ready" and surfaces the restart / run-as-admin guidance instead of hanging.
+  The long package/Claude install steps keep no time limit (they legitimately take minutes).
+- The "Ubuntu isn't ready" message now leads with the **restart-first** cause alongside the
+  run-as-administrator one. Existing per-step time estimates ("~30-60 seconds", "about 5 to 15
+  minutes") are unchanged.
+
 ## [1.5.6] - 2026-06-29
 
 ### Fixed — "Continue last conversation" no longer kills the terminal on a fresh folder

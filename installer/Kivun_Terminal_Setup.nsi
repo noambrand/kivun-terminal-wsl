@@ -276,6 +276,42 @@ SectionEnd
 Section "WSL2 + Ubuntu" SEC_WSL
   SectionIn RO
 
+  ; -----------------------------------------------------------------------
+  ; Reboot fast-path (v1.5.7) — "did the user skip the required restart?"
+  ; -----------------------------------------------------------------------
+  ; When a PRIOR run installed WSL it set this marker and told the user to
+  ; reboot. WSL only activates after that restart, so if the user re-runs the
+  ; installer WITHOUT rebooting, every `wsl` call would block waiting for a
+  ; Linux engine that can't start — the installer just SITS there ("stalled").
+  ; We check the marker BEFORE any probe and confirm with a TIME-LIMITED status
+  ; call (so it can never hang): if WSL answers, the reboot happened — clear the
+  ; marker and carry on; if it doesn't, we ABORT with a clear, attention-getting
+  ; explanation of WHY the restart matters, instead of freezing. The marker is
+  ; set ONLY when we installed WSL ourselves, so this is never a false positive,
+  ; and we never restart the PC for the user — we only tell them it's needed.
+  ReadRegStr $R4 HKCU "Software\Kivun-WSL" "WslRebootPending"
+  ${If} $R4 == "1"
+    StrCpy $R7 "$WINDIR\System32\wsl.exe"
+    ${If} ${FileExists} "$WINDIR\Sysnative\wsl.exe"
+      StrCpy $R7 "$WINDIR\Sysnative\wsl.exe"
+    ${EndIf}
+    DetailPrint "Checking whether the earlier WSL install is ready (needs a restart)..."
+    nsExec::ExecToStack /TIMEOUT=20000 '"$R7" --status'
+    Pop $0
+    Pop $1
+    !insertmacro KLOG "Reboot-marker recheck: wsl --status exit=$0"
+    ${If} $0 == 0
+      ; WSL responds -> the user already rebooted. Clear the marker, continue.
+      DeleteRegValue HKCU "Software\Kivun-WSL" "WslRebootPending"
+      !insertmacro KLOG "WSL responsive after earlier install; cleared reboot marker"
+    ${Else}
+      ; Still not responding (error OR a 20s timeout). The restart was skipped.
+      !insertmacro KLOG "WSL still not ready (exit/timeout=$0) and reboot marker set -> aborting with restart notice"
+      MessageBox MB_ICONEXCLAMATION|MB_OK "Almost done — but Windows needs to RESTART first.$\r$\n$\r$\nWHY THIS IS NEEDED:$\r$\nOn the previous run, Windows switched ON its built-in Linux engine (WSL). That engine only finishes turning on after a RESTART. Until you restart, Linux cannot start — so the installer would just sit and wait, which is exactly why the earlier attempt looked frozen.$\r$\n$\r$\nWHAT TO DO (about 2 minutes):$\r$\n1. Close this window.$\r$\n2. Restart your computer:  Start  >  Power  >  Restart.$\r$\n   (A normal restart — you won't lose any of your work or files.)$\r$\n3. Open this Kivun Terminal installer again — it will finish on its own.$\r$\n$\r$\nThis installer will NOT restart your PC and will NOT do it for you — you stay in control. We're only letting you know the restart is required so the install can succeed.$\r$\n$\r$\nA diagnostic log was saved to:$\r$\n$LOGFILE"
+      Abort "WSL installed earlier — restart required before continuing."
+    ${EndIf}
+  ${EndIf}
+
   ; Virtualization (firmware) pre-flight — see CheckVirtualization above. If
   ; VT is off, WSL2 can never boot, so explain the one-time BIOS fix now rather
   ; than letting the user fall into an endless install/reboot loop.
@@ -306,13 +342,16 @@ Section "WSL2 + Ubuntu" SEC_WSL
   ; freshly `wsl --install`ed system must never read as "missing" (that was the
   ; loop). Both are non-interactive subcommands, so the pre-install stub returns
   ; promptly instead of hanging on the bare-`wsl` "press any key" prompt.
-  nsExec::ExecToStack '"$R7" --status'
+  ; /TIMEOUT so a wsl.exe that hangs (e.g. WSL mid-setup / reboot pending) can
+  ; never freeze the installer — a timeout reads as "not ready" (non-zero) and
+  ; flows into the install/guidance path below instead of stalling.
+  nsExec::ExecToStack /TIMEOUT=20000 '"$R7" --status'
   Pop $0
   Pop $1
   !insertmacro KLOG "wsl --status (via $R7) exit=$0"
   !insertmacro KLOG "$1"
   ${If} $0 != 0
-    nsExec::ExecToStack '"$R7" --version'
+    nsExec::ExecToStack /TIMEOUT=20000 '"$R7" --version'
     Pop $0
     Pop $1
     !insertmacro KLOG "wsl --version (via $R7) exit=$0"
@@ -365,9 +404,17 @@ Section "WSL2 + Ubuntu" SEC_WSL
         Abort "WSL install not started."
       ${EndIf}
       !insertmacro KLOG "Elevated wsl --install finished; reboot required"
-      MessageBox MB_ICONINFORMATION|MB_OK "WSL has been installed.$\r$\n$\r$\nPlease REBOOT your computer, then run this Kivun Terminal installer again to finish setting up Ubuntu, Konsole, and Claude Code.$\r$\n$\r$\nYou can close this installer now."
+      ; Record that WE installed WSL and a restart is now required. The next run
+      ; reads this marker BEFORE probing WSL (see the reboot fast-path at the top
+      ; of this section), so a user who re-runs without restarting gets a clear
+      ; notice instead of a hung installer.
+      WriteRegStr HKCU "Software\Kivun-WSL" "WslRebootPending" "1"
+      MessageBox MB_ICONEXCLAMATION|MB_OK "WSL has been installed — now Windows needs to RESTART.$\r$\n$\r$\nWHY THIS IS NEEDED:$\r$\nWindows just switched ON its built-in Linux engine (WSL). That engine only finishes turning on after a RESTART — until then, Linux can't start and the rest of the setup can't run. Skipping the restart will make the next run appear to freeze.$\r$\n$\r$\nWHAT TO DO (about 2 minutes):$\r$\n1. Close this window.$\r$\n2. Restart your computer:  Start  >  Power  >  Restart.  (A normal restart — you won't lose any work.)$\r$\n3. Run this Kivun Terminal installer again — it finishes Ubuntu, Konsole and Claude Code on its own.$\r$\n$\r$\nThis installer will NOT restart your PC for you — you stay in control."
       Abort "WSL installed — reboot and re-run this installer."
   ${EndIf}
+  ; WSL is confirmed reachable on this run, so any earlier "needs reboot" marker
+  ; is now stale — clear it so a future run never wrongly nags about restarting.
+  DeleteRegValue HKCU "Software\Kivun-WSL" "WslRebootPending"
   !insertmacro KLOG "WSL available — continuing install"
 
   ; Best-effort set default version 2 — on modern Windows 11 this works
@@ -381,7 +428,10 @@ Section "WSL2 + Ubuntu" SEC_WSL
   ${EndIf}
 
   DetailPrint "Checking Ubuntu distribution..."
-  nsExec::Exec 'wsl -d Ubuntu -- echo OK'
+  ; /TIMEOUT: a pending-reboot or half-started WSL can make this hang forever.
+  ; A timeout reads as "Ubuntu not reachable" and falls through to the install
+  ; branch below rather than freezing the installer.
+  nsExec::Exec /TIMEOUT=30000 'wsl -d Ubuntu -- echo OK'
   Pop $0
   ${If} $0 != 0
     DetailPrint "Installing Ubuntu distribution (no admin needed once WSL2 is up)..."
@@ -448,11 +498,13 @@ Section "Konsole + window tools" SEC_KONSOLE
   ; never completed), or Ubuntu not being registered yet. In those cases
   ; `wsl -d Ubuntu` itself errors and apt never even runs. Catch that first and
   ; tell the user the truth, instead of sending them to chase a network problem.
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "echo ubuntu_ok"'
+  ; /TIMEOUT so a stuck WSL can't hang the installer here either; a timeout is
+  ; treated exactly like "Ubuntu not ready" and surfaces the guidance below.
+  nsExec::Exec /TIMEOUT=30000 'wsl -d Ubuntu -u root -- bash -c "echo ubuntu_ok"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Ubuntu isn't ready yet (code $0).$\r$\n$\r$\nMost common cause: this installer was NOT run as Administrator, so the first-time WSL/Ubuntu setup couldn't finish (or Ubuntu hasn't been installed/rebooted yet).$\r$\n$\r$\nFIX: Close this, RIGHT-CLICK the installer and choose 'Run as administrator', then run it again. If WSL was just installed, REBOOT first.$\r$\n$\r$\nClick OK to try the package step anyway, or Cancel to abort." IDOK ubuntu_ready_ok
-      Abort "Cancelled by user."
+    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Ubuntu isn't ready yet (code $0).$\r$\n$\r$\nMost common causes:$\r$\n  - WSL was just installed and Windows hasn't been RESTARTED yet (a restart is required before Linux can start), or$\r$\n  - this installer was NOT run as Administrator, so the first-time WSL/Ubuntu setup couldn't finish.$\r$\n$\r$\nFIX: Close this. If you recently installed WSL, RESTART your computer first. Then RIGHT-CLICK the installer, choose 'Run as administrator', and run it again.$\r$\n$\r$\nClick OK to try the package step anyway, or Cancel to stop here." IDOK ubuntu_ready_ok
+      Abort "Cancelled by user — Ubuntu not ready (restart / admin may be needed)."
     ubuntu_ready_ok:
   ${EndIf}
 
@@ -652,6 +704,8 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Classes\Directory\shell\KivunTerminal"
   DeleteRegKey HKCU "Software\Classes\Directory\Background\shell\KivunTerminal"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\KivunTerminal"
+  ; Reboot-pending marker (v1.5.7) — remove so a future fresh install starts clean.
+  DeleteRegKey HKCU "Software\Kivun-WSL"
 
   ; Remove installed files
   Delete "$INSTDIR\folder-picker.hta"
