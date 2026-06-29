@@ -431,17 +431,29 @@ jobs:
             || (echo "FAIL: $DIAG no longer resolves the real Desktop — OneDrive users see no report"; exit 1)
           echo "PASS: diagnostics copies the report to the resolved real Desktop"
 
-      - name: Verify v1.5.9 Wayland-visible-window + robust-diagnostics invariants
+      - name: Verify v1.5.14 plain-Wayland-default backend + robust-diagnostics invariants
         run: |
           set -eu
           LAUNCH=payload/kivun-launch.sh
           DIAG=payload/kivun-diagnostics.cmd
-          # Window fix: Konsole must be forced onto Xwayland (xcb) so xdotool/wmctrl
-          # (X11 tools) can find/place/raise it. Without this the window is invisible
-          # to our tooling and comes up hidden/minimized — the exact reported bug.
-          grep -q 'QT_QPA_PLATFORM=xcb' "$LAUNCH" \
-            || (echo "FAIL: $LAUNCH no longer forces Konsole onto Xwayland (xcb) — Wayland window is unmanageable/hidden"; exit 1)
-          echo "PASS: launcher forces Konsole onto Xwayland so the window is visible + manageable"
+          CFG=payload/config.txt
+          # Backend default (v1.5.14): plain WSLg (Wayland) is the DEFAULT so WSLg
+          # drives the Hebrew/English Alt+Shift toggle. Forcing xcb (v1.5.9-v1.5.13)
+          # turned Konsole into an X11 client and BROKE that switching. xcb must be
+          # OPT-IN only (KIVUN_FORCE_XCB=on), never forced by default, and there must
+          # be NO auto-probe-and-force branch. Verified live: plain Wayland shows the
+          # window AND switches Hebrew/English.
+          grep -qF 'KIVUN_FORCE_XCB="off"' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer defaults the backend to plain Wayland (KIVUN_FORCE_XCB=off)"; exit 1)
+          grep -qE '^KIVUN_FORCE_XCB=off' "$CFG" \
+            || (echo "FAIL: $CFG default is not KIVUN_FORCE_XCB=off (plain Wayland)"; exit 1)
+          if grep -qE 'QT_QPA_PLATFORM=xcb konsole --version' "$LAUNCH"; then
+            echo "FAIL: $LAUNCH still auto-probes and force-enables xcb; xcb must be opt-in only" >&2; exit 1
+          fi
+          xcb_exports=$(grep -c 'export QT_QPA_PLATFORM=xcb' "$LAUNCH" || true)
+          [ "$xcb_exports" = "1" ] \
+            || (echo "FAIL: expected exactly ONE (opt-in) xcb export in $LAUNCH, found $xcb_exports"; exit 1)
+          echo "PASS: plain WSLg is the default backend; xcb is opt-in (KIVUN_FORCE_XCB=on)"
 
           # Diagnostics fix: must NOT use wmic (removed on Win11 26200+, which killed
           # the old report), must include the launch logs (window evidence), and must

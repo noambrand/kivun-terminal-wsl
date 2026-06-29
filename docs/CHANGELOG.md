@@ -3,6 +3,26 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.14] - 2026-06-30
+
+### Fixed — Hebrew/English Alt+Shift switching works again (back to the v1.4 display mode)
+
+The keyboard switching that worked through the last v1.4 broke in v1.5.9. Live testing pinned
+the cause precisely: v1.5.9 **forced** the terminal onto a different display mode (XWayland/xcb)
+to fix a separate "window only in the taskbar" bug — and that forced switch is what stopped
+Alt+Shift from working. As an XWayland client, the terminal's keyboard ended up fighting
+Windows' own Alt+Shift.
+
+- **Plain WSLg is the default display mode again.** Confirmed live on a real machine: on plain
+  WSLg the window opens visibly **and** Alt+Shift switches Hebrew/English — both, at once. So the
+  XWayland switch was the regression, not the fix.
+- **XWayland is now opt-in** (`KIVUN_FORCE_XCB=on` in `config.txt`), only for the rare machine
+  whose window opens minimized and needs it. The default no longer touches the keyboard.
+- No window regression: the WSLg graphics repair the installer already runs keeps the window
+  visible on plain WSLg.
+
+If switching misbehaved for you on a v1.5.9–v1.5.13 build, this is the fix — install v1.5.14.
+
 ## [1.5.13] - 2026-06-29
 
 ### Fixed — Hebrew/English switching now works on the FIRST launch
