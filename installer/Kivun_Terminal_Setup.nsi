@@ -193,6 +193,9 @@ Section "Core Files" SEC_CORE
   ; WSL distro picker (v1.5.8): prints the Ubuntu distro to use so we reuse an
   ; existing "Ubuntu-24.04"/"Ubuntu-22.04" instead of creating a duplicate.
   File "..\payload\kivun-detect-distro.cmd"
+  ; One-click WSLg reset (v1.5.11): for the rare case the "blank window" wedge
+  ; recurs after install, so the user never has to type `wsl --shutdown`.
+  File "..\payload\kivun-fix-display.cmd"
   ; Offline / antivirus-safe WSL+Ubuntu installer, used when the normal online
   ; `wsl --install` is blocked (e.g. corporate McAfee Web Protection). Installed
   ; in Core so SEC_WSL's failure messages can point the user to it on disk. See
@@ -263,6 +266,9 @@ Section "Desktop Shortcut" SEC_SHORTCUT
   ; Diagnostics/report shortcut — visible console (SW_SHOWNORMAL) so the user
   ; sees the "report saved — email it" message and can send us good data.
   CreateShortcut "$SMPROGRAMS\Kivun Diagnostics.lnk" "$INSTDIR\kivun-diagnostics.cmd" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWNORMAL "" "Collect a Kivun problem report to send for help"
+  ; One-click display repair (v1.5.11): restarts WSL graphics if the window ever
+  ; stops appearing, so the user fixes it with a click instead of a command.
+  CreateShortcut "$SMPROGRAMS\Repair Kivun Display.lnk" "$INSTDIR\kivun-fix-display.cmd" "" "$INSTDIR\kivun_icon.ico" 0 SW_SHOWNORMAL "" "Fix a blank/missing Kivun window (restarts WSL graphics)"
 SectionEnd
 
 ; Default-ON (no /o). The welcome page advertises "right-click folder
@@ -703,6 +709,34 @@ Section "Claude Code CLI" SEC_CLAUDE
   ${Else}
     DetailPrint "Claude Code already installed, skipping."
   ${EndIf}
+
+  ; -----------------------------------------------------------------------
+  ; Finalize: refresh WSL's graphics so the FIRST launch shows the window.
+  ; -----------------------------------------------------------------------
+  ; v1.5.10 proved the window now opens IF WSLg (the Linux-graphics bridge) is
+  ; healthy. But WSLg can get "wedged" and paint NO window at all; the only cure
+  ; is a one-time `wsl --shutdown`. We must NOT ask a non-technical user to type
+  ; that — the INSTALL does it here. This is safe at install time: we just set
+  ; WSL up, so stopping it now only means the next launch starts it fresh. We
+  ; also try `wsl --update` first (best-effort) so a newer WSLg makes the wedge
+  ; less likely to recur. Both are time-bounded so they can never hang the
+  ; installer. Resolve wsl.exe via Sysnative (real 64-bit System32 from a 32-bit
+  ; installer), same as the WSL section.
+  DetailPrint "Finalizing: refreshing WSL graphics so the window opens cleanly..."
+  StrCpy $R7 "$WINDIR\System32\wsl.exe"
+  ${If} ${FileExists} "$WINDIR\Sysnative\wsl.exe"
+    StrCpy $R7 "$WINDIR\Sysnative\wsl.exe"
+  ${EndIf}
+  ; Best-effort update of WSL/WSLg (newer bridge = fewer wedges). Time-bounded;
+  ; ignore the result — a failure here must never block the install.
+  nsExec::Exec /TIMEOUT=120000 '"$R7" --update'
+  Pop $0
+  !insertmacro KLOG "wsl --update (finalize) exit=$0"
+  ; Clear any WSLg wedge and give the first launch a clean graphics bridge.
+  nsExec::Exec /TIMEOUT=30000 '"$R7" --shutdown'
+  Pop $0
+  !insertmacro KLOG "wsl --shutdown (finalize) exit=$0"
+  DetailPrint "Done. The first launch may take ~10-15 seconds to open the window."
 SectionEnd
 
 ; Section descriptions for components page
@@ -731,6 +765,7 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\Kivun Terminal.lnk"
   Delete "$SMPROGRAMS\Kivun Terminal (console).lnk"
   Delete "$SMPROGRAMS\Kivun Diagnostics.lnk"
+  Delete "$SMPROGRAMS\Repair Kivun Display.lnk"
   Delete "$SMPROGRAMS\Edit Kivun Terminal Config.lnk"
 
   ; Remove registry entries
@@ -744,6 +779,7 @@ Section "Uninstall"
   Delete "$INSTDIR\folder-picker.hta"
   Delete "$INSTDIR\kivun-diagnostics.cmd"
   Delete "$INSTDIR\kivun-detect-distro.cmd"
+  Delete "$INSTDIR\kivun-fix-display.cmd"
   Delete "$INSTDIR\kivun-ensure-user.sh"
   Delete "$INSTDIR\kivun-terminal.bat"
   Delete "$INSTDIR\KivunTerminal.exe"

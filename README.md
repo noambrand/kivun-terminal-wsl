@@ -132,11 +132,22 @@ Supports apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch/Manjaro), zypper (
 
 > First run on Windows or Linux requires a Claude Pro/Max subscription or an [Anthropic API key](https://console.anthropic.com).
 
-## 🆘 Something not working? Send us a report (1 minute)
+## 🆘 Something not working?
 
-If Kivun doesn't open, the window doesn't show, or you see an error, please send us a small
-report. It tells us what went wrong **on your computer** so we can fix it fast. This helps
-far more than describing what you saw, and **it is the quickest way to get it solved.**
+**First launch is slow:** the very first time you open Kivun, the window can take about
+**10–15 seconds** to appear (it sets up the Hebrew renderer and starts Claude). That's
+normal — please wait a few seconds before assuming anything's wrong.
+
+**Window is blank or only in the taskbar?** Open the **Start menu → "Repair Kivun
+Display"** (one click). It restarts the part of Windows that draws Linux windows, then
+open Kivun again. No commands to type — the installer also does this for you at the end of
+setup, so you usually never need it.
+
+### Send us a report (1 minute)
+
+If that didn't help, or you see an error, please send us a small report. It tells us what
+went wrong **on your computer** so we can fix it fast. This helps far more than describing
+what you saw, and **it is the quickest way to get it solved.**
 
 **If an error appeared, the report opens by itself — you don't have to do anything.**
 Otherwise, click **Start** (the Windows button), type **Kivun Diagnostics**, and press
@@ -428,11 +439,17 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 <strong>Windows 11 - Smart App Control חוסם את ההתקנה.</strong> אם רואים <em>"Smart App Control blocked an app that may be unsafe"</em> בלי כפתור עקיפה - SAC לא מאפשר אפליקציות לא חתומות בכלל. כדי להתקין: פותחים <strong>Start</strong> ← מחפשים <strong>Smart App Control</strong> ← מעבירים ל-<strong>Off</strong>. אי אפשר להפעיל מחדש את SAC בלי התקנה מחדש של Windows, אז להשאיר Off רק אם זה בסדר עבורכם להריץ אפליקציות לא חתומות אחרות. אחרי שמכבים את SAC, ייתכן שעדיין תופיע אזהרת SmartScreen <em>"Windows protected your PC"</em> - לוחצים <strong>More info</strong> ואז <strong>Run anyway</strong>.
 </blockquote>
 
-### 🆘 משהו לא עובד? שלחו לנו דוח (דקה אחת)
+### 🆘 משהו לא עובד?
 
 <div dir="rtl" align="right">
 
-אם Kivun לא נפתח, החלון לא מופיע, או שמופיעה שגיאה - שלחו לנו דוח קטן. הוא מספר לנו מה בדיוק קרה <strong>במחשב שלכם</strong>, כדי שנוכל לתקן מהר. זה עוזר הרבה יותר מאשר לתאר מה ראיתם, וזו הדרך <strong>הכי מהירה</strong> לפתור את הבעיה.
+<strong>ההפעלה הראשונה איטית:</strong> בפעם הראשונה שפותחים את Kivun, ייתכן שהחלון ייקח בערך <strong>10 עד 15 שניות</strong> להופיע (הוא מכין את מנוע העברית ומפעיל את Claude). זה תקין - חכו כמה שניות לפני שמניחים שמשהו תקוע.
+
+<strong>החלון ריק או רק בשורת המשימות?</strong> פותחים את תפריט <strong>Start ← "Repair Kivun Display"</strong> (לחיצה אחת). זה מפעיל מחדש את החלק ב-Windows שמצייר חלונות של לינוקס, ואז פותחים שוב את Kivun. בלי להקליד שום פקודה - גם ההתקנה עושה את זה בשבילכם בסוף, אז בדרך כלל לא תצטרכו את זה בכלל.
+
+#### שליחת דוח (דקה אחת)
+
+אם זה לא עזר, או שמופיעה שגיאה - שלחו לנו דוח קטן. הוא מספר לנו מה בדיוק קרה <strong>במחשב שלכם</strong>, כדי שנוכל לתקן מהר. זה עוזר הרבה יותר מאשר לתאר מה ראיתם, וזו הדרך <strong>הכי מהירה</strong> לפתור את הבעיה.
 
 <strong>אם הופיעה שגיאה, הדוח נפתח לבד - אתם לא צריכים לעשות כלום.</strong> אחרת, לוחצים על <strong>Start</strong> (כפתור Windows), מקלידים <strong>Kivun Diagnostics</strong> ולוחצים <strong>Enter</strong>.
 
