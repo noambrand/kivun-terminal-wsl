@@ -1,4 +1,4 @@
-# Kivun Terminal v1.4.27
+# Kivun Terminal v1.5.16
 
 [![Latest release](https://img.shields.io/github/v/release/noambrand/kivun-terminal-wsl?label=version&color=brightgreen)](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)]()
@@ -71,7 +71,7 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 ### How it's different from the LTR sister project
 
-| | Launchpad CLI v2.6.5 | Kivun Terminal v1.4.27 |
+| | Launchpad CLI v2.6.5 | Kivun Terminal v1.5.16 |
 |---|---|---|
 | **Runtime** | Windows Terminal (native) | WSL2 + Ubuntu + Konsole |
 | **RTL/BiDi rendering** | LTR only | Full RTL + line-start RLM fix for Claude's bullet-line direction bug ([anthropics/claude-code#39881](https://github.com/anthropics/claude-code/issues/39881)) |
@@ -83,7 +83,7 @@ See [README_INSTALLATION.md](README_INSTALLATION.md) for full options and [TROUB
 
 > Looking for the LTR-only sister project? See [ClaudeCode Launchpad CLI](https://github.com/noambrand/kivun-terminal) - faster startup, no WSL needed.
 
-### What's new in v1.4.27
+### What's new in v1.5.16
 
 - **RTL cost optimizer experiment — OFF by default, measured as no-benefit (v1.4.27).** Set `KIVUN_RTL_COST_OPTIMIZER=on` in `config.txt` and **piped** Hebrew/Arabic prompts are normalized (niqqud/diacritics and invisible direction marks stripped, whitespace collapsed, fenced code untouched) and wrapped — full request verbatim — in a short English reasoning frame. **Post-release measurement found it saves no tokens**, even for Hebrew-reply users: paired A/B testing on Opus 4.8 and Sonnet 4.6 (incl. extended thinking maxed out) put the net output-token effect statistically indistinguishable from zero, and the scaffold *adds* input tokens. The ~31% "Hebrew tax" lives in the output tokenizer and can't be recovered while keeping Hebrew replies — so it's left off; full data in PR #102 / #84. Interactive typing is never touched; flag off → input path byte-identical to previous releases. Rebuilt from @zuwasi's PR #84 direction per issue #98.
 - **No more black window flash (v1.4.26).** The desktop shortcut and right-click launch now go through a native `KivunTerminal.exe` that works in a completely invisible window — no console flash, no taskbar console. On failure you get an error popup with the last launch-log lines. Antivirus blocks it? Use the **"Kivun Terminal (console)"** Start-menu shortcut (identical to previous versions). Continues @zuwasi's PR #83.

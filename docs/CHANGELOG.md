@@ -3,6 +3,32 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.16] - 2026-06-30
+
+### Fixed — installer version, picker update button, and reopening a minimized window
+
+Three fixes confirmed from a real failing machine's logs (see the field-test notes for v1.5.15):
+
+- **Installer showed the wrong version.** The installer title, welcome page, and the Windows
+  "Uninstall" entry were frozen at **v1.4.25** because the installer hardcoded its version and
+  never read the `VERSION` file. It is now **stamped from `VERSION` at build time** (and the
+  local-build fallback is bumped by `tools/bump-version.sh`), so it can never drift again.
+- **Picker "Update available" button did nothing.** The folder picker built the correct latest
+  release link but opened it with a call that can't open a URL, so clicking it silently failed.
+  It now opens the release page via `ShellExecute` (your default browser).
+- **Reopening Kivun could show nothing.** When a Kivun window was already open, reopening reused
+  it but only *activated* it — which does **not** un-minimize a minimized window, so the new tab
+  landed in a hidden window. Reopen now runs the same un-hide + map + raise sequence as a fresh
+  launch, so the window comes back to the front.
+
+**About the keyboard:** the field test confirmed v1.5.15's Alt+Shift switching is correct — on a
+clean cold start the other PC switched Hebrew/English with no manual step. The failures traced to
+a WSLg "wedge" (the window stuck minimized in a state only `wsl --shutdown` clears), which also
+dragged the keyboard down. A true wedge cannot be recovered from inside Linux (every X call
+reports success yet the window stays hidden); the cure remains the one-click **Repair Kivun
+Display**. An automatic "looks wedged → offer Repair" prompt is the next change, landing with its
+own launcher test.
+
 ## [1.5.15] - 2026-06-30
 
 ### Fixed — Hebrew/English Alt+Shift switching (XWayland restored; v1.5.14 was wrong)

@@ -91,7 +91,12 @@ jobs:
       - name: Build installer
         working-directory: installer
         run: |
-          MSYS_NO_PATHCONV=1 "/c/Program Files (x86)/NSIS/makensis.exe" -V3 Kivun_Terminal_Setup.nsi
+          # Stamp the installer's displayed version from the repo VERSION file
+          # (single source of truth) so the title / welcome page / Uninstall entry
+          # can never drift from VERSION again. -D overrides the .nsi !ifndef fallback.
+          VER=$(tr -d '[:space:]' < ../VERSION)
+          echo "Stamping installer PRODUCT_VERSION=$VER"
+          MSYS_NO_PATHCONV=1 "/c/Program Files (x86)/NSIS/makensis.exe" -V3 -DPRODUCT_VERSION="$VER" Kivun_Terminal_Setup.nsi
           if [ ! -f Kivun_Terminal_Setup.exe ]; then
             echo "ERROR: makensis did not produce Kivun_Terminal_Setup.exe" >&2
             exit 1

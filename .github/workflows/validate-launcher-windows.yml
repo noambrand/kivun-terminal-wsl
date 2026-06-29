@@ -480,6 +480,39 @@ jobs:
             || (echo "FAIL: $DIAG opens the report AFTER the WSL probes — a hang would hide it again (deliver=$dl, wslprobe=$wp)"; exit 1)
           echo "PASS: diagnostics is wmic-free, includes the launch logs, and delivers before any WSL probe"
 
+      - name: Verify v1.5.16 installer-version-stamp + picker-URL + reuse-unminimize invariants
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          HTA=payload/folder-picker.hta
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          BW=.github/workflows/build-windows.yml
+          # (1) The installer version must be STAMPED FROM the VERSION file, never a
+          # hardcoded literal: the title / welcome page / "Uninstall" entry froze at
+          # v1.4.25 all the way through v1.5.15 because PRODUCT_VERSION was hardcoded
+          # and the build never overrode it. VIProductVersion/FileVersion must derive
+          # from ${PRODUCT_VERSION}, and the build must pass -DPRODUCT_VERSION=<VERSION>.
+          grep -qF 'VIProductVersion "${PRODUCT_VERSION}.0"' "$NSI" \
+            || (echo "FAIL: $NSI VIProductVersion is not derived from \${PRODUCT_VERSION} — installer version can drift again"; exit 1)
+          if grep -qE '^VIProductVersion "[0-9]' "$NSI"; then
+            echo "FAIL: $NSI hardcodes a numeric VIProductVersion again (must derive from \${PRODUCT_VERSION})"; exit 1
+          fi
+          grep -qF 'DPRODUCT_VERSION="$VER"' "$BW" \
+            || (echo "FAIL: $BW no longer stamps the installer version from VERSION (-DPRODUCT_VERSION)"; exit 1)
+          echo "PASS: installer version is stamped from VERSION at build (no hardcoded drift)"
+          # (2) The picker 'Update available' button must open the release URL via
+          # ShellExecute — WScript.Shell.Run cannot launch a bare https:// URL, so the
+          # old click threw and silently did nothing.
+          grep -qF 'ShellExecute(url' "$HTA" \
+            || (echo "FAIL: $HTA openUpdateUrl no longer uses ShellExecute — the update button can't open the release page"; exit 1)
+          echo "PASS: picker update button opens the release URL via ShellExecute"
+          # (3) Reopening into an EXISTING window must un-minimize it (map + remove,hidden
+          # + raise), not just windowactivate — which leaves a minimized window hidden so
+          # the new tab lands in nothing ("reopen shows nothing", field-confirmed).
+          grep -qF 'Reused Kivun window un-minimized' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH reuse/tab path no longer un-minimizes the existing window (reopen can show nothing)"; exit 1)
+          echo "PASS: reusing an existing window un-minimizes + raises it"
+
       - name: Verify v1.5.9 hard-errors point to Diagnostics + report is easy to send
         run: |
           set -eu
