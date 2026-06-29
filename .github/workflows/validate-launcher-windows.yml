@@ -534,6 +534,25 @@ jobs:
             || (echo "FAIL: $FIX does not run 'wsl --shutdown'"; exit 1)
           echo "PASS: install auto-runs wsl --update + --shutdown; one-click Repair shortcut ships"
 
+      - name: Verify v1.5.12 setxkbmap (Hebrew/English toggle) dependency ships
+        run: |
+          set -eu
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          LAUNCH=payload/kivun-launch.sh
+          # The xcb/XWayland backend (v1.5.9+) made Konsole an X11 client, so the
+          # Alt+Shift Hebrew/English toggle is driven by setxkbmap (package
+          # x11-xkb-utils) on the X server, not by WSLg. The WSL installer MUST
+          # install it or the toggle silently no-ops — the v1.5.11 "language not
+          # switching" regression found on the resolute box. Match the real
+          # apt-get command, not a comment.
+          grep -qE "apt-get install -y -qq x11-utils x11-xserver-utils x11-xkb-utils" "$NSI" \
+            || (echo "FAIL: installer apt bundle no longer includes x11-xkb-utils (setxkbmap) — Hebrew/English toggle breaks under xcb"; exit 1)
+          # And the launcher must LOUDLY log a missing setxkbmap (no silent no-op),
+          # so Diagnostics surfaces it on older installs that predate the dep.
+          grep -q 'setxkbmap not found' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH silently ignores a missing setxkbmap instead of logging it"; exit 1)
+          echo "PASS: installer ships x11-xkb-utils; launcher logs a missing setxkbmap"
+
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
   # Scenario: WSL+Ubuntu present, Konsole NOT installed (we deliberately

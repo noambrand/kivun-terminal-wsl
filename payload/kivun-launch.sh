@@ -223,7 +223,15 @@ log "SUCCESS - Keyboard layout mapped to: $KBD_PRIMARY"
 # English-first so the terminal is immediately ready for commands and paths.
 KIVUN_KBD_LAYOUTS=""
 apply_kivun_keyboard() {
-    command -v setxkbmap >/dev/null 2>&1 || return 0
+    # Under the xcb/XWayland backend Konsole is an X11 client, so the Alt+Shift
+    # Hebrew/English toggle is driven by setxkbmap (package x11-xkb-utils) on the
+    # X server rather than by WSLg. If the tool is missing the toggle can't work
+    # — surface that loudly (not a silent no-op) so Diagnostics catches it.
+    # Re-running the Kivun installer installs x11-xkb-utils.
+    if ! command -v setxkbmap >/dev/null 2>&1; then
+        log "WARNING - setxkbmap not found; Alt+Shift Hebrew/English toggle disabled. Re-run the Kivun installer (installs x11-xkb-utils) to restore layout switching."
+        return 0
+    fi
     if [ "$KBD_PRIMARY" = "us" ]; then
         setxkbmap -layout us 2>/dev/null || true   # English: nothing to toggle
         return 0

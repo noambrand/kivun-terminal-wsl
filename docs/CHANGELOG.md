@@ -3,6 +3,26 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.12] - 2026-06-29
+
+### Fixed — Hebrew/English Alt+Shift switching works again
+
+Live testing on the failing PC (thank you!) caught a regression introduced by the
+XWayland (xcb) switch back in v1.5.9: **the Alt+Shift toggle between Hebrew and English
+stopped switching.** Under the old path, Windows/WSLg handled keyboard switching; making
+Konsole an X11 client means the switch is now driven by `setxkbmap` *inside* Ubuntu — and
+that tool wasn't being installed, so the toggle silently did nothing.
+
+- The installer now installs **`x11-xkb-utils`** (which provides `setxkbmap`) in step
+  `[4/7]`, alongside the other X tools. **Re-running the installer fixes an existing
+  install** — the package step runs again on upgrade.
+- The launcher no longer fails silently when `setxkbmap` is missing: it writes a clear
+  warning to the launch log, so Diagnostics surfaces it instead of leaving you guessing.
+
+This was invisible on a healthy WSLg (where the tool happens to already be present); it
+only showed on the minimal Store Ubuntu that ships no X keyboard utilities until we add
+them. The fix was verified live on the affected machine.
+
 ## [1.5.11] - 2026-06-29
 
 ### Changed — the installer now untangles WSL graphics for you (no commands)

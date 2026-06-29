@@ -574,11 +574,16 @@ Section "Konsole + window tools" SEC_KONSOLE
     konsole_ok_3:
   ${EndIf}
 
-  DetailPrint "[4/7] Installing x11-utils + x11-xserver-utils + emoji + FreeMono fonts (~40-60 seconds)..."
-  ; These four packages exist in Ubuntu main/universe on every supported
-  ; release, so this batch should not fail on a healthy machine. fonts-freefont-ttf
+  DetailPrint "[4/7] Installing x11-utils + x11-xserver-utils + x11-xkb-utils + emoji + FreeMono fonts (~40-60 seconds)..."
+  ; These packages exist in Ubuntu main/universe on every supported release, so
+  ; this batch should not fail on a healthy machine. fonts-freefont-ttf
   ; (FreeMono) is the guaranteed Hebrew fallback the profile writer uses.
-  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf >> /tmp/kivun-apt.log 2>&1"'
+  ; x11-xkb-utils provides setxkbmap, which the launcher's Alt+Shift
+  ; Hebrew/English toggle needs: under the xcb/XWayland backend (v1.5.9+)
+  ; Konsole is an X11 client, so layout switching is driven by setxkbmap on the
+  ; X server instead of by WSLg/Windows. Without it the toggle silently no-ops
+  ; (the v1.5.11 "language not switching" regression, found on the resolute box).
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils x11-xkb-utils fonts-noto-color-emoji fonts-freefont-ttf >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install x11-utils (code $0).$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_4
