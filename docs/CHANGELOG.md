@@ -24,6 +24,16 @@ hidden/minimized.
   / `on` / `off`). If XWayland ever made Hebrew/RTL text or font sharpness look
   worse on a given machine, set `KIVUN_FORCE_XCB=off` to keep the Wayland backend.
 
+### Added — every hard error now hands you a 1-click report
+
+So users can send real data instead of just describing symptoms: on any hard error the
+launcher now prints a short, plain-language message and — in a visible console —
+**opens Kivun Diagnostics for you automatically**. Diagnostics saves
+`Kivun-Report.txt` to your Desktop, opens it, **and pops open a folder with the file
+highlighted** so you can just **drag it** into an email (`noambbb@gmail.com`) or a
+[GitHub issue](https://github.com/noambrand/kivun-terminal-wsl/issues). The README
+(English + Hebrew) now explains this prominently in plain, non-technical steps.
+
 ### Fixed — `wmic` purged everywhere (Windows 11 24H2 removed it)
 
 `wmic` is gone on Windows 11 build 26200+, where it broke not just Diagnostics but

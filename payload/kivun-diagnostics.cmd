@@ -69,11 +69,18 @@ if exist "%KDIR%\install-log.txt" (
 )
 >>"%RPT%" echo.
 
-REM ---- DELIVER NOW: copy to the real Desktop + open in Notepad, BEFORE any WSL
-REM ---- probe can be slow. This guarantees the user always gets a readable
-REM ---- report with the window logs above, even if WSL is wedged.
+REM ---- DELIVER NOW: copy to the real Desktop, open it on screen, AND pop open
+REM ---- the folder with the file highlighted — all BEFORE any WSL probe can be
+REM ---- slow. So the user always gets a readable report (with the window logs
+REM ---- above) and can just DRAG the file into an email or a GitHub issue.
 call :COPYDESK
 start "" notepad "%RPT%"
+REM Open Explorer with the report file selected so it's effortless to grab/send.
+if exist "%DESKTOP%\Kivun-Report.txt" (
+    start "" explorer.exe /select,"%DESKTOP%\Kivun-Report.txt"
+) else (
+    start "" explorer.exe /select,"%RPT%"
+)
 
 REM ---- BEST-EFFORT extras (may be slow on a broken WSL; the report is already
 REM ---- delivered, so a hang here can no longer hide the report from the user) ----
@@ -92,18 +99,19 @@ call :COPYDESK
 
 cls
 echo ============================================================
-echo   KIVUN DIAGNOSTIC REPORT CREATED
+echo   YOUR REPORT IS READY:  Kivun-Report.txt
 echo ============================================================
 echo.
-echo   On your Desktop:  Kivun-Report.txt
-echo   Full path:        %DESKTOP%\Kivun-Report.txt
-echo   (always also at:  %RPT% )
+echo   A folder just opened with the file  Kivun-Report.txt
+echo   highlighted (it is on your Desktop). Sending it really
+echo   helps us fix the problem - it is the fastest way.
 echo.
-echo   PLEASE SEND IT so we can help:
-echo     - Email it to:      %CONTACT%
-echo     - or attach it at:  %ISSUES%
+echo   To send it, just DRAG that highlighted file into:
+echo     - an email to:   %CONTACT%
+echo     - or a new post at:
+echo       %ISSUES%
 echo.
-echo   It has opened in Notepad. Nothing was sent automatically.
+echo   Nothing was sent automatically - you are in control.
 echo ============================================================
 echo.
 pause

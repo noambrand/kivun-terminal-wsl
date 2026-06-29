@@ -132,6 +132,27 @@ Supports apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch/Manjaro), zypper (
 
 > First run on Windows or Linux requires a Claude Pro/Max subscription or an [Anthropic API key](https://console.anthropic.com).
 
+## 🆘 Something not working? Send us a report (1 minute)
+
+If Kivun doesn't open, the window doesn't show, or you see an error, please send us a small
+report. It tells us what went wrong **on your computer** so we can fix it fast. This helps
+far more than describing what you saw, and **it is the quickest way to get it solved.**
+
+**If an error appeared, the report opens by itself — you don't have to do anything.**
+Otherwise, click **Start** (the Windows button), type **Kivun Diagnostics**, and press
+**Enter**.
+
+Then it's just drag‑and‑drop:
+
+1. A file called **Kivun-Report.txt** is saved to your **Desktop** and opens on screen.
+2. A folder also opens with that file already **highlighted** — so you don't have to hunt
+   for it.
+3. **Drag the highlighted file** into either:
+   - an **email** to **noambbb@gmail.com**, or
+   - a **new post** at **<https://github.com/noambrand/kivun-terminal-wsl/issues>**
+
+Nothing is sent on its own — you're in control. That's it; we'll take it from there.
+
 ## Status Bar
 
 A two-line live status bar at the bottom of every Claude Code session - the same `statusline.mjs` ships in all three installers and registers into `~/.claude/settings.json` automatically:
@@ -406,6 +427,35 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 <blockquote dir="rtl" align="right">
 <strong>Windows 11 - Smart App Control חוסם את ההתקנה.</strong> אם רואים <em>"Smart App Control blocked an app that may be unsafe"</em> בלי כפתור עקיפה - SAC לא מאפשר אפליקציות לא חתומות בכלל. כדי להתקין: פותחים <strong>Start</strong> ← מחפשים <strong>Smart App Control</strong> ← מעבירים ל-<strong>Off</strong>. אי אפשר להפעיל מחדש את SAC בלי התקנה מחדש של Windows, אז להשאיר Off רק אם זה בסדר עבורכם להריץ אפליקציות לא חתומות אחרות. אחרי שמכבים את SAC, ייתכן שעדיין תופיע אזהרת SmartScreen <em>"Windows protected your PC"</em> - לוחצים <strong>More info</strong> ואז <strong>Run anyway</strong>.
 </blockquote>
+
+### 🆘 משהו לא עובד? שלחו לנו דוח (דקה אחת)
+
+<div dir="rtl" align="right">
+
+אם Kivun לא נפתח, החלון לא מופיע, או שמופיעה שגיאה - שלחו לנו דוח קטן. הוא מספר לנו מה בדיוק קרה <strong>במחשב שלכם</strong>, כדי שנוכל לתקן מהר. זה עוזר הרבה יותר מאשר לתאר מה ראיתם, וזו הדרך <strong>הכי מהירה</strong> לפתור את הבעיה.
+
+<strong>אם הופיעה שגיאה, הדוח נפתח לבד - אתם לא צריכים לעשות כלום.</strong> אחרת, לוחצים על <strong>Start</strong> (כפתור Windows), מקלידים <strong>Kivun Diagnostics</strong> ולוחצים <strong>Enter</strong>.
+
+ואז זו פשוט גרירה:
+
+</div>
+
+<ol dir="rtl" align="right">
+<li>קובץ בשם <code>Kivun-Report.txt</code> נשמר על <strong>שולחן העבודה</strong> ונפתח על המסך.</li>
+<li>גם נפתחת תיקייה כשהקובץ כבר <strong>מסומן</strong> - כדי שלא תצטרכו לחפש אותו.</li>
+<li><strong>גוררים את הקובץ המסומן</strong> אל אחד מאלה:
+<ul dir="rtl" align="right">
+<li><strong>מייל</strong> אל <strong>noambbb@gmail.com</strong>, או</li>
+<li><strong>פוסט חדש</strong> ב-<a href="https://github.com/noambrand/kivun-terminal-wsl/issues">GitHub Issues</a></li>
+</ul>
+</li>
+</ol>
+
+<div dir="rtl" align="right">
+
+שום דבר לא נשלח לבד - אתם בשליטה. זהו, אנחנו נמשיך מכאן.
+
+</div>
 
 ### 📊 סטטוסליין
 
