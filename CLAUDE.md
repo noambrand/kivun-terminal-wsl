@@ -12,6 +12,19 @@ Reserve questions for genuine trade-offs - cost vs. benefit, scope, taste. Compl
 
 This repo ships a launcher that runs on someone else's Windows machine. The user-visible failure mode that ate v1.1.0 was: launcher said "Claude not found", then claimed to fall back, then crashed running the missing binary. Treat every launcher path as a path that must work end-to-end on a clean machine - not just "exit cleanly when broken." The CI in `.github/workflows/validate-launcher-windows.yml` exists to enforce this; if you add a new launcher branch, add a CI job that exercises it against real WSL.
 
+**Field bugs you can't reproduce here: get ground truth, don't ship blind.** When a symptom is on the user's *other* Windows PC, that machine is theirs — ask them to run a Claude Code session ON it to pull the real logs (`%LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt` + `BASH_LAUNCH_LOG.txt`) and run live probes (e.g. `xeyes` to test whether WSLg paints *anything*). v1.5.6–v1.5.8 wasted three releases on speculative fixes; the actual causes only fell out once the failing machine's logs/experiments came back. The rewritten `kivun-diagnostics.cmd` exists to make this one click; trust its report over guesses.
+
+## WSLg + Windows gotchas (learned debugging the v1.5.x "no window" saga)
+
+- **`wmic` is REMOVED on Windows 11 24H2+ (build 26200).** Never call it in `payload/`/`offline/` scripts — it silently broke Diagnostics (truncated mid-run) and monitor detection. CI guard blocks real `wmic` invocations. Get monitor size from the WSL side (xrandr/Xinerama), not Windows.
+- **Konsole on WSLg is Qt6 *Wayland* → xdotool/wmctrl (X11) can't see or manage it** ("Could not find Konsole window"). Force `QT_QPA_PLATFORM=xcb` (Xwayland) and then `--name`, geometry, raise, icon all work. Escape hatch: `KIVUN_FORCE_XCB=auto|on|off` in config.txt.
+- **Konsole *forks* by default** → the launched pid hands the window to a daemon instance and the window you sized/raised is replaced by an unmanaged, minimized one. Launch `--nofork --separate` (probed) and find the window by `--pid` (KPID), with a ~15s retry (first paint is slow: BiDi wrapper + Claude spin up).
+- **WSLg can "wedge" and paint NO window at all** (even `xeyes` is invisible). Only cure is `wsl --shutdown`. Don't make users type it: the installer runs `wsl --update` + `wsl --shutdown` at finalize, and ships a one-click Start-menu **"Repair Kivun Display"** for recurrence. Never auto-run `wsl --shutdown` mid-session (kills other WSL work).
+- **The distro is NOT always named "Ubuntu"** (the Store installs `Ubuntu-24.04`). `kivun-detect-distro.cmd` picks it (exact `Ubuntu`, else first `Ubuntu-*`); used by the launcher (`%DISTRO%`) and installer (`$DISTRO`) so an existing distro is reused, never duplicated. `WSL_UTF8=1` makes `wsl -l -q` parseable from cmd.
+- **Diagnostics must deliver before any WSL probe** (Desktop copy + Notepad + `explorer /select` to highlight the file), include `LAUNCH_LOG`/`BASH_LAUNCH_LOG`, and resolve the *real* Desktop via `User Shell Folders` (OneDrive redirection). Every hard launcher error calls `:DIAG_HINT`, which auto-opens it.
+- **`--continue`/`--resume` on a folder with no prior chat makes Claude exit immediately** → the terminal/tab dies. Launchers retry a fresh session (time-guarded) so the window never just vanishes.
+- **CI invariants:** the `static-lint` job grep-asserts each fix; add a guard per fix, and run the grep against the real file before pushing — the word in a comment/log-string will false-positive (match commands only, e.g. `nsExec::Exec` lines, line-start, or a real verb).
+
 ## Workflows
 
 ### Automatic Publishing
