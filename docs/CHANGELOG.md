@@ -3,6 +3,29 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.13] - 2026-06-29
+
+### Fixed — Hebrew/English switching now works on the FIRST launch
+
+v1.5.12 added the missing keyboard tool (`setxkbmap`), but live testing on the same PC
+caught a second layer: the layout was being applied **too early** — before the terminal
+window had focus and while Claude was still starting up — so Windows' graphics bridge
+dropped it and the first Alt+Shift did nothing. (Re-applying it by hand against the open
+window worked, which pinpointed the cause as timing, not the mechanism.)
+
+- The launcher now **re-applies the layout a few seconds after the window is up and
+  focused** (in the background, so nothing is slowed down) and stops as soon as switching
+  works — so Alt+Shift switches Hebrew/English from the first launch, with no manual step.
+
+### Added — pick a different switch key if Alt+Shift clashes with Windows
+
+Alt+Shift is also Windows' own "change input language" shortcut, so on some PCs Windows
+grabs it first. You can now choose a different key in `config.txt`:
+
+- **`KIVUN_KBD_TOGGLE`** (default `grp:alt_shift_toggle`). For a non-colliding key, set
+  `grp:caps_toggle` (Caps Lock), `grp:win_space_toggle` (Win+Space), or `grp:rctrl_toggle`
+  (Right Ctrl). The default is unchanged, so existing setups behave exactly as before.
+
 ## [1.5.12] - 2026-06-29
 
 ### Fixed — Hebrew/English Alt+Shift switching works again

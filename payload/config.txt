@@ -102,6 +102,17 @@ KIVUN_TABBED=on
 #          Hebrew/RTL text or font sharpness looks worse under XWayland.
 KIVUN_FORCE_XCB=auto
 
+# Key that switches keyboard layout inside the terminal (v1.5.13).
+# Default is Alt+Shift, which matches Windows. IMPORTANT: Alt+Shift is ALSO
+# Windows' own "switch input language" hotkey, so on some PCs Windows changes
+# its language instead of (or as well as) the terminal. If that bothers you,
+# pick a non-colliding key here. Common values:
+#   grp:alt_shift_toggle - Alt+Shift (default)
+#   grp:caps_toggle      - Caps Lock switches the layout
+#   grp:win_space_toggle - Win+Space
+#   grp:rctrl_toggle     - Right Ctrl
+KIVUN_KBD_TOGGLE=grp:alt_shift_toggle
+
 
 # =================================================================
 # BIDI WRAPPER — Hebrew rendering tunables (advanced; leave alone)
