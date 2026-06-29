@@ -158,6 +158,38 @@ wsl -d Ubuntu --user root -- pkill -9 -f apt-get
 
 Then re-run the installer.
 
+## Symptom: Installer froze / did nothing after it installed WSL (you skipped the restart)
+
+**Cause:** The very first time Kivun sets up WSL, Windows turns on its built-in
+Linux engine, and that engine only finishes turning on **after a restart**. If you
+re-run the installer **before** restarting, Linux can't start yet, so older builds
+would sit and wait on a `wsl` command forever — the window looked frozen.
+
+**Fix (v1.5.7+):** the installer now notices this. When WSL was installed but the PC
+hasn't been restarted, it shows a clear message explaining that a restart is needed
+and **stops cleanly instead of freezing** (it never restarts your PC for you). Just:
+
+1. **Restart your computer** (Start → Power → Restart). A normal restart — you won't
+   lose any work.
+2. **Run the Kivun Terminal installer again** — it finishes Ubuntu, Konsole and
+   Claude Code on its own.
+
+It also puts a time limit on its quick WSL checks, so even an unusual WSL hiccup can
+no longer freeze the installer — it tells you what to do (restart, or right-click →
+**Run as administrator**) instead.
+
+## Symptom: "Continue last conversation" closed the terminal / it opened and shut by itself
+
+**Cause:** If you picked **Continue last** in the picker (or set
+`CLAUDE_FLAGS=--continue` in `config.txt`) and then opened a folder that had **no
+earlier conversation**, Claude Code printed *"No conversation found to continue"* and
+exited immediately — so the terminal opened and closed on its own.
+
+**Fix (v1.5.6+):** Kivun now detects that and **automatically opens a fresh session
+instead** (you'll see a short "No previous conversation found — starting fresh"
+note). Nothing to do on your side. A real conversation you actually worked in and
+closed is never affected.
+
 ## Symptom: Launcher batch exits silently mid-run / shortcut seems to do nothing
 
 If `LAUNCH_LOG.txt` shows the script reaching a certain point and then stopping (no `ERROR`, just truncated), the most common cause is **CRLF line endings lost in transit**. CMD batch files require CRLF. Files edited on Linux/WSL or copied via `cp` from WSL will often end up with LF-only, and CMD's parser silently fails in complex nested `if (...)` / `for (...)` blocks.

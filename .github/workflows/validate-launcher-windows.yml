@@ -21,6 +21,7 @@ on:
       - 'payload/kivun-direct.sh'
       - 'payload/folder-picker.hta'
       - 'kivun-claude-bidi/lib/resolve-claude-bin.js'
+      - 'installer/Kivun_Terminal_Setup.nsi'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
   pull_request:
@@ -32,6 +33,7 @@ on:
       - 'payload/kivun-direct.sh'
       - 'payload/folder-picker.hta'
       - 'kivun-claude-bidi/lib/resolve-claude-bin.js'
+      - 'installer/Kivun_Terminal_Setup.nsi'
       - 'launcher/**'
       - '.github/workflows/validate-launcher-windows.yml'
 
@@ -299,6 +301,81 @@ jobs:
           awk '/^:conv_apply/{b=1} b{print} b&&/^:conv_done/{exit}' "$BAT" | grep -q 'CLAUDE_FLAGS=%CLAUDE_FLAGS% %CONV_FLAG%' \
             || (echo "FAIL: conv flag is not appended to CLAUDE_FLAGS — resume never reaches claude"; exit 1)
           echo "PASS: .bat applies resume sidecar only on the picker path, one-shot, into CLAUDE_FLAGS"
+
+      - name: Verify v1.5.6 resume → open-fresh fallback invariants (launch + direct)
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          DIRECT=payload/kivun-direct.sh
+          # v1.5.6 bug: choosing "Continue last" (or a pinned CLAUDE_FLAGS=--continue)
+          # on a folder with NO prior conversation made `claude --continue` exit at
+          # once with "No conversation found to continue", and the terminal died on
+          # its own. The fix: detect that FAST non-zero exit and reopen a FRESH
+          # session with the resume flag stripped. If any link below goes missing,
+          # the dead-terminal bug comes back.
+
+          # ---- kivun-launch.sh (generated inner script) ----
+          # Detection of the resume flags (the case-pattern that sets KIVUN_RESUMING).
+          grep -q 'KIVUN_RESUMING' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost KIVUN_RESUMING — resume failures no longer detected"; exit 1)
+          grep -qE '\*" --continue "\*\|\*" -c "\*\|\*" --resume "\*\|\*" -r "\*' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer matches --continue/-c/--resume/-r for the retry"; exit 1)
+          # The retry itself: a fresh run with the stripped flag set.
+          grep -q 'KIVUN_FRESH' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the KIVUN_FRESH retry — no fresh fallback on no-conversation"; exit 1)
+          grep -q 'run_claude "\\\$KIVUN_FRESH"' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH never re-runs claude fresh after a failed resume"; exit 1)
+          # The time guard so a real session the user quit is never retried.
+          grep -q 'KIVUN_END - KIVUN_START' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the elapsed-time guard — could retry a real session"; exit 1)
+          echo "PASS: kivun-launch.sh detects a failed resume and reopens fresh (time-guarded)"
+
+          # ---- kivun-direct.sh (Konsole-failed fallback path) ----
+          grep -q 'RESUMING' "$DIRECT" \
+            || (echo "FAIL: $DIRECT lost resume detection"; exit 1)
+          grep -q 'FRESH_FLAGS' "$DIRECT" \
+            || (echo "FAIL: $DIRECT lost the fresh-retry (FRESH_FLAGS) — dead terminal on no-conversation"; exit 1)
+          # Must NOT exec the first (resume) attempt, or it could never fall back.
+          awk '/RESUMING" = "1"/{b=1} b{print} b&&/^fi/{exit}' "$DIRECT" | grep -q 'exec .*FRESH_FLAGS' \
+            || (echo "FAIL: $DIRECT does not exec a fresh session after a failed resume"; exit 1)
+          echo "PASS: kivun-direct.sh reopens fresh after a failed resume instead of dying"
+
+      - name: Verify v1.5.7 installer no-stall + reboot-detect invariants (NSI)
+        run: |
+          set -eu
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          # v1.5.7 bug: a user who installed WSL (which REQUIRES a restart) and
+          # re-ran the installer BEFORE rebooting hit an installer that HUNG — the
+          # wsl probes blocked on a Linux engine that can't start until the reboot.
+          # The fix is (a) a reboot marker we set when WE install WSL + an early
+          # check that aborts with a clear notice, and (b) time limits on the quick
+          # wsl probes so a stuck wsl.exe can never freeze the installer.
+
+          # (a) Reboot marker: written when we run wsl --install, read before any
+          # probe, cleared once WSL is confirmed up.
+          [ "$(grep -c 'WslRebootPending' "$NSI")" -ge 3 ] \
+            || (echo "FAIL: $NSI is missing the WslRebootPending marker write/read/clear (need >=3 refs)"; exit 1)
+          grep -q 'WriteRegStr HKCU "Software\\Kivun-WSL" "WslRebootPending" "1"' "$NSI" \
+            || (echo "FAIL: $NSI never SETS the reboot marker after wsl --install"; exit 1)
+          grep -q 'ReadRegStr \$R4 HKCU "Software\\Kivun-WSL" "WslRebootPending"' "$NSI" \
+            || (echo "FAIL: $NSI never READS the reboot marker before probing WSL — stall is back"; exit 1)
+          # The early fast-path must ABORT (not stall) when WSL is still not ready.
+          awk '/Reboot fast-path/{b=1} b{print} b&&/Virtualization \(firmware\) pre-flight/{exit}' "$NSI" \
+            | grep -q 'Abort "WSL installed earlier' \
+            || (echo "FAIL: $NSI reboot fast-path does not abort when the restart was skipped"; exit 1)
+
+          # (b) Time limits on the quick probes so the installer can never hang.
+          [ "$(grep -c '/TIMEOUT=' "$NSI")" -ge 4 ] \
+            || (echo "FAIL: $NSI quick wsl probes lost their /TIMEOUT guards (need >=4) — installer can stall again"; exit 1)
+          # The status probe specifically must be time-limited.
+          grep -q 'nsExec::ExecToStack /TIMEOUT=.*--status' "$NSI" \
+            || (echo "FAIL: $NSI 'wsl --status' probe has no /TIMEOUT — it can hang on a pending-reboot WSL"; exit 1)
+          echo "PASS: installer detects a skipped reboot and never stalls on a quick WSL probe"
+
+          # config.txt preservation on upgrade must stay intact (pre-v1.5.x behavior).
+          grep -q 'Preserving existing config.txt' "$NSI" \
+            || (echo "FAIL: $NSI no longer preserves an existing config.txt on upgrade"; exit 1)
+          echo "PASS: installer preserves an existing config.txt on upgrade"
 
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
