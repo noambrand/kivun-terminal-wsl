@@ -872,6 +872,24 @@ if ! timeout 10 konsole --name kivun-terminal --version >/dev/null 2>&1; then
     KIVUN_NAME_OPT=""
     log "INFO - Konsole rejects --name (Qt6/Wayland); launching without it"
 fi
+
+# v1.5.10: Konsole FORKS by default. On WSLg (confirmed, Konsole 25.12 + Ubuntu
+# 25.10/26.04) the launched process hands the window off to a forked/daemon
+# instance — so the window we find+size+raise at launch is destroyed moments
+# later and replaced by an UNMANAGED window that comes up minimized/never
+# presented. --nofork keeps the real window owned by the launched pid so our
+# size/raise/activate sticks to the window that survives. --separate forces a
+# fresh instance (window mode never wants to join a daemon). Both are probed so
+# a Konsole build that lacks either flag still launches.
+KIVUN_KONSOLE_OPTS=""
+if timeout 10 konsole --nofork --version >/dev/null 2>&1; then
+    KIVUN_KONSOLE_OPTS="--nofork"
+    log "INFO - Konsole supports --nofork; using it so the managed window survives (no fork hand-off)"
+fi
+if timeout 10 konsole --separate --version >/dev/null 2>&1; then
+    KIVUN_KONSOLE_OPTS="$KIVUN_KONSOLE_OPTS --separate"
+    log "INFO - Konsole supports --separate; using it so a fresh instance owns the window"
+fi
 ICON_PNG_DEPLOY="$(dirname "$0")/kivun-icon.png"
 if [ -f "$ICON_PNG_DEPLOY" ]; then
     DESKTOP_DIR="$HOME/.local/share/applications"
@@ -955,8 +973,11 @@ fi
 
 if [ "$KIVUN_MODE" = "window" ]; then
     log "INFO - Launching Konsole with KivunTerminal profile (WM_CLASS=kivun-terminal)"
-    log "INFO - Command: setsid konsole $KIVUN_NAME_OPT --profile KivunTerminal -e $LAUNCH_TMP"
-    setsid konsole $KIVUN_NAME_OPT --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
+    log "INFO - Command: setsid konsole $KIVUN_KONSOLE_OPTS $KIVUN_NAME_OPT --profile KivunTerminal -e $LAUNCH_TMP"
+    # $KIVUN_KONSOLE_OPTS (--nofork --separate) keeps the window owned by THIS pid
+    # so the size/raise/activate below sticks (see the probe above). Without it
+    # Konsole forks and the window we manage is replaced by an unmanaged one.
+    setsid konsole $KIVUN_KONSOLE_OPTS $KIVUN_NAME_OPT --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
     KPID=$!
     if [ $KPID -gt 0 ]; then
         log "SUCCESS - Konsole started with PID: $KPID"
@@ -1049,11 +1070,18 @@ fi
 
 if command -v xdotool >/dev/null 2>&1; then
   log "INFO - Using xdotool for window management"
-  # Search the kivun-terminal WM_CLASS first (the --name we pass to konsole),
-  # then fall back to konsole. Newer Konsole builds can register under our class,
-  # and matching it first avoids grabbing an unrelated konsole window.
-  WID=$(xdotool search --class kivun-terminal 2>/dev/null | head -1)
-  [ -z "$WID" ] && WID=$(xdotool search --class konsole 2>/dev/null | head -1)
+  # Find the window that ACTUALLY SURVIVES. With --nofork, KPID owns the real
+  # window, so search by --pid first (most reliable; immune to the fork hand-off
+  # that left a stale class match on WSLg). Retry briefly because the window can
+  # take a moment to map. Fall back to the kivun-terminal class, then konsole.
+  WID=""
+  for _try in 1 2 3 4 5 6; do
+    [ -n "$KPID" ] && WID=$(xdotool search --pid "$KPID" 2>/dev/null | tail -1)
+    [ -z "$WID" ] && WID=$(xdotool search --class kivun-terminal 2>/dev/null | tail -1)
+    [ -z "$WID" ] && WID=$(xdotool search --class konsole 2>/dev/null | tail -1)
+    [ -n "$WID" ] && break
+    sleep 1
+  done
   if [ -n "$WID" ]; then
     log "SUCCESS - Found Konsole window (ID: $WID)"
     xdotool set_window --name "Kivun Terminal" "$WID" 2>/dev/null

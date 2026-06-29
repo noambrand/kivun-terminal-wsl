@@ -3,6 +3,32 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.10] - 2026-06-29
+
+### Fixed — the Konsole window now stays put (it was forking itself away)
+
+Live testing on the failing PC (thank you!) isolated the real residual cause: **Konsole
+forks by default**, so on WSLg the process Kivun launched handed the window off to a
+second, daemon-owned instance — the window Kivun found, sized and raised at launch was
+destroyed moments later and replaced by an **unmanaged** one that came up minimized and
+was never presented. (v1.5.9's XWayland fix was correct and is kept — it's what let us
+find/size/raise the window in the first place.)
+
+- Kivun now launches Konsole with **`--nofork --separate`** (both probed for support),
+  so the real window stays owned by the launched process and the size/raise/activate
+  sticks to the window you actually get.
+- It also **re-finds the surviving window by its process id** (with a short retry),
+  not just by window class — immune to the fork hand-off.
+
+### Note — if the window still doesn't appear: restart the graphics bridge
+
+Separately, WSLg itself can get "wedged" and stop painting *any* Linux window (proven
+with a trivial `xeyes` test). The cure is a one-time **`wsl --shutdown`** from a Windows
+terminal, then relaunch. Kivun does **not** run this for you (it would close your other
+WSL work). `TROUBLESHOOTING.md` now lists this as the first thing to try, and notes that
+pre-release Ubuntu images (25.10 "resolute" / 26.04) with very new Konsole/Qt6 hit this
+more often than stable Ubuntu 24.04 LTS.
+
 ## [1.5.9] - 2026-06-29
 
 ### Fixed — the real cause of "only in the taskbar, no window opens"
