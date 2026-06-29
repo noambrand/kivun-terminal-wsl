@@ -222,6 +222,11 @@ log "SUCCESS - Keyboard layout mapped to: $KBD_PRIMARY"
 # symptom. Detection is best-effort; on anything unexpected we open
 # English-first so the terminal is immediately ready for commands and paths.
 KIVUN_KBD_LAYOUTS=""
+# Key that toggles layouts. Default Alt+Shift matches Windows, but Alt+Shift is
+# ALSO Windows' own "switch input language" hotkey, so on some PCs Windows eats
+# it before Konsole sees it. Override in config.txt (KIVUN_KBD_TOGGLE), e.g.
+# grp:caps_toggle, to switch with a non-colliding key.
+KIVUN_KBD_TOGGLE="grp:alt_shift_toggle"
 apply_kivun_keyboard() {
     # Under the xcb/XWayland backend Konsole is an X11 client, so the Alt+Shift
     # Hebrew/English toggle is driven by setxkbmap (package x11-xkb-utils) on the
@@ -237,14 +242,21 @@ apply_kivun_keyboard() {
         return 0
     fi
     if [ -z "$KIVUN_KBD_LAYOUTS" ]; then
+        # Optional toggle-key override (config.txt KIVUN_KBD_TOGGLE). Read once.
+        # SCRIPT_DIR is set before this function is first called.
+        if [ -f "${SCRIPT_DIR:-}/config.txt" ]; then
+            _kbt=$(grep -E '^[[:space:]]*KIVUN_KBD_TOGGLE[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+                | sed -e 's/^[[:space:]]*KIVUN_KBD_TOGGLE[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+            [ -n "$_kbt" ] && KIVUN_KBD_TOGGLE="$_kbt"
+        fi
         _kb_cur=$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' | cut -d, -f1)
         case "$_kb_cur" in
             "$KBD_PRIMARY") KIVUN_KBD_LAYOUTS="${KBD_PRIMARY},us" ;;
             *)              KIVUN_KBD_LAYOUTS="us,${KBD_PRIMARY}" ;;
         esac
-        log "INFO - Keyboard: current='${_kb_cur:-unknown}' -> '${KIVUN_KBD_LAYOUTS}' (Alt+Shift toggles)"
+        log "INFO - Keyboard: current='${_kb_cur:-unknown}' -> '${KIVUN_KBD_LAYOUTS}' (${KIVUN_KBD_TOGGLE} toggles)"
     fi
-    setxkbmap -layout "$KIVUN_KBD_LAYOUTS" -option "" -option grp:alt_shift_toggle 2>/dev/null || true
+    setxkbmap -layout "$KIVUN_KBD_LAYOUTS" -option "" -option "$KIVUN_KBD_TOGGLE" 2>/dev/null || true
 }
 
 # --- Statusline setup ---
@@ -1158,6 +1170,29 @@ if command -v xdotool >/dev/null 2>&1; then
     xdotool windowraise "$WID" 2>/dev/null
     command -v wmctrl >/dev/null 2>&1 && wmctrl -i -a "$WID" 2>/dev/null
     log "INFO - Forced Konsole window visible (un-minimized, mapped, raised, activated)"
+
+    # v1.5.13 — the actual cure for "the new version won't switch Hebrew/English
+    # on first launch". v1.5.12 installs setxkbmap (the package was missing), but
+    # applying the layout *before* the window has focus doesn't stick: WSLg drops
+    # it as the new window grabs focus and while Claude's TUI is still spinning up
+    # (cold start). The early applies above run too soon. Verified live on the
+    # resolute box: re-applying setxkbmap against the *focused* window a few
+    # seconds in fixes it instantly. Do that here in the background so the session
+    # isn't delayed — re-focus + re-apply a few times over the first ~10s, and
+    # STOP as soon as the RTL group is actually loaded (so we don't keep resetting
+    # the active group once the toggle works and the user is typing).
+    if [ "$KBD_PRIMARY" != "us" ] && command -v setxkbmap >/dev/null 2>&1; then
+      (
+        for _kbtry in 1 2 3 4 5 6; do
+          sleep 2
+          xdotool windowactivate "$WID" 2>/dev/null
+          apply_kivun_keyboard
+          setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' \
+            | tr ',' '\n' | grep -qx "$KBD_PRIMARY" && break
+        done
+      ) >> "$LOG_FILE" 2>&1 &
+      log "INFO - Keyboard: scheduled post-focus layout re-apply (cold-start settle)"
+    fi
   else
     log "WARNING - Could not find Konsole window with xdotool"
   fi

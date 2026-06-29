@@ -553,6 +553,31 @@ jobs:
             || (echo "FAIL: $LAUNCH silently ignores a missing setxkbmap instead of logging it"; exit 1)
           echo "PASS: installer ships x11-xkb-utils; launcher logs a missing setxkbmap"
 
+      - name: Verify v1.5.13 keyboard re-applies after focus + toggle is configurable
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          CFG=payload/config.txt
+          # v1.5.12 installed setxkbmap, but applying the layout BEFORE the window
+          # is focused doesn't stick (WSLg drops it on focus / during cold start).
+          # The launcher MUST re-apply against the focused window AFTER the
+          # force-visible block — the verified-live cure for "the new version
+          # won't switch Hebrew/English on first launch". Match commands, not
+          # comments.
+          grep -qF 'scheduled post-focus layout re-apply' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer re-applies the keyboard layout after the window is focused"; exit 1)
+          # The post-focus re-apply must come AFTER the force-visible/raise block.
+          fv=$(grep -n 'Forced Konsole window visible' "$LAUNCH" | head -1 | cut -d: -f1)
+          st=$(grep -n 'scheduled post-focus layout re-apply' "$LAUNCH" | head -1 | cut -d: -f1)
+          [ -n "$fv" ] && [ -n "$st" ] && [ "$st" -gt "$fv" ] \
+            || (echo "FAIL: post-focus keyboard re-apply is not after the window is made visible/focused"; exit 1)
+          # The toggle key must be configurable (Alt+Shift collides with Windows' hotkey).
+          grep -qF 'option "$KIVUN_KBD_TOGGLE"' "$LAUNCH" \
+            || (echo "FAIL: toggle key is hard-coded; KIVUN_KBD_TOGGLE override lost"; exit 1)
+          grep -qF 'KIVUN_KBD_TOGGLE' "$CFG" \
+            || (echo "FAIL: config.txt no longer documents/sets KIVUN_KBD_TOGGLE"; exit 1)
+          echo "PASS: launcher re-applies layout post-focus; toggle key is configurable"
+
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
   # Scenario: WSL+Ubuntu present, Konsole NOT installed (we deliberately
