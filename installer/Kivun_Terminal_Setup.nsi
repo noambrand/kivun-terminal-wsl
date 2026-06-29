@@ -80,6 +80,10 @@ VIAddVersionKey "LegalCopyright" "(C) 2026 ${PRODUCT_PUBLISHER}"
 ; %LOCALAPPDATA%\Kivun-WSL\LAUNCH_LOG.txt) on the installer side.
 ; =================================================================
 Var LOGFILE
+; The Ubuntu distro to use. Default "Ubuntu"; detected in SEC_WSL so an existing
+; "Ubuntu-24.04"/"Ubuntu-22.04" is REUSED instead of registering a duplicate
+; "Ubuntu". (v1.5.8)
+Var DISTRO
 
 !macro KLOG TEXT
   Push $R8
@@ -186,6 +190,9 @@ Section "Core Files" SEC_CORE
   ; section aborts (e.g. virtualization off) — the user can still produce and
   ; send a good report. See payload/kivun-diagnostics.cmd.
   File "..\payload\kivun-diagnostics.cmd"
+  ; WSL distro picker (v1.5.8): prints the Ubuntu distro to use so we reuse an
+  ; existing "Ubuntu-24.04"/"Ubuntu-22.04" instead of creating a duplicate.
+  File "..\payload\kivun-detect-distro.cmd"
   ; Offline / antivirus-safe WSL+Ubuntu installer, used when the normal online
   ; `wsl --install` is blocked (e.g. corporate McAfee Web Protection). Installed
   ; in Core so SEC_WSL's failure messages can point the user to it on disk. See
@@ -417,6 +424,32 @@ Section "WSL2 + Ubuntu" SEC_WSL
   DeleteRegValue HKCU "Software\Kivun-WSL" "WslRebootPending"
   !insertmacro KLOG "WSL available — continuing install"
 
+  ; v1.5.8: pick the Ubuntu distro to use BEFORE the Ubuntu presence check below.
+  ; Default "Ubuntu"; if that exact name isn't registered but an "Ubuntu-*" is
+  ; (the Microsoft Store often installs "Ubuntu-24.04"), REUSE it instead of
+  ; registering a duplicate "Ubuntu". kivun-detect-distro.cmd prints the name.
+  StrCpy $DISTRO "Ubuntu"
+  nsExec::ExecToStack '"$INSTDIR\kivun-detect-distro.cmd"'
+  Pop $0
+  Pop $1
+  ${If} $0 == 0
+    ; Trim trailing CR/LF/space the captured stdout may carry.
+    distro_trim:
+    StrCpy $2 $1 1 -1
+    ${If} $2 == "$\r"
+    ${OrIf} $2 == "$\n"
+    ${OrIf} $2 == " "
+      StrCpy $1 $1 -1
+      Goto distro_trim
+    ${EndIf}
+    ; Only trust a name that starts with "Ubuntu" (guards against junk/empty).
+    StrCpy $2 $1 6
+    ${If} $2 == "Ubuntu"
+      StrCpy $DISTRO $1
+    ${EndIf}
+  ${EndIf}
+  !insertmacro KLOG "Using WSL distro: $DISTRO"
+
   ; Best-effort set default version 2 — on modern Windows 11 this works
   ; as user; on older systems it may require admin, in which case we log
   ; and continue (user can run it themselves from admin shell if needed).
@@ -431,7 +464,7 @@ Section "WSL2 + Ubuntu" SEC_WSL
   ; /TIMEOUT: a pending-reboot or half-started WSL can make this hang forever.
   ; A timeout reads as "Ubuntu not reachable" and falls through to the install
   ; branch below rather than freezing the installer.
-  nsExec::Exec /TIMEOUT=30000 'wsl -d Ubuntu -- echo OK'
+  nsExec::Exec /TIMEOUT=30000 'wsl -d $DISTRO -- echo OK'
   Pop $0
   ${If} $0 != 0
     DetailPrint "Installing Ubuntu distribution (no admin needed once WSL2 is up)..."
@@ -449,7 +482,7 @@ Section "WSL2 + Ubuntu" SEC_WSL
     ; Attempt to ensure Ubuntu is on WSL2. Use nsExec::Exec (no log output)
     ; to suppress confusing wsl.exe messages when Ubuntu is already WSL2.
     DetailPrint "Ensuring Ubuntu uses WSL2..."
-    nsExec::Exec 'wsl --set-version Ubuntu 2'
+    nsExec::Exec 'wsl --set-version $DISTRO 2'
     Pop $0
     ${If} $0 == 0
       DetailPrint "Ubuntu converted to WSL2 successfully."
@@ -468,10 +501,10 @@ Section "WSL2 + Ubuntu" SEC_WSL
   ; Restart the distro so WSLg is owned by the new user and so Claude installs
   ; into the user's home (not /root) in the next section.
   DetailPrint "Ensuring a non-root Ubuntu user (Claude won't run as root)..."
-  nsExec::ExecToLog 'cmd /c type "$INSTDIR\kivun-ensure-user.sh" | wsl -d Ubuntu --user root -- bash -s'
+  nsExec::ExecToLog 'cmd /c type "$INSTDIR\kivun-ensure-user.sh" | wsl -d $DISTRO --user root -- bash -s'
   Pop $0
   !insertmacro KLOG "ensure non-root user exit=$0"
-  nsExec::Exec 'wsl --terminate Ubuntu'
+  nsExec::Exec 'wsl --terminate $DISTRO'
 SectionEnd
 
 Section "Konsole + window tools" SEC_KONSOLE
@@ -496,11 +529,11 @@ Section "Konsole + window tools" SEC_KONSOLE
   ; The #1 real-world cause of "apt failed" here is NOT no-internet — it is the
   ; installer not being run as Administrator (so the first-time WSL/Ubuntu setup
   ; never completed), or Ubuntu not being registered yet. In those cases
-  ; `wsl -d Ubuntu` itself errors and apt never even runs. Catch that first and
+  ; `wsl -d $DISTRO` itself errors and apt never even runs. Catch that first and
   ; tell the user the truth, instead of sending them to chase a network problem.
   ; /TIMEOUT so a stuck WSL can't hang the installer here either; a timeout is
   ; treated exactly like "Ubuntu not ready" and surfaces the guidance below.
-  nsExec::Exec /TIMEOUT=30000 'wsl -d Ubuntu -u root -- bash -c "echo ubuntu_ok"'
+  nsExec::Exec /TIMEOUT=30000 'wsl -d $DISTRO -u root -- bash -c "echo ubuntu_ok"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Ubuntu isn't ready yet (code $0).$\r$\n$\r$\nMost common causes:$\r$\n  - WSL was just installed and Windows hasn't been RESTARTED yet (a restart is required before Linux can start), or$\r$\n  - this installer was NOT run as Administrator, so the first-time WSL/Ubuntu setup couldn't finish.$\r$\n$\r$\nFIX: Close this. If you recently installed WSL, RESTART your computer first. Then RIGHT-CLICK the installer, choose 'Run as administrator', and run it again.$\r$\n$\r$\nClick OK to try the package step anyway, or Cancel to stop here." IDOK ubuntu_ready_ok
@@ -509,16 +542,16 @@ Section "Konsole + window tools" SEC_KONSOLE
   ${EndIf}
 
   DetailPrint "[1/7] Updating package lists (~30-60 seconds)..."
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "apt-get update -qq -y > /tmp/kivun-apt.log 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "apt-get update -qq -y > /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Ubuntu packages couldn't be updated (code $0).$\r$\n$\r$\nMost common cause: the installer wasn't run as Administrator, or Ubuntu/WSL isn't fully set up yet. Close this, RIGHT-CLICK the installer -> 'Run as administrator', and run it again (reboot first if WSL was just installed).$\r$\n$\r$\nLess commonly: Ubuntu has no internet. Check the log: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue anyway, or Cancel to abort." IDOK konsole_ok_1
+    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Ubuntu packages couldn't be updated (code $0).$\r$\n$\r$\nMost common cause: the installer wasn't run as Administrator, or Ubuntu/WSL isn't fully set up yet. Close this, RIGHT-CLICK the installer -> 'Run as administrator', and run it again (reboot first if WSL was just installed).$\r$\n$\r$\nLess commonly: Ubuntu has no internet. Check the log: wsl -d $DISTRO -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue anyway, or Cancel to abort." IDOK konsole_ok_1
       Abort "Cancelled by user."
     konsole_ok_1:
   ${EndIf}
 
   DetailPrint "[2/7] Installing wmctrl (~20-40 seconds)..."
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wmctrl >> /tmp/kivun-apt.log 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wmctrl >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install wmctrl (code $0).$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_2
@@ -527,7 +560,7 @@ Section "Konsole + window tools" SEC_KONSOLE
   ${EndIf}
 
   DetailPrint "[3/7] Installing xdotool (~20-40 seconds)..."
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xdotool >> /tmp/kivun-apt.log 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xdotool >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install xdotool (code $0).$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_3
@@ -539,7 +572,7 @@ Section "Konsole + window tools" SEC_KONSOLE
   ; These four packages exist in Ubuntu main/universe on every supported
   ; release, so this batch should not fail on a healthy machine. fonts-freefont-ttf
   ; (FreeMono) is the guaranteed Hebrew fallback the profile writer uses.
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf >> /tmp/kivun-apt.log 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq x11-utils x11-xserver-utils fonts-noto-color-emoji fonts-freefont-ttf >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install x11-utils (code $0).$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_4
@@ -558,7 +591,7 @@ Section "Konsole + window tools" SEC_KONSOLE
   ; Hebrew font and forcing the FreeMono fallback. We try "culmus" first, then
   ; "fonts-culmus". Best-effort: if both fail, FreeMono still renders Hebrew, so
   ; we only note it in the log — no error dialog, no Abort.
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq culmus >> /tmp/kivun-apt.log 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fonts-culmus >> /tmp/kivun-apt.log 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq culmus >> /tmp/kivun-apt.log 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fonts-culmus >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
     DetailPrint "      Note: Culmus (Miriam Mono CLM) did not install; Hebrew will use FreeMono. Non-fatal."
@@ -571,16 +604,16 @@ Section "Konsole + window tools" SEC_KONSOLE
   ; package manager (e.g. nvm). apt-get install nodejs can fail with exit
   ; code 100 ("held broken packages") in that case. So: check first, only
   ; install via apt if truly missing.
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "command -v node >/dev/null 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "command -v node >/dev/null 2>&1"'
   Pop $0
   ${If} $0 == 0
     DetailPrint "      Node already present, skipping apt install."
   ${Else}
     DetailPrint "      Node missing, installing nodejs + npm via apt..."
-    nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs npm >> /tmp/kivun-apt.log 2>&1"'
+    nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs npm >> /tmp/kivun-apt.log 2>&1"'
     Pop $0
     ${If} $0 != 0
-      MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install Node.js + npm (code $0).$\r$\n$\r$\nThe statusline at the bottom of Claude Code TUI won't work without Node.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue (you can install manually later), or Cancel to abort." IDOK konsole_ok_node
+      MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install Node.js + npm (code $0).$\r$\n$\r$\nThe statusline at the bottom of Claude Code TUI won't work without Node.$\r$\n$\r$\nLog: wsl -d $DISTRO -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue (you can install manually later), or Cancel to abort." IDOK konsole_ok_node
         Abort "Cancelled by user."
       konsole_ok_node:
     ${EndIf}
@@ -589,19 +622,19 @@ Section "Konsole + window tools" SEC_KONSOLE
   DetailPrint "[6/7] Downloading Konsole + KDE dependencies..."
   DetailPrint "      (3-8 minutes. Downloads ~300MB of packages.)"
   DetailPrint "      The installer is working - please be patient."
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --download-only konsole >> /tmp/kivun-apt.log 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --download-only konsole >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to download Konsole packages (code $0).$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_5
+    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to download Konsole packages (code $0).$\r$\n$\r$\nLog: wsl -d $DISTRO -- cat /tmp/kivun-apt.log$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_5
       Abort "Cancelled by user."
     konsole_ok_5:
   ${EndIf}
 
   DetailPrint "[7/7] Unpacking and configuring Konsole (~2-4 minutes)..."
-  nsExec::Exec 'wsl -d Ubuntu -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq konsole >> /tmp/kivun-apt.log 2>&1"'
+  nsExec::Exec 'wsl -d $DISTRO -u root -- bash -c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq konsole >> /tmp/kivun-apt.log 2>&1"'
   Pop $0
   ${If} $0 != 0
-    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install Konsole (code $0).$\r$\n$\r$\nIf earlier package steps also failed, the usual cause is the installer not being run as Administrator (right-click -> 'Run as administrator' and run it again).$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-apt.log$\r$\n$\r$\nYou can retry later via:$\r$\n  wsl -d Ubuntu -u root -- apt-get install -y konsole$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_6
+    MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Failed to install Konsole (code $0).$\r$\n$\r$\nIf earlier package steps also failed, the usual cause is the installer not being run as Administrator (right-click -> 'Run as administrator' and run it again).$\r$\n$\r$\nLog: wsl -d $DISTRO -- cat /tmp/kivun-apt.log$\r$\n$\r$\nYou can retry later via:$\r$\n  wsl -d $DISTRO -u root -- apt-get install -y konsole$\r$\n$\r$\nClick OK to continue or Cancel to abort." IDOK konsole_ok_6
       Abort "Cancelled by user."
     konsole_ok_6:
   ${Else}
@@ -618,7 +651,7 @@ Section "Claude Code CLI" SEC_CLAUDE
   ; install for any user who also has Claude on Windows, leaving the
   ; launcher to drive the Windows binary (TUI opens then dies). Rejecting
   ; /mnt/* paths mirrors resolve-claude-bin.js, which prefers native slots.
-  nsExec::Exec 'wsl -d Ubuntu -- bash -lc "command -v claude | grep -q -v ^/mnt/"'
+  nsExec::Exec 'wsl -d $DISTRO -- bash -lc "command -v claude | grep -q -v ^/mnt/"'
   Pop $0
   ${If} $0 != 0
     DetailPrint "Installing Claude Code CLI via official installer (~1-2 minutes)..."
@@ -639,7 +672,7 @@ Section "Claude Code CLI" SEC_CLAUDE
     ; "install failed, run this by hand" dialog) auto-recovers instead of
     ; surfacing a manual-command MessageBox to the user. --retry-all-errors
     ; covers HTTP errors too, not just connection failures.
-    nsExec::Exec 'wsl -d Ubuntu -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 30 -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""'
+    nsExec::Exec 'wsl -d $DISTRO -- bash -lc "set -o pipefail; T=$(mktemp /tmp/claude-install-XXXXXX.sh) && curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 30 -o \"$T\" https://claude.ai/install.sh > /tmp/kivun-claude.log 2>&1 && [ -s \"$T\" ] && bash \"$T\" >> /tmp/kivun-claude.log 2>&1; rm -f \"$T\""'
     Pop $0
     ${If} $0 != 0
       DetailPrint "Installer script failed, trying npm fallback (~2-3 minutes)..."
@@ -651,16 +684,16 @@ Section "Claude Code CLI" SEC_CLAUDE
       ; ("no write permission to npm prefix") and users were frozen on an old
       ; version. A user-owned prefix keeps auto-update working; this matches
       ; `claude /doctor`'s own remediation. NSIS: '' is a literal single quote.
-      nsExec::Exec 'wsl -d Ubuntu -u root -- bash -lc "apt-get install -y -qq nodejs npm >> /tmp/kivun-claude.log 2>&1"'
+      nsExec::Exec 'wsl -d $DISTRO -u root -- bash -lc "apt-get install -y -qq nodejs npm >> /tmp/kivun-claude.log 2>&1"'
       Pop $0
-      nsExec::Exec 'wsl -d Ubuntu -- bash -lc "mkdir -p $HOME/.npm-global && npm config set prefix $HOME/.npm-global >> /tmp/kivun-claude.log 2>&1"'
+      nsExec::Exec 'wsl -d $DISTRO -- bash -lc "mkdir -p $HOME/.npm-global && npm config set prefix $HOME/.npm-global >> /tmp/kivun-claude.log 2>&1"'
       Pop $0
-      nsExec::Exec 'wsl -d Ubuntu -- bash -lc "grep -qxF ''export PATH=$HOME/.npm-global/bin:$PATH'' $HOME/.bashrc 2>/dev/null || echo ''export PATH=$HOME/.npm-global/bin:$PATH'' >> $HOME/.bashrc"'
+      nsExec::Exec 'wsl -d $DISTRO -- bash -lc "grep -qxF ''export PATH=$HOME/.npm-global/bin:$PATH'' $HOME/.bashrc 2>/dev/null || echo ''export PATH=$HOME/.npm-global/bin:$PATH'' >> $HOME/.bashrc"'
       Pop $0
-      nsExec::Exec 'wsl -d Ubuntu -- bash -lc "npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"'
+      nsExec::Exec 'wsl -d $DISTRO -- bash -lc "npm install -g @anthropic-ai/claude-code >> /tmp/kivun-claude.log 2>&1"'
       Pop $0
       ${If} $0 != 0
-        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Claude Code CLI installation failed.$\r$\n$\r$\nLog: wsl -d Ubuntu -- cat /tmp/kivun-claude.log$\r$\n$\r$\nThis is usually a temporary network issue - clicking OK and re-running the installer often succeeds.$\r$\n$\r$\nIf it keeps failing, you can install it manually (in WSL):$\r$\n  T=$(mktemp) && curl -fsSL --retry 5 -o $T https://claude.ai/install.sh && [ -s $T ] && bash $T && rm -f $T$\r$\n$\r$\nStill stuck? Open $\"Kivun Diagnostics$\" from the Start Menu and email the report to noambbb@gmail.com.$\r$\n$\r$\nClick OK to continue, or Cancel to abort." IDOK claude_continue
+        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "Claude Code CLI installation failed.$\r$\n$\r$\nLog: wsl -d $DISTRO -- cat /tmp/kivun-claude.log$\r$\n$\r$\nThis is usually a temporary network issue - clicking OK and re-running the installer often succeeds.$\r$\n$\r$\nIf it keeps failing, you can install it manually (in WSL):$\r$\n  T=$(mktemp) && curl -fsSL --retry 5 -o $T https://claude.ai/install.sh && [ -s $T ] && bash $T && rm -f $T$\r$\n$\r$\nStill stuck? Open $\"Kivun Diagnostics$\" from the Start Menu and email the report to noambbb@gmail.com.$\r$\n$\r$\nClick OK to continue, or Cancel to abort." IDOK claude_continue
           Abort "Installation cancelled by user."
         claude_continue:
       ${EndIf}
@@ -710,6 +743,7 @@ Section "Uninstall"
   ; Remove installed files
   Delete "$INSTDIR\folder-picker.hta"
   Delete "$INSTDIR\kivun-diagnostics.cmd"
+  Delete "$INSTDIR\kivun-detect-distro.cmd"
   Delete "$INSTDIR\kivun-ensure-user.sh"
   Delete "$INSTDIR\kivun-terminal.bat"
   Delete "$INSTDIR\KivunTerminal.exe"

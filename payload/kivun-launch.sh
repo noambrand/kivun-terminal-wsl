@@ -1016,7 +1016,11 @@ fi
 
 if command -v xdotool >/dev/null 2>&1; then
   log "INFO - Using xdotool for window management"
-  WID=$(xdotool search --class konsole 2>/dev/null | head -1)
+  # Search the kivun-terminal WM_CLASS first (the --name we pass to konsole),
+  # then fall back to konsole. Newer Konsole builds can register under our class,
+  # and matching it first avoids grabbing an unrelated konsole window.
+  WID=$(xdotool search --class kivun-terminal 2>/dev/null | head -1)
+  [ -z "$WID" ] && WID=$(xdotool search --class konsole 2>/dev/null | head -1)
   if [ -n "$WID" ]; then
     log "SUCCESS - Found Konsole window (ID: $WID)"
     xdotool set_window --name "Kivun Terminal" "$WID" 2>/dev/null
@@ -1063,9 +1067,25 @@ if command -v xdotool >/dev/null 2>&1; then
       xdotool windowsize "$WID" "$WIN_W" "$WIN_H" 2>/dev/null
       log "SUCCESS - Konsole sized to ${WIN_W}x${WIN_H} at +${WIN_X}+${WIN_Y} (80% of primary ${TARGET_W}x${TARGET_H})"
     else
-      # No monitor info available — let KDE remember last window placement.
-      log "WARNING - No monitor info, leaving Konsole at its default position"
+      # No monitor info: instead of trusting WSLg's default placement (which on
+      # some PCs maps the window minimized or off-screen — "it's in the taskbar
+      # but I can't make it appear"), put it at a guaranteed-on-screen spot.
+      xdotool windowmove "$WID" 60 60 2>/dev/null
+      xdotool windowsize "$WID" 1100 720 2>/dev/null
+      log "INFO - No monitor info; placed Konsole at a safe on-screen default (60,60 1100x720)"
     fi
+
+    # Force the window to a visibly-mapped, foreground state. Symptom this
+    # fixes (reported on multiple PCs): the Konsole window shows in the Windows
+    # taskbar but comes up MINIMIZED/hidden and won't restore on click. WSLg can
+    # map a new window minimized; un-hide it, map it, then raise+activate (with
+    # --sync so activation completes) so it actually appears. All best-effort.
+    command -v wmctrl >/dev/null 2>&1 && wmctrl -i -r "$WID" -b remove,hidden 2>/dev/null
+    xdotool windowmap "$WID" 2>/dev/null
+    xdotool windowactivate --sync "$WID" 2>/dev/null
+    xdotool windowraise "$WID" 2>/dev/null
+    command -v wmctrl >/dev/null 2>&1 && wmctrl -i -a "$WID" 2>/dev/null
+    log "INFO - Forced Konsole window visible (un-minimized, mapped, raised, activated)"
   else
     log "WARNING - Could not find Konsole window with xdotool"
   fi
