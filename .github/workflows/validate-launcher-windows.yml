@@ -489,6 +489,26 @@ jobs:
             || (echo "FAIL: $DIAG no longer opens the folder with the report highlighted (hard to find/send)"; exit 1)
           echo "PASS: hard errors open Diagnostics; the report is highlighted in a folder for easy sending"
 
+      - name: Verify v1.5.10 no-fork Konsole window-survival invariants
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          # Konsole forks by default; on WSLg that handed the window off to an
+          # unmanaged instance that came up minimized. The launcher must pass
+          # --nofork so the launched pid keeps the real window, and must re-find
+          # the surviving window by PID (not only by class).
+          grep -q 'konsole --nofork --version' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer probes Konsole --nofork support"; exit 1)
+          grep -q 'KIVUN_KONSOLE_OPTS' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH dropped KIVUN_KONSOLE_OPTS (--nofork/--separate) — window can fork away again"; exit 1)
+          # The actual window-mode launch must include the opts.
+          grep -q 'setsid konsole \$KIVUN_KONSOLE_OPTS' "$LAUNCH" \
+            || (echo "FAIL: the window-mode Konsole launch does not pass \$KIVUN_KONSOLE_OPTS"; exit 1)
+          # Window discovery must try by PID (survives the fork hand-off).
+          grep -q 'xdotool search --pid' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer finds the window by PID — loses it to the fork hand-off"; exit 1)
+          echo "PASS: Konsole launched --nofork/--separate and the window is re-found by PID"
+
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
   # Scenario: WSL+Ubuntu present, Konsole NOT installed (we deliberately

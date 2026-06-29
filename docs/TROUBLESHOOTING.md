@@ -105,6 +105,28 @@ After install, verify: `wsl -d Ubuntu -- claude --version`. Then relaunch Kivun 
 
 ## Symptom: Konsole window never appears (WSLg mode)
 
+**TRY THIS FIRST (fixes most cases on Windows 11 24H2+ / bleeding-edge WSLg):**
+WSLg (the Linux-graphics bridge) can get "wedged" and stop painting *any* Linux
+window — even a trivial one. A full restart of the bridge clears it. From a normal
+Windows terminal run:
+
+```cmd
+wsl --shutdown
+```
+
+then launch Kivun again. If that doesn't help, also try `wsl --update`. We do **not**
+do `wsl --shutdown` automatically because it would close any other WSL work you have
+open. On a **pre-release Ubuntu** (e.g. 25.10 "resolute" / 26.04) with a very new
+Konsole/Qt6, this wedge is more common; a stable **Ubuntu 24.04 LTS** is steadier.
+
+**About the window itself (v1.5.10):** Konsole forks by default, which on WSLg could
+hand the window off to a second, unmanaged instance that came up minimized. Kivun now
+launches Konsole with `--nofork --separate` and re-finds the surviving window by its
+process id, so the window it sizes/raises is the one you actually get. If you're on an
+older build and still hit this, update to the latest Kivun.
+
+---
+
 The launcher log says Konsole started (a PID is reported, `wmctrl` / `xdotool` both "found" a window) but no window is visible on your desktop.
 
 **Cause A - Qt runtime-dir security checks.** Konsole is a Qt app and Qt's `QStandardPaths` rejects `XDG_RUNTIME_DIR` in two cases:
