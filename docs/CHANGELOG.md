@@ -3,6 +3,38 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.9] - 2026-06-29
+
+### Fixed — the real cause of "only in the taskbar, no window opens"
+
+Diagnosed on an actual failing PC: Konsole was running as a **Qt6 Wayland** app
+under WSLg, and `xdotool`/`wmctrl` (X11 tools) **cannot see a native-Wayland
+window**. Every run logged *"Could not find Konsole window with xdotool"*, so all
+the window-placement and visibility code (including v1.5.8's force-visible step,
+which only runs once the window is found) **never executed** — the window came up
+hidden/minimized.
+
+- The launcher now **forces Konsole onto Xwayland** (`QT_QPA_PLATFORM=xcb`, probed
+  first so a missing plugin can never break startup). Konsole then behaves as an
+  ordinary X11 window that the existing tooling can **find, place, un-minimize,
+  raise, name, set the icon on, and switch keyboard layouts in** — so the window
+  actually appears. (This also explains why several smaller things were degraded
+  under Wayland.)
+
+### Fixed — "Kivun Diagnostics" produced no file
+
+Also from the live PC: `wmic` was **removed from Windows 11 build 26200+**, and the
+old report died at the `wmic` virtualization section before it ever saved the file
+or opened it — so running Diagnostics produced nothing. Rewritten to:
+
+- **Never use `wmic`.**
+- Write the local sections (versions + the launch/Konsole/install logs) **first**,
+  then **deliver the report — copy to your real Desktop and open it in Notepad —
+  before** any slow WSL probe. You always get a readable report now.
+- **Include `LAUNCH_LOG.txt` and `BASH_LAUNCH_LOG.txt`**, which carry the
+  window-launch evidence (the old report never did).
+- Keep the OneDrive-aware Desktop resolution from v1.5.8.
+
 ## [1.5.8] - 2026-06-29
 
 ### Fixed — window opened minimized/hidden and wouldn't show

@@ -430,6 +430,38 @@ jobs:
             || (echo "FAIL: $DIAG no longer resolves the real Desktop — OneDrive users see no report"; exit 1)
           echo "PASS: diagnostics copies the report to the resolved real Desktop"
 
+      - name: Verify v1.5.9 Wayland-visible-window + robust-diagnostics invariants
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          DIAG=payload/kivun-diagnostics.cmd
+          # Window fix: Konsole must be forced onto Xwayland (xcb) so xdotool/wmctrl
+          # (X11 tools) can find/place/raise it. Without this the window is invisible
+          # to our tooling and comes up hidden/minimized — the exact reported bug.
+          grep -q 'QT_QPA_PLATFORM=xcb' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer forces Konsole onto Xwayland (xcb) — Wayland window is unmanageable/hidden"; exit 1)
+          echo "PASS: launcher forces Konsole onto Xwayland so the window is visible + manageable"
+
+          # Diagnostics fix: must NOT use wmic (removed on Win11 26200+, which killed
+          # the old report), must include the launch logs (window evidence), and must
+          # deliver (open Notepad) BEFORE the WSL probes so a hang can't hide it.
+          # Match wmic only as a COMMAND (line begins with it, after optional
+          # whitespace) — not the word "wmic" inside explanatory REM comments.
+          if grep -qiE '^[[:space:]]*wmic[[:space:]]' "$DIAG"; then
+            echo "FAIL: $DIAG still calls wmic — it dies before saving on Windows 11 build 26200+" >&2
+            exit 1
+          fi
+          grep -q 'BASH_LAUNCH_LOG.txt' "$DIAG" \
+            || (echo "FAIL: $DIAG no longer includes BASH_LAUNCH_LOG.txt — window evidence is missing"; exit 1)
+          grep -q 'LAUNCH_LOG.txt' "$DIAG" \
+            || (echo "FAIL: $DIAG no longer includes LAUNCH_LOG.txt"; exit 1)
+          # The Notepad open (delivery) must come BEFORE the WSL probe section [5].
+          dl=$(grep -n 'start "" notepad' "$DIAG" | head -1 | cut -d: -f1)
+          wp=$(grep -n '\[5\] WSL status' "$DIAG" | head -1 | cut -d: -f1)
+          [ -n "$dl" ] && [ -n "$wp" ] && [ "$dl" -lt "$wp" ] \
+            || (echo "FAIL: $DIAG opens the report AFTER the WSL probes — a hang would hide it again (deliver=$dl, wslprobe=$wp)"; exit 1)
+          echo "PASS: diagnostics is wmic-free, includes the launch logs, and delivers before any WSL probe"
+
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
   # Scenario: WSL+Ubuntu present, Konsole NOT installed (we deliberately

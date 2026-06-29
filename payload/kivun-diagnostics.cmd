@@ -1,97 +1,118 @@
 @echo off
 REM ============================================================
 REM  Kivun Terminal - Diagnostics & Problem Report
-REM  Run it from the Start Menu ("Kivun Diagnostics") or by
-REM  double-clicking. NO admin needed. NOTHING is sent anywhere
-REM  automatically - this only creates a text file that YOU
-REM  choose to email or attach. No PowerShell, no downloads.
+REM  Run from the Start Menu ("Kivun Diagnostics") or by double-
+REM  clicking. NO admin needed. NOTHING is sent anywhere - it only
+REM  creates a text file YOU choose to email. No PowerShell.
+REM
+REM  v1.5.9 rewrite. Two real bugs this fixes (confirmed on a live
+REM  failing PC):
+REM   1) The old report died at the "wmic" virtualization section
+REM      (wmic was REMOVED from Windows 11 build 26200+), so it never
+REM      reached the save/Desktop/Notepad step - the user "ran
+REM      diagnostics and got no file". We no longer use wmic at all.
+REM   2) The window-problem evidence lives in LAUNCH_LOG.txt and
+REM      BASH_LAUNCH_LOG.txt, which the old report never included.
+REM  Strategy: write the LOCAL, instant sections (versions + the three
+REM  logs) FIRST, then DELIVER the report (copy to the real Desktop +
+REM  open in Notepad) BEFORE any WSL probe, so the user always gets it.
 REM ============================================================
 setlocal enableextensions
 set "KDIR=%LOCALAPPDATA%\Kivun-WSL"
 if not exist "%KDIR%" mkdir "%KDIR%" 2>nul
 set "RPT=%KDIR%\Kivun-Report.txt"
 set "WSL=%WINDIR%\System32\wsl.exe"
-REM Probe the SAME distro the launcher actually uses (Ubuntu), never the user's
-REM default distro. On machines where Docker Desktop's "docker-desktop" is the
-REM default, a bare "wsl -- bash" runs in a distro that has no bash and reports
-REM a false "bash: not found", masking a perfectly healthy Ubuntu install.
+REM Reuse the same distro the launcher picks (handles "Ubuntu-24.04" etc.).
 set "DISTRO=Ubuntu"
+if exist "%~dp0kivun-detect-distro.cmd" for /f "delims=" %%i in ('call "%~dp0kivun-detect-distro.cmd" 2^>nul') do set "DISTRO=%%i"
 set "CONTACT=noambbb@gmail.com"
 set "ISSUES=https://github.com/noambrand/kivun-terminal-wsl/issues"
 
 echo Collecting a Kivun diagnostic report, please wait...
 
+REM ---- LOCAL, INSTANT sections (no WSL, no wmic) ----
 > "%RPT%" echo ===== KIVUN TERMINAL - PROBLEM REPORT =====
->>"%RPT%" echo.
->>"%RPT%" echo HOW TO SEND THIS REPORT (so we can help you):
->>"%RPT%" echo   1) Email this file to:  %CONTACT%
->>"%RPT%" echo      (a copy is on your Desktop, named Kivun-Report.txt)
->>"%RPT%" echo   2) Or open an issue and attach it at:
->>"%RPT%" echo      %ISSUES%
->>"%RPT%" echo.
 >>"%RPT%" echo Generated: %DATE% %TIME%
+>>"%RPT%" echo Send this file to: %CONTACT%
+>>"%RPT%" echo (or attach it at: %ISSUES%)
 >>"%RPT%" echo.
 
->>"%RPT%" echo ===== [1] Kivun + Windows version =====
 set "KVER=unknown"
 if exist "%KDIR%\VERSION" set /p KVER=<"%KDIR%\VERSION"
+>>"%RPT%" echo ===== [1] Versions =====
 >>"%RPT%" echo Kivun Terminal version: %KVER%
 ver >>"%RPT%" 2>&1
-
+>>"%RPT%" echo Detected WSL distro: %DISTRO%
 >>"%RPT%" echo.
->>"%RPT%" echo ===== [2] Virtualization (must be ON for WSL2) =====
-set "VFW=unknown"
-set "HYP=unknown"
-wmic path Win32_Processor get VirtualizationFirmwareEnabled /value 2>nul | findstr /i /c:=TRUE >nul && set "VFW=ENABLED"
-wmic path Win32_Processor get VirtualizationFirmwareEnabled /value 2>nul | findstr /i /c:=FALSE >nul && set "VFW=DISABLED"
-wmic path Win32_ComputerSystem get HypervisorPresent /value 2>nul | findstr /i /c:=TRUE >nul && set "HYP=YES"
-wmic path Win32_ComputerSystem get HypervisorPresent /value 2>nul | findstr /i /c:=FALSE >nul && set "HYP=NO"
->>"%RPT%" echo VirtualizationFirmwareEnabled=%VFW%   HypervisorPresent=%HYP%
-if /i "%VFW%"=="DISABLED" if /i "%HYP%"=="NO" goto vt_off
->>"%RPT%" echo VERDICT: virtualization looks OK (or a hypervisor is already running).
-goto vt_done
-:vt_off
->>"%RPT%" echo VERDICT: VIRTUALIZATION IS OFF - WSL2 cannot run until you enable it in BIOS/UEFI.
-:vt_done
 
+>>"%RPT%" echo ===== [2] Launch log (LAUNCH_LOG.txt) =====
+if exist "%KDIR%\LAUNCH_LOG.txt" (
+    type "%KDIR%\LAUNCH_LOG.txt" >>"%RPT%" 2>&1
+) else (
+    >>"%RPT%" echo (no LAUNCH_LOG.txt yet - launch Kivun once, then run this again)
+)
 >>"%RPT%" echo.
->>"%RPT%" echo ===== [3] WSL status =====
+
+>>"%RPT%" echo ===== [3] Konsole/window log (BASH_LAUNCH_LOG.txt) =====
+if exist "%KDIR%\BASH_LAUNCH_LOG.txt" (
+    type "%KDIR%\BASH_LAUNCH_LOG.txt" >>"%RPT%" 2>&1
+) else (
+    >>"%RPT%" echo (no BASH_LAUNCH_LOG.txt yet)
+)
+>>"%RPT%" echo.
+
+>>"%RPT%" echo ===== [4] Install log (install-log.txt) =====
+if exist "%KDIR%\install-log.txt" (
+    type "%KDIR%\install-log.txt" >>"%RPT%" 2>&1
+) else (
+    >>"%RPT%" echo (no install-log.txt found)
+)
+>>"%RPT%" echo.
+
+REM ---- DELIVER NOW: copy to the real Desktop + open in Notepad, BEFORE any WSL
+REM ---- probe can be slow. This guarantees the user always gets a readable
+REM ---- report with the window logs above, even if WSL is wedged.
+call :COPYDESK
+start "" notepad "%RPT%"
+
+REM ---- BEST-EFFORT extras (may be slow on a broken WSL; the report is already
+REM ---- delivered, so a hang here can no longer hide the report from the user) ----
+>>"%RPT%" echo ===== [5] WSL status =====
 "%WSL%" --status >>"%RPT%" 2>&1
->>"%RPT%" echo [status exit=%errorlevel%]
 "%WSL%" --version >>"%RPT%" 2>&1
 "%WSL%" -l -v >>"%RPT%" 2>&1
-
 >>"%RPT%" echo.
->>"%RPT%" echo ===== [4] Antivirus / security software present =====
-tasklist 2>nul | findstr /i "mcafee mfe MsMpEng windefend avp avgnt egui avastsvc" >>"%RPT%" 2>&1
-
->>"%RPT%" echo.
->>"%RPT%" echo ===== [5] Inside WSL/Ubuntu (claude + node) =====
-REM -d %DISTRO% targets Ubuntu explicitly; the [3] "wsl -l -v" above shows which
-REM distro is the user's DEFAULT (marked with *). If that is NOT Ubuntu (e.g.
-REM docker-desktop), the launcher's bare-wslpath path bug applied pre-v1.4.36.
+>>"%RPT%" echo ===== [6] Inside WSL (%DISTRO%): claude + node =====
 "%WSL%" -d %DISTRO% -- bash -lc "echo ubuntu_reachable; command -v claude || echo claude_missing; command -v node || echo node_missing" >>"%RPT%" 2>&1
->>"%RPT%" echo [ubuntu probe exit=%errorlevel% via -d %DISTRO%]
-
->>"%RPT%" echo.
->>"%RPT%" echo ===== [6] Kivun install log =====
-if exist "%KDIR%\install-log.txt" goto have_log
->>"%RPT%" echo (no install-log.txt found yet)
-goto log_done
-:have_log
-type "%KDIR%\install-log.txt" >>"%RPT%" 2>&1
-:log_done
-
 >>"%RPT%" echo.
 >>"%RPT%" echo ===== end of report =====
 
-REM Put a copy on the Desktop so it is easy to find and attach.
-REM v1.5.8: resolve the REAL Desktop. On most PCs the Desktop is redirected to
-REM OneDrive (%USERPROFILE%\OneDrive\Desktop), so copying to the literal
-REM %USERPROFILE%\Desktop dropped the file somewhere the user never sees it
-REM ("Diagnostics put nothing on my Desktop"). The authoritative location is the
-REM "Desktop" value under User Shell Folders; expand it (it may use %USERPROFILE%
-REM or %OneDrive%), fall back to the classic path, and copy to BOTH to be safe.
+REM Refresh the Desktop copy so it has the complete report too.
+call :COPYDESK
+
+cls
+echo ============================================================
+echo   KIVUN DIAGNOSTIC REPORT CREATED
+echo ============================================================
+echo.
+echo   On your Desktop:  Kivun-Report.txt
+echo   Full path:        %DESKTOP%\Kivun-Report.txt
+echo   (always also at:  %RPT% )
+echo.
+echo   PLEASE SEND IT so we can help:
+echo     - Email it to:      %CONTACT%
+echo     - or attach it at:  %ISSUES%
+echo.
+echo   It has opened in Notepad. Nothing was sent automatically.
+echo ============================================================
+echo.
+pause
+endlocal
+exit /b
+
+:COPYDESK
+REM Resolve the REAL Desktop (handles OneDrive Known-Folder redirection, where
+REM the Desktop is %USERPROFILE%\OneDrive\Desktop, not %USERPROFILE%\Desktop).
 set "DESKTOP="
 for /f "tokens=2,*" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" /v Desktop 2^>nul ^| findstr /i "REG_"') do set "DESKTOP=%%B"
 call set "DESKTOP=%DESKTOP%"
@@ -100,24 +121,4 @@ if not exist "%DESKTOP%" set "DESKTOP=%USERPROFILE%\Desktop"
 if not exist "%DESKTOP%" md "%DESKTOP%" 2>nul
 copy /y "%RPT%" "%DESKTOP%\Kivun-Report.txt" >nul 2>&1
 if /i not "%DESKTOP%"=="%USERPROFILE%\Desktop" copy /y "%RPT%" "%USERPROFILE%\Desktop\Kivun-Report.txt" >nul 2>&1
-
-cls
-echo ============================================================
-echo   KIVUN DIAGNOSTIC REPORT CREATED
-echo ============================================================
-echo.
-echo   Saved to your Desktop:  Kivun-Report.txt
-echo   Full path:  %DESKTOP%\Kivun-Report.txt
-echo   (also at: %RPT%)
-echo.
-echo   PLEASE SEND IT so we can help:
-echo     - Email it to:      %CONTACT%
-echo     - or attach it at:  %ISSUES%
-echo.
-echo   It is opening in Notepad now. Nothing was sent
-echo   automatically - you choose what to do with the file.
-echo ============================================================
-echo.
-start "" notepad "%RPT%"
-pause
-endlocal
+exit /b
