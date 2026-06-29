@@ -844,7 +844,23 @@ log "SUCCESS - Launch script created: $LAUNCH_TMP (CLAUDE_PROMPT length: ${#CLAU
 # keyboard via setxkbmap, and the python-xlib icon override) can control, and
 # X11 windows map visibly under WSLg. Probed first so a missing xcb plugin can
 # never break startup — on failure we just keep Konsole's default backend.
-if timeout 10 env QT_QPA_PLATFORM=xcb konsole --version >/dev/null 2>&1; then
+# Escape hatch (config.txt KIVUN_FORCE_XCB): auto (default) = use xcb only if the
+# probe passes; on = force without probing; off = never (stay on Konsole's
+# default Wayland backend). XWayland is what makes the window visible/manageable,
+# but if it ever degraded Hebrew/RTL/BiDi rendering or font sharpness on some
+# machine, the user can set KIVUN_FORCE_XCB=off and keep Wayland.
+KIVUN_FORCE_XCB="auto"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_FORCE_XCB[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_FORCE_XCB[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_FORCE_XCB="$val"
+fi
+if [ "$KIVUN_FORCE_XCB" = "off" ]; then
+    log "INFO - KIVUN_FORCE_XCB=off; keeping Konsole on its default (Wayland) backend"
+elif [ "$KIVUN_FORCE_XCB" = "on" ]; then
+    export QT_QPA_PLATFORM=xcb
+    log "INFO - KIVUN_FORCE_XCB=on; forcing Konsole onto Xwayland (xcb) without probe"
+elif timeout 10 env QT_QPA_PLATFORM=xcb konsole --version >/dev/null 2>&1; then
     export QT_QPA_PLATFORM=xcb
     log "SUCCESS - Forcing Konsole onto Xwayland (QT_QPA_PLATFORM=xcb) so the window is visible + manageable"
 else

@@ -445,10 +445,15 @@ jobs:
           # Diagnostics fix: must NOT use wmic (removed on Win11 26200+, which killed
           # the old report), must include the launch logs (window evidence), and must
           # deliver (open Notepad) BEFORE the WSL probes so a hang can't hide it.
-          # Match wmic only as a COMMAND (line begins with it, after optional
-          # whitespace) — not the word "wmic" inside explanatory REM comments.
-          if grep -qiE '^[[:space:]]*wmic[[:space:]]' "$DIAG"; then
-            echo "FAIL: $DIAG still calls wmic — it dies before saving on Windows 11 build 26200+" >&2
+          # No real wmic INVOCATION anywhere in the shipped cmd/bat scripts: wmic
+          # was removed on Windows 11 24H2 (build 26200+), where it broke Diagnostics
+          # AND monitor detection. Match wmic only when followed by a genuine WMI
+          # verb/alias (path, DESKTOPMONITOR, cpu, /node, …) so the word "wmic"
+          # inside explanatory comments/log strings is not flagged.
+          wmic_hits=$(grep -rniE 'wmic[[:space:]]+(path|/node|cpu|os|computersystem|desktopmonitor|process|baseboard|bios|nicconfig|memorychip|logicaldisk)' payload offline 2>/dev/null || true)
+          if [ -n "$wmic_hits" ]; then
+            echo "FAIL: a real wmic invocation is still present (wmic was removed on Win11 24H2+):" >&2
+            echo "$wmic_hits" >&2
             exit 1
           fi
           grep -q 'BASH_LAUNCH_LOG.txt' "$DIAG" \

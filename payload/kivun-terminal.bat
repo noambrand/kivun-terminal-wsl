@@ -517,19 +517,17 @@ if %ERRORLEVEL% NEQ 0 (
     call :LOG "SUCCESS - python deps already present"
 )
 
-REM Get primary monitor size via wmic (PowerShell is blocked by GPO on some
-REM machines). Windows always places the primary monitor at origin (0,0),
-REM so we only need width+height; the launcher uses (0,0) for position.
-REM Format passed to launcher: "X Y W H".
+REM v1.5.9: monitor size is left to the WSL side (kivun-launch.sh: xrandr, then
+REM Xinerama). We previously read it here via a Windows `wmic` monitor query, but
+REM that tool was REMOVED from Windows 11 24H2 (build 26200+) — there it returns
+REM nothing and
+REM the launcher logged an empty "Primary monitor bounds", and (worse) wmic is the
+REM same component that broke Kivun Diagnostics. PowerShell is GPO-blocked on some
+REM machines so it isn't a safe substitute. Passing PRIMARY_MON empty makes
+REM kivun-launch.sh size the window from xrandr/Xinerama, which works under WSLg
+REM (and reliably once Konsole is on Xwayland). No wmic anywhere anymore.
 set "PRIMARY_MON="
-set "MON_W="
-set "MON_H="
-for /f "tokens=1,2 delims==" %%a in ('wmic DESKTOPMONITOR GET screenwidth^,screenheight /FORMAT:list 2^>nul') do (
-    if /i "%%a"=="ScreenWidth"  set "MON_W=%%b"
-    if /i "%%a"=="ScreenHeight" set "MON_H=%%b"
-)
-if defined MON_W if defined MON_H set "PRIMARY_MON=0 0 %MON_W% %MON_H%"
-call :LOG "INFO - Primary monitor bounds (wmic): %PRIMARY_MON%"
+call :LOG "INFO - Primary monitor bounds: left to WSL-side xrandr/Xinerama (no wmic)"
 
 REM v1.4.0: load per-profile env vars from kivun-env.txt (written by the
 REM picker HTA on Launch). Each KEY=VAL becomes an env var in this cmd

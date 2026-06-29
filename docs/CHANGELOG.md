@@ -20,6 +20,19 @@ hidden/minimized.
   raise, name, set the icon on, and switch keyboard layouts in** — so the window
   actually appears. (This also explains why several smaller things were degraded
   under Wayland.)
+- **Escape hatch:** a new `KIVUN_FORCE_XCB` setting in `config.txt` (`auto` default
+  / `on` / `off`). If XWayland ever made Hebrew/RTL text or font sharpness look
+  worse on a given machine, set `KIVUN_FORCE_XCB=off` to keep the Wayland backend.
+
+### Fixed — `wmic` purged everywhere (Windows 11 24H2 removed it)
+
+`wmic` is gone on Windows 11 build 26200+, where it broke not just Diagnostics but
+also the launcher's monitor detection (the window size was read via
+`wmic DESKTOPMONITOR`, which returned nothing). Both the launcher
+(`kivun-terminal.bat`) and the offline installer no longer call `wmic` at all —
+monitor sizing falls back to the WSL-side detection (xrandr/Xinerama, reliable once
+Konsole is on Xwayland). A CI guard now fails the build if any real `wmic`
+invocation reappears in the shipped scripts.
 
 ### Fixed — "Kivun Diagnostics" produced no file
 
