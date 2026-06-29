@@ -58,15 +58,16 @@ if not defined DISTRO (
 echo Using MSI:    "%MSI%">> "%LOG%"
 echo Using distro: "%DISTRO%">> "%LOG%"
 
-REM --- [0/4] virtualization must be ON in firmware (WSL2 can't boot without it) ---
-echo [0/4] Checking hardware virtualization (BIOS/UEFI)...
-set "VFW=unknown" & set "HYP=unknown"
-wmic path Win32_Processor get VirtualizationFirmwareEnabled /value 2>nul | findstr /i /c:=TRUE >nul && set "VFW=ENABLED"
-wmic path Win32_Processor get VirtualizationFirmwareEnabled /value 2>nul | findstr /i /c:=FALSE >nul && set "VFW=DISABLED"
-wmic path Win32_ComputerSystem get HypervisorPresent /value 2>nul | findstr /i /c:=TRUE >nul && set "HYP=YES"
-echo virtualization VFW=%VFW% HYP=%HYP%>> "%LOG%"
-if /i "%VFW%"=="DISABLED" if /i not "%HYP%"=="YES" goto vt_off
-echo       virtualization OK (or a hypervisor is already running).
+REM --- [0/4] virtualization note (WSL2 can't boot without it) ---
+REM v1.5.9: we no longer probe firmware virtualization here. The old probe used
+REM `wmic`, which was REMOVED from Windows 11 24H2 (build 26200+) — there it would
+REM just print "not recognized" and report nothing useful. PowerShell is blocked by
+REM GPO on some machines, so it isn't a safe substitute. If virtualization is
+REM actually off, the `wsl --set-default-version 2` / distro import below fails with
+REM a clear Microsoft error, and the main (online) installer's virtualization gate
+REM still covers that case with full BIOS instructions.
+echo [0/4] (Virtualization must be ON in BIOS/UEFI for WSL2; Windows will report if it isn't.)
+echo virtualization: not probed here (wmic removed on Win11 24H2+)>> "%LOG%"
 goto vt_ok
 :vt_off
 echo.

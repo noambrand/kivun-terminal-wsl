@@ -834,6 +834,39 @@ log "SUCCESS - Launch script created: $LAUNCH_TMP (CLAUDE_PROMPT length: ${#CLAU
 # the terminal window never open at all. Probe once and only pass --name where
 # this Konsole accepts it; without it we lose the custom WM_CLASS (taskbar icon
 # grouping) but the window opens, which matters far more.
+# v1.5.9: Konsole on native Wayland (Qt6 under WSLg) is INVISIBLE to xdotool/
+# wmctrl — the window can't be found, positioned, un-minimized or raised, so it
+# comes up minimized/hidden and the user "only sees it in the taskbar". Ground
+# truth from a failing PC: every run logged "Could not find Konsole window with
+# xdotool", so the geometry + force-visible code never ran. Fix: force Qt onto
+# Xwayland (xcb) when the plugin is available. Konsole then behaves as an
+# ordinary X11 client that our existing window management (AND --name/WM_CLASS,
+# keyboard via setxkbmap, and the python-xlib icon override) can control, and
+# X11 windows map visibly under WSLg. Probed first so a missing xcb plugin can
+# never break startup — on failure we just keep Konsole's default backend.
+# Escape hatch (config.txt KIVUN_FORCE_XCB): auto (default) = use xcb only if the
+# probe passes; on = force without probing; off = never (stay on Konsole's
+# default Wayland backend). XWayland is what makes the window visible/manageable,
+# but if it ever degraded Hebrew/RTL/BiDi rendering or font sharpness on some
+# machine, the user can set KIVUN_FORCE_XCB=off and keep Wayland.
+KIVUN_FORCE_XCB="auto"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*KIVUN_FORCE_XCB[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*KIVUN_FORCE_XCB[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && KIVUN_FORCE_XCB="$val"
+fi
+if [ "$KIVUN_FORCE_XCB" = "off" ]; then
+    log "INFO - KIVUN_FORCE_XCB=off; keeping Konsole on its default (Wayland) backend"
+elif [ "$KIVUN_FORCE_XCB" = "on" ]; then
+    export QT_QPA_PLATFORM=xcb
+    log "INFO - KIVUN_FORCE_XCB=on; forcing Konsole onto Xwayland (xcb) without probe"
+elif timeout 10 env QT_QPA_PLATFORM=xcb konsole --version >/dev/null 2>&1; then
+    export QT_QPA_PLATFORM=xcb
+    log "SUCCESS - Forcing Konsole onto Xwayland (QT_QPA_PLATFORM=xcb) so the window is visible + manageable"
+else
+    log "WARNING - xcb platform plugin unavailable; Konsole keeps its default backend (window may be hard to manage)"
+fi
+
 KIVUN_NAME_OPT="--name kivun-terminal"
 if ! timeout 10 konsole --name kivun-terminal --version >/dev/null 2>&1; then
     KIVUN_NAME_OPT=""

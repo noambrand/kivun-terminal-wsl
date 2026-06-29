@@ -259,6 +259,7 @@ if %ERRORLEVEL% NEQ 0 (
     echo Run the Kivun Terminal installer to fix this.
     echo.
     echo Log file: %LOG_FILE%
+    call :DIAG_HINT
     if not defined KIVUN_HIDDEN pause
     exit /b 1
 )
@@ -280,6 +281,7 @@ if %ERRORLEVEL% NEQ 0 (
         echo Run the Kivun Terminal installer to fix this.
         echo.
         echo Log file: %LOG_FILE%
+        call :DIAG_HINT
         if not defined KIVUN_HIDDEN pause
         exit /b 1
     )
@@ -466,6 +468,7 @@ if not defined WSLG_USER (
     echo  Could not set up a Linux user automatically. Please open
     echo  "Kivun Diagnostics" from the Start Menu and email the
     echo  report to noambbb@gmail.com so we can help.
+    call :DIAG_HINT
     if not defined KIVUN_HIDDEN pause
     exit /b 1
 )
@@ -517,19 +520,17 @@ if %ERRORLEVEL% NEQ 0 (
     call :LOG "SUCCESS - python deps already present"
 )
 
-REM Get primary monitor size via wmic (PowerShell is blocked by GPO on some
-REM machines). Windows always places the primary monitor at origin (0,0),
-REM so we only need width+height; the launcher uses (0,0) for position.
-REM Format passed to launcher: "X Y W H".
+REM v1.5.9: monitor size is left to the WSL side (kivun-launch.sh: xrandr, then
+REM Xinerama). We previously read it here via a Windows `wmic` monitor query, but
+REM that tool was REMOVED from Windows 11 24H2 (build 26200+) — there it returns
+REM nothing and
+REM the launcher logged an empty "Primary monitor bounds", and (worse) wmic is the
+REM same component that broke Kivun Diagnostics. PowerShell is GPO-blocked on some
+REM machines so it isn't a safe substitute. Passing PRIMARY_MON empty makes
+REM kivun-launch.sh size the window from xrandr/Xinerama, which works under WSLg
+REM (and reliably once Konsole is on Xwayland). No wmic anywhere anymore.
 set "PRIMARY_MON="
-set "MON_W="
-set "MON_H="
-for /f "tokens=1,2 delims==" %%a in ('wmic DESKTOPMONITOR GET screenwidth^,screenheight /FORMAT:list 2^>nul') do (
-    if /i "%%a"=="ScreenWidth"  set "MON_W=%%b"
-    if /i "%%a"=="ScreenHeight" set "MON_H=%%b"
-)
-if defined MON_W if defined MON_H set "PRIMARY_MON=0 0 %MON_W% %MON_H%"
-call :LOG "INFO - Primary monitor bounds (wmic): %PRIMARY_MON%"
+call :LOG "INFO - Primary monitor bounds: left to WSL-side xrandr/Xinerama (no wmic)"
 
 REM v1.4.0: load per-profile env vars from kivun-env.txt (written by the
 REM picker HTA on Launch). Each KEY=VAL becomes an env var in this cmd
@@ -652,6 +653,38 @@ exit /b
 :LOG
 echo [%TIME%] %~1 >> "%LOG_FILE%"
 echo [%TIME%] %~1
+exit /b
+
+REM DIAG_HINT: called from every HARD-ERROR exit so a stuck user can send a real
+REM report instead of just describing symptoms (v1.5.9). It prints the simple,
+REM exact steps AND — in a visible console — launches Kivun Diagnostics for them,
+REM which builds Kivun-Report.txt, drops it on the Desktop, and opens it in
+REM Notepad. In hidden/exe mode we only print (no console to show it); the native
+REM launcher's error dialog points to Diagnostics too.
+:DIAG_HINT
+echo.
+echo ============================================================
+echo   SOMETHING WENT WRONG.
+echo.
+echo   Sending us a quick report is the FASTEST way to get this
+echo   fixed - it tells us exactly what happened on your PC.
+echo   Nothing is sent automatically; you stay in control.
+echo ============================================================
+echo.
+if defined KIVUN_HIDDEN exit /b
+REM Visible console: open the report for them right now so it is effortless.
+REM kivun-diagnostics.cmd saves Kivun-Report.txt to the Desktop, opens it, AND
+REM opens a folder with that file highlighted so it is trivial to send.
+if exist "%~dp0kivun-diagnostics.cmd" (
+    echo   Opening a report for you now... when it appears, just DRAG the
+    echo   highlighted  Kivun-Report.txt  into an email to  noambbb@gmail.com
+    echo   or into  https://github.com/noambrand/kivun-terminal-wsl/issues
+    echo.
+    start "" "%~dp0kivun-diagnostics.cmd"
+) else (
+    echo   To send a report: open the Start menu, type  Kivun Diagnostics,
+    echo   press Enter, then email the file to  noambbb@gmail.com
+)
 exit /b
 
 REM ADDENV %1=KEY %2=VAL: set the env var in this cmd scope AND append KEY
@@ -938,6 +971,7 @@ echo   Then re-run Kivun Terminal.
 echo   NOTE: Windows-side Claude Code does NOT work here.
 echo ========================================
 call :LOG "EXIT - No Claude in WSL, user must install manually"
+call :DIAG_HINT
 if not defined KIVUN_HIDDEN pause
 exit /b 2
 

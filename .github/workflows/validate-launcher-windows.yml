@@ -430,6 +430,65 @@ jobs:
             || (echo "FAIL: $DIAG no longer resolves the real Desktop — OneDrive users see no report"; exit 1)
           echo "PASS: diagnostics copies the report to the resolved real Desktop"
 
+      - name: Verify v1.5.9 Wayland-visible-window + robust-diagnostics invariants
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          DIAG=payload/kivun-diagnostics.cmd
+          # Window fix: Konsole must be forced onto Xwayland (xcb) so xdotool/wmctrl
+          # (X11 tools) can find/place/raise it. Without this the window is invisible
+          # to our tooling and comes up hidden/minimized — the exact reported bug.
+          grep -q 'QT_QPA_PLATFORM=xcb' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer forces Konsole onto Xwayland (xcb) — Wayland window is unmanageable/hidden"; exit 1)
+          echo "PASS: launcher forces Konsole onto Xwayland so the window is visible + manageable"
+
+          # Diagnostics fix: must NOT use wmic (removed on Win11 26200+, which killed
+          # the old report), must include the launch logs (window evidence), and must
+          # deliver (open Notepad) BEFORE the WSL probes so a hang can't hide it.
+          # No real wmic INVOCATION anywhere in the shipped cmd/bat scripts: wmic
+          # was removed on Windows 11 24H2 (build 26200+), where it broke Diagnostics
+          # AND monitor detection. Match wmic only when followed by a genuine WMI
+          # verb/alias (path, DESKTOPMONITOR, cpu, /node, …) so the word "wmic"
+          # inside explanatory comments/log strings is not flagged.
+          wmic_hits=$(grep -rniE 'wmic[[:space:]]+(path|/node|cpu|os|computersystem|desktopmonitor|process|baseboard|bios|nicconfig|memorychip|logicaldisk)' payload offline 2>/dev/null || true)
+          if [ -n "$wmic_hits" ]; then
+            echo "FAIL: a real wmic invocation is still present (wmic was removed on Win11 24H2+):" >&2
+            echo "$wmic_hits" >&2
+            exit 1
+          fi
+          grep -q 'BASH_LAUNCH_LOG.txt' "$DIAG" \
+            || (echo "FAIL: $DIAG no longer includes BASH_LAUNCH_LOG.txt — window evidence is missing"; exit 1)
+          grep -q 'LAUNCH_LOG.txt' "$DIAG" \
+            || (echo "FAIL: $DIAG no longer includes LAUNCH_LOG.txt"; exit 1)
+          # The Notepad open (delivery) must come BEFORE the WSL probe section [5].
+          dl=$(grep -n 'start "" notepad' "$DIAG" | head -1 | cut -d: -f1)
+          wp=$(grep -n '\[5\] WSL status' "$DIAG" | head -1 | cut -d: -f1)
+          [ -n "$dl" ] && [ -n "$wp" ] && [ "$dl" -lt "$wp" ] \
+            || (echo "FAIL: $DIAG opens the report AFTER the WSL probes — a hang would hide it again (deliver=$dl, wslprobe=$wp)"; exit 1)
+          echo "PASS: diagnostics is wmic-free, includes the launch logs, and delivers before any WSL probe"
+
+      - name: Verify v1.5.9 hard-errors point to Diagnostics + report is easy to send
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          DIAG=payload/kivun-diagnostics.cmd
+          # Every hard-error exit must route the user to Diagnostics so they can send
+          # a real report instead of just describing symptoms.
+          grep -q '^:DIAG_HINT' "$BAT" \
+            || (echo "FAIL: :DIAG_HINT helper missing — hard errors no longer point users to Diagnostics"; exit 1)
+          # It must be wired into the real hard-error exits (no-claude + the WSL/Ubuntu
+          # errors). Require several call sites so a single accidental removal is caught.
+          n=$(grep -c 'call :DIAG_HINT' "$BAT" || true)
+          [ "${n:-0}" -ge 3 ] \
+            || (echo "FAIL: :DIAG_HINT is wired into too few hard-error exits (found $n, need >=3)"; exit 1)
+          # The no-claude exit specifically must point to Diagnostics.
+          awk '/^:no_claude_exit/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" | grep -q 'call :DIAG_HINT' \
+            || (echo "FAIL: :no_claude_exit does not call :DIAG_HINT"; exit 1)
+          # Diagnostics must open the folder with the report SELECTED so it's drag-to-send.
+          grep -q 'explorer.exe /select' "$DIAG" \
+            || (echo "FAIL: $DIAG no longer opens the folder with the report highlighted (hard to find/send)"; exit 1)
+          echo "PASS: hard errors open Diagnostics; the report is highlighted in a folder for easy sending"
+
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
   # Scenario: WSL+Ubuntu present, Konsole NOT installed (we deliberately

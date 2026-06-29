@@ -91,6 +91,17 @@ AUTO_INSTALL_CLAUDE=yes
 # Either way the launcher never closes a window you already have open.
 KIVUN_TABBED=on
 
+# Display backend for the Konsole window (v1.5.9).
+# On WSLg, Konsole's modern Qt6 build runs as a native Wayland window that the
+# launcher's window tools (xdotool/wmctrl) cannot see — so the window could open
+# minimized/hidden and "only show in the taskbar". Forcing the X11 (XWayland)
+# backend makes the window visible and fully manageable, and is the default.
+#   auto - use XWayland (xcb) when it's available (default; recommended)
+#   on   - always force XWayland (xcb)
+#   off  - keep Konsole's own default (Wayland). Use this ONLY if you ever find
+#          Hebrew/RTL text or font sharpness looks worse under XWayland.
+KIVUN_FORCE_XCB=auto
+
 
 # =================================================================
 # BIDI WRAPPER — Hebrew rendering tunables (advanced; leave alone)
