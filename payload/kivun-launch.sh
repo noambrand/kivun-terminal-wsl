@@ -227,6 +227,93 @@ KIVUN_KBD_LAYOUTS=""
 # it before Konsole sees it. Override in config.txt (KIVUN_KBD_TOGGLE), e.g.
 # grp:caps_toggle, to switch with a non-colliding key.
 KIVUN_KBD_TOGGLE="grp:alt_shift_toggle"
+# Match the terminal's Alt+Shift cycle to ALL the user's Windows input languages,
+# in Windows' own order, so one Alt+Shift inside Kivun steps through them exactly
+# like Windows. Fixes the multi-language desync ("Windows shows Hebrew but English
+# types / had to press Alt+Shift several times") that hits when Windows cycles N
+# languages but the terminal cycled only 2. off = classic English+PRIMARY pair.
+KIVUN_KBD_MATCH_WINDOWS="on"
+
+# Map a Windows LANGID (the low 4 hex of an 8-hex KLID) to an xkb base layout.
+# Emits ONLY widely-shipped base layouts; the detector re-checks each one exists in
+# /usr/share/X11/xkb/symbols, so a wrong/absent code is SKIPPED rather than killing
+# the whole setxkbmap call. Unknown -> "". RTL targets mirror the PRIMARY_LANG case.
+kivun_langid_to_xkb() {
+    case "$1" in
+        0409|0c09|1409|2009|2409|2809|2c09|3009|3409|3809|3c09|4009|4409|4809) echo us ;;
+        0809) echo gb ;; 1009) echo ca ;; 1809) echo ie ;; 1c09) echo za ;;
+        040d|043d|0465|0c00|041c) echo il ;;
+        0401|0801|0c01|1001|1401|1801|2001|2401|2801|2c01|3001|3401|3801|3c01|4001|045f) echo ara ;;
+        0429) echo ir ;; 048c|0463) echo af ;; 0420|0859|0846) echo pk ;;
+        0492) echo iq ;; 045a) echo sy ;; 0480) echo cn ;;
+        0419|0444) echo ru ;; 0422) echo ua ;; 0423) echo by ;; 0402) echo bg ;;
+        040c|140c|180c) echo fr ;; 080c|0813) echo be ;; 0c0c) echo ca ;; 100c|0807|0810|1407) echo ch ;;
+        0407|0c07|1007) echo de ;; 0410) echo it ;;
+        040a|0c0a) echo es ;; 080a|100a|140a|180a|1c0a|200a|240a|280a|2c0a|300a|340a|380a|3c0a|400a|440a|480a|4c0a|500a|540a) echo latam ;;
+        0416) echo br ;; 0816) echo pt ;; 041f) echo tr ;; 0408) echo gr ;;
+        0405) echo cz ;; 040e) echo hu ;; 0415) echo pl ;;
+        041d|081d) echo se ;; 0414|0814) echo no ;; 0406) echo dk ;; 040b) echo fi ;; 0413) echo nl ;;
+        040f) echo is ;; 0425) echo ee ;; 0426) echo lv ;; 0427) echo lt ;;
+        0418) echo ro ;; 041b) echo sk ;; 0424) echo si ;; 041a) echo hr ;; 081a|0c1a) echo rs ;;
+        0411) echo jp ;; 0412) echo kr ;; 041e) echo th ;; 042a) echo vn ;;
+        0439|0445|0449|044a|044b|044c|044e|0447|0446|0457) echo in ;;
+        0437) echo ge ;; 042b) echo am ;; 043f) echo kz ;; 0440) echo kg ;; 0443|0843) echo uz ;;
+        042c|082c) echo az ;; 0450) echo mn ;; 043a) echo mt ;; 0438) echo fo ;; 0452) echo gb ;;
+        *) echo "" ;;
+    esac
+}
+
+# Emit (on STDOUT ONLY — this is the return value) a comma list of xkb layouts
+# matching the user's Windows input languages in Preload order, or "" to fall back
+# to the classic English+PRIMARY pair. WSL-only (reads the Windows registry via
+# reg.exe over interop). All human notes go straight to the LOG FILE, never via
+# log() (whose tee writes to stdout and would corrupt this captured value).
+kivun_detect_windows_layouts() {
+    local primary="$1" preload klid langid xk out="" unmapped="" xkbdir="/usr/share/X11/xkb/symbols"
+    command -v reg.exe >/dev/null 2>&1 || { printf '' ; return 0 ; }
+    # Hard-killed query: a wedged WSL interop can ignore SIGTERM, so -k forces a
+    # SIGKILL — the launch can never hang here (~3s worst case, run once + cached).
+    preload=$(timeout -k 2 3 reg.exe query 'HKCU\Keyboard Layout\Preload' 2>/dev/null \
+        | grep -iE 'REG_SZ' | sort -n | sed -E 's/.*REG_SZ[[:space:]]+//' | tr -d '\r')
+    [ -n "$preload" ] || { printf '' ; return 0 ; }
+    while IFS= read -r klid; do
+        klid=$(printf '%s' "$klid" | tr -d '\r[:space:]'); [ -n "$klid" ] || continue
+        langid=$(printf '%s' "$klid" | tr 'A-Z' 'a-z'); langid=${langid: -4}
+        xk=$(kivun_langid_to_xkb "$langid")
+        if [ -z "$xk" ] || [ ! -f "$xkbdir/$xk" ]; then unmapped="$unmapped $klid"; continue; fi
+        out="$out${out:+,}$xk"
+    done <<KIVUN_PRELOAD_EOF
+$preload
+KIVUN_PRELOAD_EOF
+    # Guarantee English (so commands/paths are ALWAYS typeable) and the configured
+    # language are in the cycle, even if Windows lists neither / lists them last.
+    case ",$out," in *",us,"*) : ;; *) [ -n "$out" ] && out="us,$out" || out="us" ;; esac
+    if [ -n "$primary" ] && [ "$primary" != "us" ]; then
+        case ",$out," in *",$primary,"*) : ;; *) out="$out,$primary" ;; esac
+    fi
+    # XKB cycles AT MOST 4 groups. Cap, GUARANTEEING us + the configured language
+    # survive, preserving Windows order among the kept set (distinct codes only).
+    local n; n=$(printf '%s' "$out" | tr ',' '\n' | grep -c . )
+    if [ "$n" -gt 4 ]; then
+        local capped
+        capped=$(printf '%s' "$out" | tr ',' '\n' | awk -v pri="$primary" '
+            { item[NR]=$0 }
+            END{
+                sel["us"]=1; if(pri!="") sel[pri]=1; c=0; for(k in sel) c++;
+                for(i=1;i<=NR && c<4;i++){ if(!(item[i] in sel)){ sel[item[i]]=1; c++ } }
+                o=""; for(i=1;i<=NR;i++){ if((item[i] in sel) && !(item[i] in seen)){ seen[item[i]]=1; o=o (o==""?"":",") item[i] } }
+                print o
+            }')
+        printf '%s\n' "INFO - Keyboard: Windows has more languages than XKB's 4-group max; cycling '$capped' (English + your language kept first); full list was '$out'" >> "$LOG_FILE" 2>/dev/null
+        out="$capped"
+    fi
+    [ -n "$unmapped" ] && printf '%s\n' "INFO - Keyboard: Windows languages with no Linux layout (skipped):$unmapped" >> "$LOG_FILE" 2>/dev/null
+    # Need >=2 layouts to be worth a cycle; otherwise let the caller use the pair.
+    n=$(printf '%s' "$out" | tr ',' '\n' | grep -c . )
+    [ "$n" -ge 2 ] || { printf '' ; return 0 ; }
+    printf '%s' "$out"
+}
+
 apply_kivun_keyboard() {
     # Under the xcb/XWayland backend Konsole is an X11 client, so the Alt+Shift
     # Hebrew/English toggle is driven by setxkbmap (package x11-xkb-utils) on the
@@ -237,24 +324,42 @@ apply_kivun_keyboard() {
         log "WARNING - setxkbmap not found; Alt+Shift Hebrew/English toggle disabled. Re-run the Kivun installer (installs x11-xkb-utils) to restore layout switching."
         return 0
     fi
-    if [ "$KBD_PRIMARY" = "us" ]; then
-        setxkbmap -layout us 2>/dev/null || true   # English: nothing to toggle
-        return 0
-    fi
     if [ -z "$KIVUN_KBD_LAYOUTS" ]; then
-        # Optional toggle-key override (config.txt KIVUN_KBD_TOGGLE). Read once.
-        # SCRIPT_DIR is set before this function is first called.
+        # Optional config overrides (KIVUN_KBD_TOGGLE + KIVUN_KBD_MATCH_WINDOWS).
+        # Read once; SCRIPT_DIR is set before this function is first called.
         if [ -f "${SCRIPT_DIR:-}/config.txt" ]; then
             _kbt=$(grep -E '^[[:space:]]*KIVUN_KBD_TOGGLE[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
                 | sed -e 's/^[[:space:]]*KIVUN_KBD_TOGGLE[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
             [ -n "$_kbt" ] && KIVUN_KBD_TOGGLE="$_kbt"
+            _kbmw=$(grep -E '^[[:space:]]*KIVUN_KBD_MATCH_WINDOWS[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+                | sed -e 's/^[[:space:]]*KIVUN_KBD_MATCH_WINDOWS[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+            [ -n "$_kbmw" ] && KIVUN_KBD_MATCH_WINDOWS="$_kbmw"
         fi
-        _kb_cur=$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' | cut -d, -f1)
-        case "$_kb_cur" in
-            "$KBD_PRIMARY") KIVUN_KBD_LAYOUTS="${KBD_PRIMARY},us" ;;
-            *)              KIVUN_KBD_LAYOUTS="us,${KBD_PRIMARY}" ;;
-        esac
-        log "INFO - Keyboard: current='${_kb_cur:-unknown}' -> '${KIVUN_KBD_LAYOUTS}' (${KIVUN_KBD_TOGGLE} toggles)"
+        # 1) Preferred: cycle ALL the user's Windows input languages, in Windows'
+        #    order, so the terminal's Alt+Shift == Windows' Alt+Shift (fixes the
+        #    "many presses / tray says Hebrew but English types" desync). Returns
+        #    "" (then we fall through) when off, non-WSL, or interop is unavailable.
+        if [ "${KIVUN_KBD_MATCH_WINDOWS:-on}" = "on" ]; then
+            _detected=$(kivun_detect_windows_layouts "$KBD_PRIMARY")
+            if [ -n "$_detected" ]; then
+                KIVUN_KBD_LAYOUTS="$_detected"
+                log "INFO - Keyboard: matching Windows input languages -> '${KIVUN_KBD_LAYOUTS}' (${KIVUN_KBD_TOGGLE} cycles them in Windows order)"
+            fi
+        fi
+        # 2) Classic fallback (verbatim pre-v1.5.17 behavior): English + the one
+        #    configured RTL language. Used when match-Windows is off/unavailable.
+        if [ -z "$KIVUN_KBD_LAYOUTS" ]; then
+            if [ "$KBD_PRIMARY" = "us" ]; then
+                setxkbmap -layout us 2>/dev/null || true   # English: nothing to toggle
+                return 0
+            fi
+            _kb_cur=$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' | cut -d, -f1)
+            case "$_kb_cur" in
+                "$KBD_PRIMARY") KIVUN_KBD_LAYOUTS="${KBD_PRIMARY},us" ;;
+                *)              KIVUN_KBD_LAYOUTS="us,${KBD_PRIMARY}" ;;
+            esac
+            log "INFO - Keyboard: current='${_kb_cur:-unknown}' -> '${KIVUN_KBD_LAYOUTS}' (${KIVUN_KBD_TOGGLE} toggles)"
+        fi
     fi
     setxkbmap -layout "$KIVUN_KBD_LAYOUTS" -option "" -option "$KIVUN_KBD_TOGGLE" 2>/dev/null || true
 }
@@ -1199,14 +1304,19 @@ if command -v xdotool >/dev/null 2>&1; then
     # xcb-only: on plain Wayland (the v1.5.14 default) WSLg drives the Alt+Shift
     # toggle and xdotool can't manage the window anyway, so this X11 re-apply is
     # neither needed nor possible. Only run it when xcb was explicitly forced.
-    if [ "${QT_QPA_PLATFORM:-}" = "xcb" ] && [ "$KBD_PRIMARY" != "us" ] && command -v setxkbmap >/dev/null 2>&1; then
+    if [ "${QT_QPA_PLATFORM:-}" = "xcb" ] && command -v setxkbmap >/dev/null 2>&1 \
+       && case "$KIVUN_KBD_LAYOUTS" in *,*) true ;; *) [ "$KBD_PRIMARY" != "us" ] ;; esac; then
       (
         for _kbtry in 1 2 3 4 5 6; do
           sleep 2
           xdotool windowactivate "$WID" 2>/dev/null
           apply_kivun_keyboard
-          setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' \
-            | tr ',' '\n' | grep -qx "$KBD_PRIMARY" && break
+          # Stop only once the FULL intended cycle (order + count) is actually
+          # loaded — not merely when the RTL group appears somewhere — so a
+          # multi-language cycle that XKB silently shortened keeps retrying
+          # instead of falsely claiming success.
+          _kb_loaded=$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' | tr -d '[:space:]')
+          [ -n "$KIVUN_KBD_LAYOUTS" ] && [ "$_kb_loaded" = "$KIVUN_KBD_LAYOUTS" ] && break
         done
       ) >> "$LOG_FILE" 2>&1 &
       log "INFO - Keyboard: scheduled post-focus layout re-apply (cold-start settle, xcb)"

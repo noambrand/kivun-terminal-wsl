@@ -214,6 +214,10 @@ PROF
 log "Konsole profile refreshed (BiDi=$BIDI_ENABLED)"
 
 # --- Keyboard layout toggle (X11 only — setxkbmap doesn't work on Wayland) ---
+# NOTE: this is the NATIVE-Linux launcher. The "match ALL Windows input languages"
+# multi-layout cycle in payload/kivun-launch.sh is WSL-ONLY — it reads the Windows
+# registry via reg.exe over interop. There is no Windows registry here, so this
+# launcher keeps the classic English + PRIMARY pair. Do NOT add reg.exe here.
 if [ "$KEYBOARD_TOGGLE" = "true" ] && [ -n "${DISPLAY:-}" ] && command -v setxkbmap >/dev/null 2>&1; then
     case "$RESPONSE_LANGUAGE" in
         english)     KBD_PRIMARY="us" ;;

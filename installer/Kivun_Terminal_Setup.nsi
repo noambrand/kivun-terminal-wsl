@@ -12,7 +12,7 @@ Unicode True
 ; used only for local/manual makensis builds that don't pass the flag — keep it
 ; current with VERSION (tools/bump-version.sh updates it).
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "1.5.16"
+  !define PRODUCT_VERSION "1.5.17"
 !endif
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
