@@ -1306,17 +1306,35 @@ if command -v xdotool >/dev/null 2>&1; then
     # neither needed nor possible. Only run it when xcb was explicitly forced.
     if [ "${QT_QPA_PLATFORM:-}" = "xcb" ] && command -v setxkbmap >/dev/null 2>&1 \
        && case "$KIVUN_KBD_LAYOUTS" in *,*) true ;; *) [ "$KBD_PRIMARY" != "us" ] ;; esac; then
+      # v1.5.18 — arm the layout the INSTANT the window is focusable, with NO
+      # pre-sleep. The old loop slept 2s before its first re-apply, so between the
+      # window appearing (and accepting keystrokes) and that first apply there was
+      # a ~2s dead zone: the focus-grab had already dropped the early layout, so
+      # Alt+Shift in that window did nothing ("had to press it a few times before
+      # it switched"). Now we apply immediately, then poll on a short interval and
+      # re-apply ONLY when the layout was actually dropped — re-applying resets the
+      # active group to the first (English), so once the cycle is loaded we must
+      # NOT keep re-applying or we'd yank a typing user back to English. Stop once
+      # the FULL intended cycle (order + count) has stayed loaded for a few polls
+      # in a row: that survives a late cold-start drop (TUI still spinning up)
+      # without resetting the user's group, and a multi-language cycle that XKB
+      # silently shortened keeps retrying instead of falsely claiming success.
       (
-        for _kbtry in 1 2 3 4 5 6; do
-          sleep 2
-          xdotool windowactivate "$WID" 2>/dev/null
-          apply_kivun_keyboard
-          # Stop only once the FULL intended cycle (order + count) is actually
-          # loaded — not merely when the RTL group appears somewhere — so a
-          # multi-language cycle that XKB silently shortened keeps retrying
-          # instead of falsely claiming success.
+        xdotool windowactivate "$WID" 2>/dev/null
+        apply_kivun_keyboard
+        _kb_stable=0; _kbtry=0
+        while [ "$_kbtry" -lt 24 ]; do
+          _kbtry=$((_kbtry + 1))
           _kb_loaded=$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' | tr -d '[:space:]')
-          [ -n "$KIVUN_KBD_LAYOUTS" ] && [ "$_kb_loaded" = "$KIVUN_KBD_LAYOUTS" ] && break
+          if [ -n "$KIVUN_KBD_LAYOUTS" ] && [ "$_kb_loaded" = "$KIVUN_KBD_LAYOUTS" ]; then
+            _kb_stable=$((_kb_stable + 1))
+            [ "$_kb_stable" -ge 3 ] && break
+          else
+            xdotool windowactivate "$WID" 2>/dev/null
+            apply_kivun_keyboard
+            _kb_stable=0
+          fi
+          sleep 0.25
         done
       ) >> "$LOG_FILE" 2>&1 &
       log "INFO - Keyboard: scheduled post-focus layout re-apply (cold-start settle, xcb)"

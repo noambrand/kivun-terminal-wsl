@@ -663,6 +663,30 @@ jobs:
             || (echo "FAIL: config.txt no longer documents/sets KIVUN_KBD_TOGGLE"; exit 1)
           echo "PASS: launcher re-applies layout post-focus; toggle key is configurable"
 
+      - name: Verify v1.5.18 keyboard re-apply arms immediately (no startup dead zone)
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          # v1.5.17 cycled the right languages, but the post-focus re-apply loop
+          # still slept 2s BEFORE its first apply — so a fresh window had a ~2s
+          # dead zone where the focus-grab had already dropped the early layout
+          # and Alt+Shift did nothing ("had to press it a few times"). v1.5.18
+          # arms the instant the window is focusable, re-applies ONLY when the
+          # layout was actually dropped (never resetting a typing user's group),
+          # and stops once the full cycle has stayed loaded. Match commands.
+          grep -qF '_kb_stable' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the immediate-arm keyboard stability loop (v1.5.18 dead-zone fix)"; exit 1)
+          arm=$(grep -n '_kb_stable=0; _kbtry=0' "$LAUNCH" | head -1 | cut -d: -f1)
+          [ -n "$arm" ] || { echo "FAIL: v1.5.18 immediate-arm loop setup not found"; exit 1; }
+          # The two lines just above the wait loop must ARM (apply) with NO pre-sleep.
+          ctx=$(sed -n "$((arm-2)),$((arm-1))p" "$LAUNCH")
+          printf '%s\n' "$ctx" | grep -qF 'apply_kivun_keyboard' \
+            || { echo "FAIL: keyboard not armed immediately before the wait loop"; exit 1; }
+          if printf '%s\n' "$ctx" | grep -q 'sleep'; then
+            echo "FAIL: a sleep precedes the keyboard arm (startup dead zone reintroduced)"; exit 1
+          fi
+          echo "PASS: post-focus keyboard re-apply arms immediately (no startup dead zone)"
+
   # -------------------------------------------------------------------------
   # Job 2 — Run the .bat against real WSL+Ubuntu and validate LAUNCH_LOG.
   # Scenario: WSL+Ubuntu present, Konsole NOT installed (we deliberately

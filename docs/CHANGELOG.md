@@ -3,6 +3,29 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.18] - 2026-06-30
+
+### Fixed — Alt+Shift now switches on the FIRST press (no startup dead zone)
+
+On a freshly opened window you sometimes had to press Alt+Shift a few times before Hebrew/English
+switched — then it worked. The launch log pinned the cause exactly: the keyboard layout is applied
+before the window exists, WSLg **drops it when the new window grabs focus**, and the re-apply that
+restores it **slept 2 seconds before its first attempt**. That left a ~2‑second window, right when
+the terminal first appears and accepts typing, in which Alt+Shift did nothing. Whether you noticed
+depended only on how fast you reached for the key — which is why it felt random.
+
+- **The layout is now re‑armed the instant the window is focusable**, with no leading wait, so your
+  very first Alt+Shift switches. Confirmed live on a clean cold start (`wsl --shutdown` baseline).
+- **It re‑applies only when the layout was actually dropped.** Re‑applying resets the active group
+  to the first language (English); doing that while you type would yank you back to English. So once
+  the full cycle is loaded, Kivun stops touching it and leaves your chosen language alone.
+- **It still survives a late cold‑start drop.** It keeps watch briefly and re‑arms if WSLg drops the
+  layout again while Claude's TUI is still spinning up, then stops once the full cycle (correct order
+  and count) has stayed loaded — so a multi‑language cycle is never falsely declared ready.
+
+This builds on the v1.5.17 multi‑language fix; both the language *list* and the startup *timing* are
+now correct. The native‑Linux launcher is unaffected.
+
 ## [1.5.17] - 2026-06-30
 
 ### Added — Alt+Shift now cycles ALL your Windows keyboard languages, in Windows order
