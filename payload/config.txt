@@ -109,6 +109,19 @@ KIVUN_FORCE_XCB=auto
 #   grp:rctrl_toggle     - Right Ctrl
 KIVUN_KBD_TOGGLE=grp:alt_shift_toggle
 
+# Match the terminal's Alt+Shift cycle to ALL the keyboard languages you have in
+# Windows (Settings > Time & language > Language & region), in the SAME order — so
+# one Alt+Shift inside Kivun steps through them exactly like Windows does. This is
+# what fixes the "Windows shows Hebrew but English types / had to press Alt+Shift
+# several times" problem, which happens when Windows has MORE languages than the
+# terminal. English is always kept (so you can always type commands), and so is
+# your PRIMARY_LANGUAGE. Linux can cycle at most 4 layouts at once; with 5+ Windows
+# languages Kivun keeps the 4 most relevant and notes the rest in the log. Kivun
+# reads this list from Windows automatically — nothing to type or configure.
+#   on  - cycle all your Windows languages, in Windows order (default; recommended)
+#   off - cycle only English + PRIMARY_LANGUAGE (the classic two-language pair)
+KIVUN_KBD_MATCH_WINDOWS=on
+
 
 # =================================================================
 # BIDI WRAPPER — Hebrew rendering tunables (advanced; leave alone)

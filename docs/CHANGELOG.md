@@ -3,6 +3,35 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.17] - 2026-06-30
+
+### Added — Alt+Shift now cycles ALL your Windows keyboard languages, in Windows order
+
+If Windows had more keyboard languages than the terminal (e.g. English + Hebrew + English‑UK,
+but the terminal only knew English + Hebrew), the two Alt+Shift cycles drifted out of step — so
+the Windows tray could say "Hebrew" while the terminal still typed English, and you had to press
+Alt+Shift several times before it landed right. **This is a bug, not user error.**
+
+- **Kivun now reads your full Windows input‑language list (in Windows' own order) and loads the
+  matching Linux layouts**, so one Alt+Shift inside Kivun steps through your languages exactly like
+  Windows. English + Hebrew + English‑UK becomes a real 3‑step cycle (`us, il, gb`) that stays in
+  lockstep with the Windows tray. Nothing to configure — it reads the list automatically.
+- **Fully general, not Hebrew‑specific:** any languages (Arabic, Russian, French, Hindi, Greek…),
+  via a comprehensive Windows→Linux language map. Each layout is verified to exist before use, so
+  an unmappable language is skipped rather than breaking the keyboard.
+- **English is always kept** (so you can always type commands/paths), and so is your configured
+  `PRIMARY_LANGUAGE` — even when the cap below applies.
+- **Linux cycles at most 4 layouts at once** (an XKB limit). With 5+ Windows languages, Kivun keeps
+  the 4 most relevant (English + your language first) and notes the rest in the launch log.
+- **Safe by design:** reads the registry with a hard‑kill timeout so a wedged WSL can't hang the
+  launch; logging never corrupts the detected list; and `KIVUN_KBD_MATCH_WINDOWS=off` instantly
+  restores the classic English + `PRIMARY_LANGUAGE` pair. The native‑Linux launcher is unchanged
+  (no Windows registry there).
+
+Designed and hardened via a multi‑agent adversarial review (7 blockers + 12 majors caught and
+fixed before shipping) and validated by executing the detection logic against real and simulated
+multi‑language setups.
+
 ## [1.5.16] - 2026-06-30
 
 ### Fixed — installer version, picker update button, and reopening a minimized window

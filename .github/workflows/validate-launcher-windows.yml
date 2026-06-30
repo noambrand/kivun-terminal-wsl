@@ -513,6 +513,46 @@ jobs:
             || (echo "FAIL: $LAUNCH reuse/tab path no longer un-minimizes the existing window (reopen can show nothing)"; exit 1)
           echo "PASS: reusing an existing window un-minimizes + raises it"
 
+      - name: Verify v1.5.17 multi-language Windows-match keyboard invariants
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          CFG=payload/config.txt
+          LIN=linux/kivun-launch.sh
+          # Detector + opt-out switch must exist.
+          grep -q 'kivun_detect_windows_layouts' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the Windows input-language detector"; exit 1)
+          grep -q 'KIVUN_KBD_MATCH_WINDOWS' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the KIVUN_KBD_MATCH_WINDOWS switch"; exit 1)
+          grep -qF 'Keyboard Layout\Preload' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer reads the Windows Preload language list"; exit 1)
+          # English-UK (0809) must map to its OWN xkb layout (gb), NOT collapse to a
+          # second 'us' — two identical layouts are not a distinct toggle group, so
+          # the cycle would silently shorten and the Windows desync would persist.
+          grep -qE '0809\)[[:space:]]*echo gb' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer maps English-UK (0809) to a distinct gb layout"; exit 1)
+          # Every emitted layout must be verified to exist before use, so a bad or
+          # absent code is skipped instead of breaking the whole setxkbmap call.
+          grep -qF '/usr/share/X11/xkb/symbols' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer verifies each xkb layout exists before using it"; exit 1)
+          # reg.exe must be hard-kill timeout-guarded so a wedged WSL interop cannot
+          # hang the foreground launch (plain timeout only SIGTERMs; -k forces kill).
+          grep -qE 'timeout -k [0-9]+ [0-9]+ reg\.exe' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH reg.exe query is not hard-kill timeout-guarded (could hang the launch)"; exit 1)
+          # The classic English+PRIMARY single-language fallback must remain intact.
+          grep -qF 'us,${KBD_PRIMARY}' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the classic English+PRIMARY single-language fallback"; exit 1)
+          # config.txt must document the switch.
+          grep -qE '^KIVUN_KBD_MATCH_WINDOWS=' "$CFG" \
+            || (echo "FAIL: $CFG no longer documents KIVUN_KBD_MATCH_WINDOWS"; exit 1)
+          # The native-Linux launcher must stay registry-free (Windows-match is
+          # WSL-only). Strip comment lines first so the "do NOT add reg.exe" note
+          # cannot false-positive — assert no real reg.exe COMMAND.
+          if grep -vE '^[[:space:]]*#' "$LIN" | grep -q 'reg\.exe'; then
+            echo "FAIL: $LIN has a reg.exe call — the Windows-match feature is WSL-only (no registry on native Linux)"; exit 1
+          fi
+          echo "PASS: multi-language Windows-match invariants hold (gb-distinct, xkb-verified, hard-kill reg.exe, classic fallback, WSL-only)"
+
       - name: Verify v1.5.9 hard-errors point to Diagnostics + report is easy to send
         run: |
           set -eu
