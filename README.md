@@ -23,7 +23,7 @@
   <img src="https://img.shields.io/badge/RTL%20languages-11-orange" alt="11 RTL Languages">
   <a href="https://github.com/noambrand/kivun-terminal-wsl/stargazers"><img src="https://img.shields.io/github/stars/noambrand/kivun-terminal-wsl?style=flat&color=yellow" alt="GitHub Stars"></a>
   <img src="https://img.shields.io/github/last-commit/noambrand/kivun-terminal-wsl?label=last%20commit&color=brightgreen" alt="Last Commit">
-  <img src="https://img.shields.io/badge/downloads-462%2B-blue" alt="Total Downloads">
+  <img src="https://img.shields.io/badge/downloads-726%2B-blue" alt="Total Downloads">
 </p>
 
 <h3 align="center">Real RTL Claude Code terminal. Hebrew, Arabic, Persian, Urdu and 8 more - rendered correctly, on Windows and Linux.</h3>
@@ -208,6 +208,11 @@ Pure **Node.js** plus bundled `.wav` clips — no Python, no PowerShell. Toggle 
 with `node ~/.claude/sounds/voice.js on|off|mode <m>|repeat on|off|status`, or the
 **Sound ON/OFF** / **Regular/Funny Sounds ON** launchers; settings live in
 `~/.claude/sounds/config.json` (inside WSL).
+
+**Make it yours — write your own jokes, in any language.** Every clip is a plain `.wav`
+in `~/.claude/sounds/regular/` and `funny/`. Record your own punchlines, or clips in
+Hebrew, Arabic, or any language, and drop them in as `done.wav`, `permission.wav`,
+`waiting.wav`, or `save.wav`. Full how-to in `sounds/README.md`.
 
 ### Turn all voice alerts off (one global switch)
 
@@ -514,6 +519,11 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 **Node.js** בלבד עם קטעי `.wav` מצורפים - בלי Python, בלי PowerShell. אפשר להדליק ולכבות
 בכל רגע עם `node ~/.claude/sounds/voice.js on|off|mode <m>|repeat on|off|status`, או עם קובצי
 **Sound ON/OFF** / **Regular/Funny Sounds ON**. ההגדרות נמצאות ב-`~/.claude/sounds/config.json`.
+
+**שיהיה שלכם, כתבו בדיחות משלכם, בכל שפה.** כל קטע הוא קובץ `.wav` פשוט בתוך
+`~/.claude/sounds/regular/` ו-`funny/`. הקליטו שורות משלכם, או קטעים בעברית, בערבית או בכל
+שפה, והכניסו אותם בשמות `done.wav`, `permission.wav`, `waiting.wav` או `save.wav`. הסבר מלא
+ב-`sounds/README.md`.
 
 > **הערה ל-WSL/לינוקס:** Kivun מריץ את Claude Code בתוך WSL, ושם השמע הוא מאמץ-מיטבי
 > (`paplay`/`aplay` דרך WSLg) ונשאר שקט אם אין גשר שמע. ההוקים והפקדים מותקנים בכל מקרה,
