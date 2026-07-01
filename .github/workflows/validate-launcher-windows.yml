@@ -1034,9 +1034,34 @@ jobs:
           # 127 when called via `bash -c` because the wrapper script's PATH
           # isn't set. We assert the binary exists at the expected slot
           # (same probe the launcher uses), not that --version succeeds.
-          if ! wsl -d Ubuntu --user root -- bash -c "test -x /root/.local/bin/claude"; then
+          #
+          # The PRECEDING step force-kills wsl.exe as teardown, which can leave
+          # the WSL2 service wedged — the next `wsl` call then returns
+          # "Catastrophic failure / Wsl/Service/E_UNEXPECTED" (a SERVICE crash,
+          # NOT a "binary missing" result). Blindly treating that non-zero exit
+          # as a failed install produced a false red (run 28439044129) even
+          # though the install had already logged SUCCESS. So: retry, and on a
+          # service crash run `wsl --shutdown` to un-wedge, then re-probe. A
+          # clean non-zero from `test -x` (no crash banner) = binary genuinely
+          # absent -> real failure.
+          probe() { wsl -d Ubuntu --user root -- bash -c "test -x /root/.local/bin/claude" 2>&1; }
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            if out=$(probe); then ok=1; break; fi
+            echo "probe attempt $attempt failed: ${out:-<no output>}"
+            if printf '%s' "$out" | grep -qiE 'Catastrophic failure|E_UNEXPECTED|Wsl/Service|HANDLE'; then
+              echo "WSL service is wedged (force-kill fallout) — running 'wsl --shutdown' and retrying"
+              wsl --shutdown || true
+              sleep 8
+              continue
+            fi
+            # Clean non-zero, no crash banner -> the file really is not there.
+            break
+          done
+          if [ "$ok" != "1" ]; then
             echo "FAIL: /root/.local/bin/claude not present after launcher's auto-install" >&2
-            wsl -d Ubuntu --user root -- bash -c "ls -la /root/.local/bin/ 2>&1 || true; find / -name claude -type f 2>/dev/null | head -10"
+            wsl --shutdown || true; sleep 5
+            wsl -d Ubuntu --user root -- bash -c "ls -la /root/.local/bin/ 2>&1 || true; find / -name claude -type f 2>/dev/null | head -10" || true
             exit 1
           fi
           echo "PASS: Claude Code binary installed at the launcher's expected absolute path"
