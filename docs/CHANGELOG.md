@@ -3,6 +3,34 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.1] - 2026-07-06
+
+### Fixed — the window no longer flakes on a cold start
+
+On a cold or long-idle WSLg, the terminal window could open and then close again
+within ~30 seconds on the first few launches, then finally stay open after a few
+tries (confirmed from a field log). Two changes make the launcher ride out that
+cold start instead of you retrying by hand:
+
+- A short **display-readiness wait** before Konsole opens, so it isn't launched
+  into a half-initialized WSLg display (bounded, ~6s max, and only when a probe
+  tool is present — a healthy launch is never delayed).
+- An **auto-retry**: since v1.6.0 a healthy Kivun window never closes on its own
+  (it drops to a shell when Claude ends), so a window that dies within 45 seconds
+  is a cold-start flake — the launcher now relaunches automatically, up to 3
+  times, instead of leaving you to retry.
+
+### Added — terminal color and a WSL memory cap in the folder picker
+
+The picker's **Advanced options** now include:
+
+- **Terminal color** — pick `kivun` / `dark` / `black` / `white` / keep Konsole's
+  default, or type a custom hex, instead of hand-editing `config.txt`. Konsole
+  repaints on a new window, so the color applies the next time you launch.
+- **WSL memory limit** — cap how much RAM the WSL2 Linux VM may use, written to
+  your `.wslconfig` (other keys preserved). It takes effect after WSL fully
+  restarts; Kivun never restarts WSL for you.
+
 ## [1.6.0] - 2026-07-06
 
 ### Added — choose your terminal background color

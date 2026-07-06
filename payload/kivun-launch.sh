@@ -1187,8 +1187,35 @@ if [ "$KIVUN_MODE" = "window" ]; then
     # $KIVUN_KONSOLE_OPTS (--nofork --separate) keeps the window owned by THIS pid
     # so the size/raise/activate below sticks (see the probe above). Without it
     # Konsole forks and the window we manage is replaced by an unmanaged one.
+
+    # WSLg cold-start guard (v1.6.1). On a cold or long-idle WSLg the X display
+    # (Xwayland, which Konsole uses via xcb) can take a moment to answer, and
+    # launching Konsole before it is ready is a known cause of a window that
+    # opens then dies within ~30s on the first few tries (confirmed from a field
+    # log). Wait — bounded, ~10s max — for the display to answer once, then
+    # launch. Only runs when a probe tool is present, and always falls through
+    # after the timeout so a healthy launch is never delayed for long.
+    if command -v xdpyinfo >/dev/null 2>&1 || command -v xset >/dev/null 2>&1; then
+        # Short by design: a ready display answers in well under a second (common
+        # case = instant break). If it's still down after ~6s we launch anyway and
+        # let the auto-retry below catch a window that then dies. timeout 1 keeps a
+        # hung probe from stalling the launch.
+        _kd_i=0
+        while [ $_kd_i -lt 12 ]; do
+            if { command -v xdpyinfo >/dev/null 2>&1 && DISPLAY="$DISPLAY" timeout 1 xdpyinfo >/dev/null 2>&1; } \
+               || { command -v xset >/dev/null 2>&1 && DISPLAY="$DISPLAY" timeout 1 xset q >/dev/null 2>&1; }; then
+                log "INFO - WSLg display ready (cold-start guard, ${_kd_i} probes)"
+                break
+            fi
+            sleep 0.4
+            _kd_i=$((_kd_i + 1))
+        done
+        [ $_kd_i -ge 12 ] && log "WARNING - WSLg display not confirmed ready in ~6s; launching anyway (auto-retry will cover a fast death)"
+    fi
+
     setsid konsole $KIVUN_KONSOLE_OPTS $KIVUN_NAME_OPT --profile KivunTerminal -e "$LAUNCH_TMP" </dev/null >> "$LOG_FILE" 2>&1 &
     KPID=$!
+    KIVUN_LAUNCH_T0=$(date +%s 2>/dev/null || echo 0)
     if [ $KPID -gt 0 ]; then
         log "SUCCESS - Konsole started with PID: $KPID"
     else
@@ -1469,7 +1496,28 @@ fi
 if [ "$KIVUN_MODE" = "window" ]; then
     log "INFO - Waiting for Konsole process to complete"
     wait $KPID
-    log "COMPLETE - Bash launcher finished (Konsole process ended)"
+    KIVUN_ALIVE=$(( $(date +%s 2>/dev/null || echo 0) - ${KIVUN_LAUNCH_T0:-0} ))
+    log "COMPLETE - Bash launcher finished (Konsole process ended after ${KIVUN_ALIVE}s)"
+    # WSLg cold-start auto-retry (v1.6.1). Since v1.6.0 a healthy Kivun window
+    # NEVER closes on its own — when Claude ends it drops to an interactive shell
+    # and waits for 'exit'. So a Konsole that DIES within KIVUN_COLD_GUARD seconds
+    # of launching is a WSLg cold-start flake, not the user quitting. Relaunch
+    # (bounded, via a clean re-exec of this same script) so the launcher rides out
+    # the cold start instead of the user retrying by hand. Field log: early
+    # windows died ~30s in and stabilized by the ~5th try. The retry counter is
+    # carried in the environment so it can never loop forever.
+    KIVUN_COLD_GUARD=45
+    KIVUN_COLD_MAX=3
+    KIVUN_COLD_RETRY="${KIVUN_COLD_RETRY:-0}"
+    # Guard on a real, positive launch timestamp so a broken clock (date -> 0)
+    # can never read as a 0s "flake" and spuriously relaunch.
+    if [ "${KIVUN_LAUNCH_T0:-0}" -gt 0 ] && [ "$KIVUN_ALIVE" -ge 0 ] && [ "$KIVUN_ALIVE" -lt "$KIVUN_COLD_GUARD" ] && [ "$KIVUN_COLD_RETRY" -lt "$KIVUN_COLD_MAX" ]; then
+        KIVUN_COLD_RETRY=$((KIVUN_COLD_RETRY + 1))
+        log "WARNING - Konsole died in ${KIVUN_ALIVE}s (<${KIVUN_COLD_GUARD}s): WSLg cold-start flake. Auto-relaunch ${KIVUN_COLD_RETRY}/${KIVUN_COLD_MAX}"
+        sleep 2
+        export KIVUN_COLD_RETRY
+        exec bash "$0" "$@"
+    fi
 else
     # Tab mode: the tab belongs to the already-running Konsole, so there is no
     # window of ours to wait on. Let any startup-command typing finish before

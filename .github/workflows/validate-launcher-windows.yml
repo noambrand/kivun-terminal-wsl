@@ -381,6 +381,35 @@ jobs:
             || (echo "FAIL: $DIRECT rcfile claude() must use 'command' to avoid self-recursion"; exit 1)
           echo "PASS: v1.6.0 TERMINAL_COLOR themes + exit-to-shell invariants intact"
 
+      - name: Verify v1.6.1 cold-start flake fix + picker controls
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          HTA=payload/folder-picker.hta
+          # --- Flake fix: WSLg readiness gate + bounded auto-retry on fast death ---
+          # A field log showed Konsole opening then dying ~30s in on the first cold
+          # launches. The launcher must (a) wait for the display before opening and
+          # (b) auto-relaunch a window that dies fast (a flake, since v1.6.0 healthy
+          # windows never self-close). If either link goes missing the flake is back.
+          grep -q 'xdpyinfo' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the WSLg display-readiness probe"; exit 1)
+          grep -q 'KIVUN_LAUNCH_T0=' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer timestamps the Konsole launch (can't detect a fast death)"; exit 1)
+          grep -q 'exec bash "\$0" "\$@"' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost the cold-start auto-relaunch (exec re-run)"; exit 1)
+          grep -q 'KIVUN_COLD_MAX' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH auto-retry is not bounded by KIVUN_COLD_MAX (could loop forever)"; exit 1)
+          # --- Picker: terminal color + WSL memory cap controls ---
+          grep -q 'function applyTerminalColor' "$HTA" \
+            || (echo "FAIL: $HTA lost the terminal-color control"; exit 1)
+          grep -q 'name="term-color"' "$HTA" \
+            || (echo "FAIL: $HTA lost the term-color picker markup"; exit 1)
+          grep -q 'function writeWslMemoryGb' "$HTA" \
+            || (echo "FAIL: $HTA lost the .wslconfig memory-cap writer"; exit 1)
+          grep -q 'id="wsl-mem"' "$HTA" \
+            || (echo "FAIL: $HTA lost the WSL memory-cap input"; exit 1)
+          echo "PASS: v1.6.1 cold-start flake fix + picker color/WSL-memory controls intact"
+
       - name: Verify v1.5.7 installer no-stall + reboot-detect invariants (NSI)
         run: |
           set -eu
