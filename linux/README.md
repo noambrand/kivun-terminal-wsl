@@ -53,7 +53,7 @@ Install log: `/tmp/kivun_install.log`
 |---|---|---|---|
 | `RESPONSE_LANGUAGE` | 23 values (see below) | `english` | Appended as `--append-system-prompt "Always respond in …"` |
 | `TEXT_DIRECTION` | `rtl` / `ltr` | `rtl` | Toggles Konsole `BidiEnabled` |
-| `TERMINAL_COLOR` | `kivun` / `default` | `kivun` | Light-blue profile vs Konsole defaults |
+| `TERMINAL_COLOR` | `kivun` / `dark` / `black` / `white` / `default` / `#RRGGBB` | `kivun` | Background color; text color auto-picked. `default` keeps Konsole's own theme |
 | `KEYBOARD_TOGGLE` | `true` / `false` | `true` | Sets up Alt+Shift US ↔ primary-script layout via setxkbmap (X11 only) |
 | `FOLDER_PICKER` | `true` / `false` | `false` | Pop a zenity/kdialog folder picker before launching |
 | `CLAUDE_FLAGS` | - | empty | Extra flags passed to every `claude` call (e.g. `--continue`) |

@@ -374,9 +374,11 @@ TEXT_DIRECTION=rtl
 # =================================================================
 # TERMINAL COLOR THEME
 # =================================================================
-# kivun   - light-blue Kivun theme (Konsole profile + color scheme)
-# default - keep your terminal's existing theme
-# Default: kivun
+# kivun   - light blue (the default look)
+# dark    - dark gray        black - almost black        white - white
+# default - keep Konsole's own default look (don't change it)
+# #RRGGBB - any custom color, e.g. TERMINAL_COLOR=#1e1e2e
+# The text color is picked automatically. Default: kivun
 TERMINAL_COLOR=kivun
 
 # =================================================================

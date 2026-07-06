@@ -77,6 +77,16 @@ PRIMARY_LANGUAGE=hebrew
 # Default: rtl
 TEXT_DIRECTION=rtl
 
+# Terminal background color for the Kivun window:
+#   kivun   - light blue (the default look)
+#   dark    - dark gray        black - almost black        white - white
+#   default - keep Konsole's own default look (don't change it)
+#   #RRGGBB - any custom color, e.g. TERMINAL_COLOR=#1e1e2e
+# The text color is picked automatically (dark text on a light background,
+# light text on a dark one). A color change applies the next time you launch —
+# close all open Kivun windows first so the new color is picked up.
+TERMINAL_COLOR=kivun
+
 # How the launcher handles missing Claude Code in WSL:
 #   yes  - Auto-install (default)
 #   ask  - Prompt [Y/N] each time

@@ -92,7 +92,7 @@
 <li><strong>دايلوغ اختيار الفولدر</strong> على اختصار سطح المكتب (الصورة فوق) - تصفّح شجرة الفولدرات <strong>أو</strong> اكتب/الصق مسار Windows، مع اختيار الموديل بالـ radio (Opus / Sonnet / Haiku)، وflag chips بكبسة وحدة (رد بالعبري، High effort، قبول تعديلات الملفات تلقائياً، Read-only، إلخ)، وtextarea لslash commands الإقلاع متل <code>/voicemode:converse</code>.</li>
 <li><strong>كبسة يمين "Open with Kivun Terminal"</strong> على أي فولدر بـ File Explorer - بيقلع مباشرة على الفولدر هاد، ويتجاوز الـ picker.</li>
 <li><strong>سطر حالة حي بسطرين</strong> أسفل كل جلسة Claude Code - الموديل، نسبة الـ context، إجمالي tokens، مدة الجلسة، واستهلاك الـ 5 ساعات / 7 أيام مع عدّ تنازلي للريسِت.</li>
-<li><strong>ثيم Kivun بالأزرق الفاتح</strong> لـ Konsole (خلفية <code>#C8E6FF</code>) - مريح للعين، شغّال افتراضياً. تعطيله عبر <code>TERMINAL_COLOR=default</code>.</li>
+<li><strong>اختر لون خلفية الطرفية</strong> لـ Konsole. أزرق Kivun الفاتح (<code>#C8E6FF</code>) افتراضياً؛ بدّله إلى <code>dark</code> أو <code>black</code> أو <code>white</code> أو <code>default</code> (ثيم الطرفية الخاص بك) أو أي لون HEX مثل <code>#1e1e2e</code> عبر <code>TERMINAL_COLOR=</code> في الإعدادات. يُختار لون النص تلقائياً لسهولة القراءة.</li>
 <li><strong>BiDi wrapper</strong> بيصلّح أخطاء عرض العبري/العربي/الفارسي بالـ TUI تبع Claude Code (شوف <a href="#bidi-wrapper">BiDi Wrapper</a> تحت لسبع تصليحات محددة).</li>
 <li><strong>بيثبّت كل شي تلقائياً</strong> - WSL2 + Ubuntu + Konsole + Node.js + Claude Code، على جهاز Windows نظيف. المثبّت بيسأل مرة وحدة وبيدبّر الباقي.</li>
 </ul>
@@ -165,7 +165,7 @@ cd kivun-terminal-wsl
 </tbody>
 </table>
 
-عطّله عبر `TERMINAL_COLOR=default` بإعداداتك للرجوع لإعدادات الواجهة الطرفية الافتراضية.
+غيّر اللون عبر `TERMINAL_COLOR=` بإعداداتك: ثيم بالاسم (`kivun` / `dark` / `black` / `white`)، أو `default` للإبقاء على ثيم الطرفية الخاص بك، أو لون HEX مثل `#1e1e2e`. يُختار لون النص تلقائياً لسهولة القراءة. يسري التغيير عند الإطلاق التالي (أغلق كل نوافذ Kivun المفتوحة أولاً).
 
 ## BiDi Wrapper <a id="bidi-wrapper"></a>
 

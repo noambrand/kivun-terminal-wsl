@@ -89,7 +89,7 @@
 - **Folder picker dialog** on the desktop shortcut (screenshot above) - browse the folder tree **or** type/paste a Windows path, plus inline radio-button model selection (Opus / Sonnet / Haiku), one-click flag chips (Respond in Hebrew, High effort, Auto-accept file edits, Read-only, etc.), and a textarea for startup slash commands like `/voicemode:converse`.
 - **Right-click "Open with Kivun Terminal"** on any folder in File Explorer - launches straight into that folder, skipping the picker.
 - **Live two-line statusline** at the bottom of every Claude Code session - model, context %, total tokens, session duration, and 5-hour / 7-day usage with countdown to reset.
-- **Light-blue Kivun theme** for Konsole (`#C8E6FF` background) - easy on the eyes, on by default. Disable via `TERMINAL_COLOR=default`.
+- **Choose your terminal background color** for Konsole. Light-blue Kivun (`#C8E6FF`) on by default; switch to `dark`, `black`, `white`, `default` (your emulator's own theme), or any custom hex like `#1e1e2e` via `TERMINAL_COLOR=` in the config. Text color is picked automatically for readability.
 - **BiDi wrapper** that fixes Hebrew/Arabic/Persian rendering bugs in Claude Code's TUI (see [BiDi Wrapper](#bidi-wrapper) below for the seven specific fixes).
 - **Auto-installs everything** - WSL2 + Ubuntu + Konsole + Node.js + Claude Code itself, on a clean Windows machine. The installer asks once and handles the rest.
 
@@ -249,7 +249,10 @@ A custom **light-blue Kivun color scheme** (`#C8E6FF` background, dark text, blu
 | Windows (WSL+Konsole) | `KivunTerminal.profile` + `ColorSchemeNoam.colorscheme` | `~/.local/share/konsole/` (WSL) |
 | Linux (Konsole) | Same profile + color scheme | `~/.local/share/konsole/` |
 
-Disable via `TERMINAL_COLOR=default` in your config to fall back to the terminal emulator's defaults.
+Change it in your config via `TERMINAL_COLOR=`: a named theme (`kivun`, `dark`, `black`, `white`),
+`default` to keep the terminal emulator's own theme, or any custom hex color such as
+`TERMINAL_COLOR=#1e1e2e`. The text color is chosen automatically for readability. A change
+applies on the next launch (close all open Kivun windows first).
 
 ## Terminal Font (Hebrew-friendly)
 
@@ -555,7 +558,7 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 | Windows (WSL+Konsole) | `KivunTerminal.profile` + `ColorSchemeNoam.colorscheme` | `~/.local/share/konsole/` (בתוך WSL) |
 | Linux (Konsole) | אותו פרופיל וערכת צבעים | `~/.local/share/konsole/` |
 
-לחזור לברירת המחדל של הטרמינל: להגדיר `TERMINAL_COLOR=default` בקובץ ה-config.
+לשנות את צבע הרקע: `TERMINAL_COLOR=` בקובץ ה-config — ערכה בשם `kivun`, `dark`, `black`, `white`, או `default` כדי להשאיר את ערכת הטרמינל שלכם, או צבע HEX משלכם כמו `#1e1e2e`. צבע הטקסט נבחר אוטומטית לקריאות טובה. שינוי נכנס לתוקף בהפעלה הבאה (סגרו קודם את כל חלונות כיוון).
 
 ### 🔤 פונט הטרמינל (ידידותי לעברית)
 

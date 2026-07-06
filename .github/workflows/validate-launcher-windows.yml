@@ -338,12 +338,48 @@ jobs:
           # ---- kivun-direct.sh (Konsole-failed fallback path) ----
           grep -q 'RESUMING' "$DIRECT" \
             || (echo "FAIL: $DIRECT lost resume detection"; exit 1)
-          grep -q 'FRESH_FLAGS' "$DIRECT" \
-            || (echo "FAIL: $DIRECT lost the fresh-retry (FRESH_FLAGS) — dead terminal on no-conversation"; exit 1)
-          # Must NOT exec the first (resume) attempt, or it could never fall back.
-          awk '/RESUMING" = "1"/{b=1} b{print} b&&/^fi/{exit}' "$DIRECT" | grep -q 'exec .*FRESH_FLAGS' \
-            || (echo "FAIL: $DIRECT does not exec a fresh session after a failed resume"; exit 1)
+          grep -q 'run_claude_direct' "$DIRECT" \
+            || (echo "FAIL: $DIRECT lost run_claude_direct — the resume/return runner"; exit 1)
+          # The fresh-retry: inside the resume block, strip the resume flags and re-run.
+          # v1.6.0 reuses EXTRA_FLAGS + run_claude_direct instead of exec-ing FRESH_FLAGS,
+          # because the window now drops to a shell afterwards instead of closing.
+          awk '/RESUMING" = "1"/{b=1} b{print} b&&/^fi/{exit}' "$DIRECT" | grep -qE 'sed -E .*--continue' \
+            || (echo "FAIL: $DIRECT no longer strips resume flags for the fresh retry"; exit 1)
           echo "PASS: kivun-direct.sh reopens fresh after a failed resume instead of dying"
+
+      - name: Verify v1.6.0 TERMINAL_COLOR + exit-to-shell invariants (launch + direct)
+        run: |
+          set -eu
+          LAUNCH=payload/kivun-launch.sh
+          DIRECT=payload/kivun-direct.sh
+          CFG=payload/config.txt
+          # --- Color: config key + resolver + parameterized heredocs ---
+          # config.txt documents/ships the new key so the picker/installer preserve it.
+          grep -qE '^TERMINAL_COLOR=' "$CFG" \
+            || (echo "FAIL: $CFG missing the TERMINAL_COLOR default"; exit 1)
+          grep -q 'kivun_resolve_color' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH lost kivun_resolve_color — TERMINAL_COLOR no longer honored"; exit 1)
+          # The profile heredoc must reference the VARIABLE, so TERMINAL_COLOR=default can
+          # omit ColorScheme= (a hardcoded ColorScheme=ColorSchemeNoam there = the bug).
+          grep -qE '^\$KIVUN_SCHEME_LINE$' "$LAUNCH" \
+            || (echo "FAIL: profile heredoc no longer uses \$KIVUN_SCHEME_LINE — default can't drop the scheme"; exit 1)
+          # The colorscheme heredoc must be parameterized (no hardcoded light-blue bg).
+          grep -q 'Color=\$KIVUN_BG_RGB' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH colorscheme background not parameterized to \$KIVUN_BG_RGB"; exit 1)
+          grep -q 'Color=\$KIVUN_FG_RGB' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH colorscheme foreground not parameterized to \$KIVUN_FG_RGB"; exit 1)
+          # --- Exit-to-shell: both runners drop to an interactive rcfile shell (no bare read) ---
+          grep -q 'exec bash --rcfile "\$RC_TMP" -i' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH no longer drops to an interactive shell after Claude exits"; exit 1)
+          # The rcfile claude() must use 'command' so re-invoking claude can't recurse into
+          # the function when CLAUDE_EXEC is the bare name "claude".
+          grep -q 'command \$CLAUDE_EXEC --settings' "$LAUNCH" \
+            || (echo "FAIL: $LAUNCH rcfile claude() must use 'command' to avoid self-recursion"; exit 1)
+          grep -q 'exec bash --rcfile "\$RC_TMP" -i' "$DIRECT" \
+            || (echo "FAIL: $DIRECT no longer drops to an interactive shell after Claude exits"; exit 1)
+          grep -q 'command "\$CLAUDE_BIN"' "$DIRECT" \
+            || (echo "FAIL: $DIRECT rcfile claude() must use 'command' to avoid self-recursion"; exit 1)
+          echo "PASS: v1.6.0 TERMINAL_COLOR themes + exit-to-shell invariants intact"
 
       - name: Verify v1.5.7 installer no-stall + reboot-detect invariants (NSI)
         run: |

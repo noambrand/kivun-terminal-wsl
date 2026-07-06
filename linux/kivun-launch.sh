@@ -173,8 +173,38 @@ else
     BIDI_LINE_LTR="true"
 fi
 
-USE_KIVUN_COLORS="ColorScheme=ColorSchemeNoam"
-if [ "$TERMINAL_COLOR" != "kivun" ]; then
+# Resolve TERMINAL_COLOR into a background/foreground (same spec as the WSL
+# edition): named themes (kivun/dark/black/white), "default" (Konsole's own
+# look, no custom scheme), or a custom #RRGGBB / #RGB. Text color auto-picked.
+kivun_resolve_color() {
+    local v hexbody r g b lum
+    v=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+    case "$v" in
+        ''|default) KIVUN_USE_SCHEME=0; return ;;
+        kivun) KIVUN_BG_RGB="200,230,255"; KIVUN_FG_RGB="12,12,12";   KIVUN_USE_SCHEME=1; return ;;
+        dark)  KIVUN_BG_RGB="30,30,30";   KIVUN_FG_RGB="242,242,242"; KIVUN_USE_SCHEME=1; return ;;
+        black) KIVUN_BG_RGB="12,12,12";   KIVUN_FG_RGB="242,242,242"; KIVUN_USE_SCHEME=1; return ;;
+        white) KIVUN_BG_RGB="255,255,255"; KIVUN_FG_RGB="12,12,12";   KIVUN_USE_SCHEME=1; return ;;
+    esac
+    if [[ "$v" =~ ^#([0-9a-f]{6}|[0-9a-f]{3})$ ]]; then
+        hexbody="${v#\#}"
+        if [ ${#hexbody} -eq 3 ]; then
+            hexbody="${hexbody:0:1}${hexbody:0:1}${hexbody:1:1}${hexbody:1:1}${hexbody:2:1}${hexbody:2:1}"
+        fi
+        r=$((16#${hexbody:0:2})); g=$((16#${hexbody:2:2})); b=$((16#${hexbody:4:2}))
+        lum=$(( (299 * r + 587 * g + 114 * b) / 1000 ))
+        KIVUN_BG_RGB="$r,$g,$b"
+        if [ "$lum" -ge 128 ]; then KIVUN_FG_RGB="12,12,12"; else KIVUN_FG_RGB="242,242,242"; fi
+        KIVUN_USE_SCHEME=1
+        return
+    fi
+    log "WARNING - Unrecognized TERMINAL_COLOR '$1'; keeping Konsole default theme"
+    KIVUN_USE_SCHEME=0
+}
+kivun_resolve_color "$TERMINAL_COLOR"
+if [ "$KIVUN_USE_SCHEME" = "1" ]; then
+    USE_KIVUN_COLORS="ColorScheme=ColorSchemeNoam"
+else
     USE_KIVUN_COLORS="# ColorScheme not set — using Konsole default"
 fi
 
@@ -212,6 +242,119 @@ BidiEnabled=$BIDI_ENABLED
 BidiLineLTR=$BIDI_LINE_LTR
 PROF
 log "Konsole profile refreshed (BiDi=$BIDI_ENABLED)"
+
+# Regenerate the color scheme from the resolved TERMINAL_COLOR so named themes
+# and custom hex actually change the colors (install.sh lays down a kivun default;
+# this overwrites it per config on every launch). Skipped for default, where the
+# profile above omits ColorScheme= and Konsole shows its own look.
+if [ "$KIVUN_USE_SCHEME" = "1" ]; then
+cat > "$KONSOLE_DIR/ColorSchemeNoam.colorscheme" <<CS
+[Background]
+Color=$KIVUN_BG_RGB
+
+[BackgroundFaint]
+Color=$KIVUN_BG_RGB
+
+[BackgroundIntense]
+Color=$KIVUN_BG_RGB
+
+[Color0]
+Color=12,12,12
+
+[Color0Faint]
+Color=12,12,12
+
+[Color0Intense]
+Color=0,0,0
+
+[Color1]
+Color=197,15,31
+
+[Color1Faint]
+Color=197,15,31
+
+[Color1Intense]
+Color=255,19,40
+
+[Color2]
+Color=19,161,14
+
+[Color2Faint]
+Color=19,161,14
+
+[Color2Intense]
+Color=15,128,11
+
+[Color3]
+Color=193,156,0
+
+[Color3Faint]
+Color=193,156,0
+
+[Color3Intense]
+Color=171,138,0
+
+[Color4]
+Color=0,0,160
+
+[Color4Faint]
+Color=0,0,160
+
+[Color4Intense]
+Color=0,0,120
+
+[Color5]
+Color=136,23,152
+
+[Color5Faint]
+Color=136,23,152
+
+[Color5Intense]
+Color=105,18,117
+
+[Color6]
+Color=0,90,160
+
+[Color6Faint]
+Color=0,90,160
+
+[Color6Intense]
+Color=0,60,140
+
+[Color7]
+Color=204,204,204
+
+[Color7Faint]
+Color=204,204,204
+
+[Color7Intense]
+Color=94,94,94
+
+[Foreground]
+Color=$KIVUN_FG_RGB
+
+[ForegroundFaint]
+Color=$KIVUN_FG_RGB
+
+[ForegroundIntense]
+Color=$KIVUN_FG_RGB
+
+[General]
+Anchor=0.5,0.5
+Blur=false
+ColorRandomization=false
+Description=Color Scheme Noam
+FillStyle=Tile
+Opacity=1
+Wallpaper=
+WallpaperFlipType=NoFlip
+WallpaperOpacity=1
+
+[Selection]
+Color=50,255,241
+CS
+log "Konsole color scheme refreshed (bg=$KIVUN_BG_RGB fg=$KIVUN_FG_RGB)"
+fi
 
 # --- Keyboard layout toggle (X11 only — setxkbmap doesn't work on Wayland) ---
 # NOTE: this is the NATIVE-Linux launcher. The "match ALL Windows input languages"

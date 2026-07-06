@@ -3,6 +3,30 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.0] - 2026-07-06
+
+### Added — choose your terminal background color
+
+`TERMINAL_COLOR` in `config.txt` now controls the Kivun window's background:
+
+- Named themes: `kivun` (the light blue), `dark`, `black`, `white`, and `default`
+  (keep Konsole's own default look, don't apply a custom scheme).
+- Any custom color as a hex code, e.g. `TERMINAL_COLOR=#1e1e2e`.
+- The **text color is chosen automatically** by luminance — dark text on a light
+  background, light text on a dark one — so every color stays readable.
+
+The color is written into the Konsole color scheme the launcher generates. A change
+takes effect on the next launch; close all open Kivun windows first so Konsole
+picks up the new scheme.
+
+### Added — type `exit` to run commands, then `claude` to come back
+
+When Claude ends, the Kivun window no longer closes. It drops to an interactive
+shell (bilingual hint), so you can run an update, a `git` command, anything — then
+type **`claude`** to return to Claude with the SAME BiDi wrapper, settings and
+language, or **`exit`** to close the window. Applies to both the Konsole launcher
+and the direct fallback.
+
 ## [1.5.18] - 2026-06-30
 
 ### Fixed — Alt+Shift now switches on the FIRST press (no startup dead zone)

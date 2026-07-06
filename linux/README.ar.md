@@ -55,7 +55,7 @@ chmod +x linux/install.sh
 |---|---|---|---|
 | `RESPONSE_LANGUAGE` | ٢٣ قيمة (شوف تحت) | `english` | بنضاف كـ `--append-system-prompt "Always respond in …"` |
 | `TEXT_DIRECTION` | `rtl` / `ltr` | `rtl` | بحوّل `BidiEnabled` بـ Konsole |
-| `TERMINAL_COLOR` | `kivun` / `default` | `kivun` | بروفايل أزرق فاتح vs افتراضيات Konsole |
+| `TERMINAL_COLOR` | `kivun` / `dark` / `black` / `white` / `default` / `#RRGGBB` | `kivun` | لون الخلفية؛ لون النص يُختار تلقائياً. `default` يُبقي ثيم Konsole الخاص بك |
 | `KEYBOARD_TOGGLE` | `true` / `false` | `true` | بظبّط Alt+Shift US ↔ ليّاوت السكربت الأساسي عبر setxkbmap (X11 بس) |
 | `FOLDER_PICKER` | `true` / `false` | `false` | بيطلّع zenity/kdialog لاختيار مجلّد قبل التشغيل |
 | `CLAUDE_FLAGS` | - | فاضي | فلاغات إضافية بتنبعت لكل تشغيل لـ `claude` (مثلاً `--continue`) |

@@ -445,6 +445,54 @@ apply_kivun_keyboard
 log "SUCCESS - Keyboard layout configured (WSLg mode)"
 echo "Keyboard: Alt+Shift switches layouts (opens in your current language)"
 
+# Terminal background color (v1.6.0). Read TERMINAL_COLOR from config.txt the
+# same way KIVUN_TABBED etc. are read. Accepts named themes (kivun/dark/black/
+# white), "default" (keep Konsole's own look), or a custom #RRGGBB / #RGB hex.
+# The text color is chosen automatically by luminance (dark text on a light
+# background, light on a dark one). "default"/unrecognized -> no custom scheme.
+TERMINAL_COLOR="kivun"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*TERMINAL_COLOR[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*TERMINAL_COLOR[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && TERMINAL_COLOR="$val"
+fi
+
+kivun_resolve_color() {
+    # Sets KIVUN_USE_SCHEME (0/1) and, when 1, KIVUN_BG_RGB / KIVUN_FG_RGB as
+    # "R,G,B" decimal triples (the format Konsole .colorscheme files use).
+    local v hexbody r g b lum
+    v=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+    case "$v" in
+        ''|default) KIVUN_USE_SCHEME=0; return ;;
+        kivun) KIVUN_BG_RGB="200,230,255"; KIVUN_FG_RGB="12,12,12";   KIVUN_USE_SCHEME=1; return ;;
+        dark)  KIVUN_BG_RGB="30,30,30";   KIVUN_FG_RGB="242,242,242"; KIVUN_USE_SCHEME=1; return ;;
+        black) KIVUN_BG_RGB="12,12,12";   KIVUN_FG_RGB="242,242,242"; KIVUN_USE_SCHEME=1; return ;;
+        white) KIVUN_BG_RGB="255,255,255"; KIVUN_FG_RGB="12,12,12";   KIVUN_USE_SCHEME=1; return ;;
+    esac
+    if [[ "$v" =~ ^#([0-9a-f]{6}|[0-9a-f]{3})$ ]]; then
+        hexbody="${v#\#}"
+        if [ ${#hexbody} -eq 3 ]; then
+            hexbody="${hexbody:0:1}${hexbody:0:1}${hexbody:1:1}${hexbody:1:1}${hexbody:2:1}${hexbody:2:1}"
+        fi
+        r=$((16#${hexbody:0:2})); g=$((16#${hexbody:2:2})); b=$((16#${hexbody:4:2}))
+        lum=$(( (299 * r + 587 * g + 114 * b) / 1000 ))
+        KIVUN_BG_RGB="$r,$g,$b"
+        if [ "$lum" -ge 128 ]; then KIVUN_FG_RGB="12,12,12"; else KIVUN_FG_RGB="242,242,242"; fi
+        KIVUN_USE_SCHEME=1
+        return
+    fi
+    log "WARNING - Unrecognized TERMINAL_COLOR '$1'; keeping Konsole default theme"
+    KIVUN_USE_SCHEME=0
+}
+kivun_resolve_color "$TERMINAL_COLOR"
+if [ "$KIVUN_USE_SCHEME" = "1" ]; then
+    KIVUN_SCHEME_LINE="ColorScheme=ColorSchemeNoam"
+    log "INFO - TERMINAL_COLOR=$TERMINAL_COLOR -> bg $KIVUN_BG_RGB / fg $KIVUN_FG_RGB"
+else
+    KIVUN_SCHEME_LINE="# ColorScheme unset (TERMINAL_COLOR=default) - Konsole default look"
+    log "INFO - TERMINAL_COLOR=$TERMINAL_COLOR -> Konsole default theme (no custom scheme)"
+fi
+
 log "INFO - Deploying Konsole profile and color scheme"
 mkdir -p ~/.local/share/konsole
 
@@ -467,7 +515,7 @@ else
 fi
 cat > ~/.local/share/konsole/KivunTerminal.profile << PROFEOF
 [Appearance]
-ColorScheme=ColorSchemeNoam
+$KIVUN_SCHEME_LINE
 Font=$KIVUN_FONT,12,-1,5,50,0,0,0,0,0
 
 [Cursor Options]
@@ -494,15 +542,19 @@ BidiEnabled=$BIDI_ENABLED
 BidiLineLTR=$BIDI_LINE_LTR
 PROFEOF
 
-cat > ~/.local/share/konsole/ColorSchemeNoam.colorscheme << 'CSEOF'
+# Only write the custom scheme when a color is in use. For TERMINAL_COLOR=default
+# the profile above omits ColorScheme=, so Konsole shows its own default look and
+# a stale scheme file (if any) is simply never referenced.
+if [ "$KIVUN_USE_SCHEME" = "1" ]; then
+cat > ~/.local/share/konsole/ColorSchemeNoam.colorscheme << CSEOF
 [Background]
-Color=200,230,255
+Color=$KIVUN_BG_RGB
 
 [BackgroundFaint]
-Color=200,230,255
+Color=$KIVUN_BG_RGB
 
 [BackgroundIntense]
-Color=200,230,255
+Color=$KIVUN_BG_RGB
 
 [Color0]
 Color=12,12,12
@@ -577,13 +629,13 @@ Color=204,204,204
 Color=94,94,94
 
 [Foreground]
-Color=12,12,12
+Color=$KIVUN_FG_RGB
 
 [ForegroundFaint]
-Color=12,12,12
+Color=$KIVUN_FG_RGB
 
 [ForegroundIntense]
-Color=12,12,12
+Color=$KIVUN_FG_RGB
 
 [General]
 Anchor=0.5,0.5
@@ -599,6 +651,7 @@ WallpaperOpacity=1
 [Selection]
 Color=50,255,241
 CSEOF
+fi
 
 log "SUCCESS - Profile and color scheme deployed"
 
@@ -857,6 +910,9 @@ log "INFO - Creating temporary launch script"
 # Per-user path so a stale file left by a different UID (e.g. from an
 # earlier run as 'username' or root) can't block us with EPERM.
 LAUNCH_TMP="/tmp/kivun-claude-launch-$(id -u).sh"
+# Companion rcfile for the interactive shell the user lands in after Claude
+# exits (so the window stays open and `claude` brings them back).
+RC_TMP="/tmp/kivun-claude-rc-$(id -u).sh"
 rm -f "$LAUNCH_TMP" 2>/dev/null
 cat > "$LAUNCH_TMP" << LAUNCHEOF
 #!/bin/bash -l
@@ -935,12 +991,40 @@ fi
 echo ""
 echo "==============================================="
 echo " Claude exited with code \$EXIT_CODE"
+echo " Type 'claude' to return to Claude, or 'exit' to close."
+echo " הקלידו claude כדי לחזור, או exit כדי לסגור"
 echo "==============================================="
-echo "Press Enter to close."
-read
+# Drop to an interactive shell instead of closing the window, so the user can
+# run commands (updates, git, etc.) and type 'claude' to come back. The rcfile
+# defines a claude() that re-runs the SAME wrapped invocation (BiDi wrapper +
+# --settings redirect + language prompt + flags).
+exec bash --rcfile "$RC_TMP" -i
 LAUNCHEOF
 chmod +x "$LAUNCH_TMP"
 log "SUCCESS - Launch script created: $LAUNCH_TMP (CLAUDE_PROMPT length: ${#CLAUDE_PROMPT})"
+
+# Companion rcfile sourced by that interactive shell. Unquoted heredoc: bake in
+# $CLAUDE_EXEC / $CLAUDE_PROMPT / $CLAUDE_FLAGS now (same escaping as run_claude
+# above); \$KT_SETTINGS and \$@ resolve at runtime in the child shell. `command`
+# calls the real binary so the claude() function can't recurse into itself when
+# CLAUDE_EXEC is the bare name "claude".
+rm -f "$RC_TMP" 2>/dev/null
+cat > "$RC_TMP" << RCEOF
+[ -f "\$HOME/.bashrc" ] && . "\$HOME/.bashrc"
+KT_SETTINGS="\$HOME/.local/share/kivun-terminal/settings.json"
+claude() {
+    if [ -n "$CLAUDE_PROMPT" ]; then
+        command $CLAUDE_EXEC --settings "\$KT_SETTINGS" --append-system-prompt "$CLAUDE_PROMPT" $CLAUDE_FLAGS "\$@"
+    else
+        command $CLAUDE_EXEC --settings "\$KT_SETTINGS" $CLAUDE_FLAGS "\$@"
+    fi
+    echo ""
+    echo " Type 'claude' to return, or 'exit' to close this window."
+    echo " הקלידו claude כדי לחזור, או exit כדי לסגור"
+}
+RCEOF
+chmod +x "$RC_TMP" 2>/dev/null
+log "SUCCESS - RC script created: $RC_TMP"
 
 # v1.1.17: WSLg picks the Windows-side taskbar icon by matching a
 # launched window's WM_CLASS (or Wayland app_id) against installed

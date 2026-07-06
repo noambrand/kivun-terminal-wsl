@@ -66,12 +66,22 @@ else
     exit 127
 fi
 
+# Bake the prompt into a named var: the interactive shell below (and its claude()
+# function) can't see the positional $2, and set -u would fault on a bare $2 there.
+PROMPT="$2"
+
+run_claude_direct() {
+    # `command` bypasses the claude() function defined for the post-exit shell
+    # below, so this always runs the real binary (no recursion).
+    command "$CLAUDE_BIN" --append-system-prompt "$PROMPT" $EXTRA_FLAGS "$@"
+}
+
 # Resume-flag safety net (v1.5.6): same logic as kivun-launch.sh. If the flags
 # ask to resume (--continue / -c / --resume / -r) but this folder has no prior
 # conversation, Claude exits immediately with "No conversation found to
 # continue". Detect that fast failure and reopen a FRESH session rather than
-# leaving the user with a closed terminal. We DON'T exec the first attempt so we
-# can fall back; the retry uses exec since there's nothing left to recover.
+# leaving the user with a closed terminal. Neither attempt uses exec any more, so
+# after Claude ends we can drop to an interactive shell instead of closing.
 case " $EXTRA_FLAGS " in
     *" --continue "*|*" -c "*|*" --resume "*|*" -r "*) RESUMING=1 ;;
     *) RESUMING=0 ;;
@@ -79,17 +89,38 @@ esac
 
 if [ "$RESUMING" = "1" ]; then
     START=$(date +%s 2>/dev/null || echo 0)
-    "$CLAUDE_BIN" --append-system-prompt "$2" $EXTRA_FLAGS
+    run_claude_direct
     RC=$?
     END=$(date +%s 2>/dev/null || echo 0)
     if [ "$RC" -ne 0 ] && [ $(( END - START )) -lt 10 ]; then
-        FRESH_FLAGS=$(echo " $EXTRA_FLAGS " | sed -E 's/ (--continue|--resume|-c|-r)( [^ -][^ ]*)?/ /g; s/  */ /g; s/^ //; s/ $//')
+        EXTRA_FLAGS=$(echo " $EXTRA_FLAGS " | sed -E 's/ (--continue|--resume|-c|-r)( [^ -][^ ]*)?/ /g; s/  */ /g; s/^ //; s/ $//')
         echo ""
         echo " No previous conversation found in this folder — starting fresh..."
         echo ""
-        exec "$CLAUDE_BIN" --append-system-prompt "$2" $FRESH_FLAGS
+        run_claude_direct
     fi
-    exit "$RC"
+else
+    run_claude_direct
 fi
 
-exec "$CLAUDE_BIN" --append-system-prompt "$2" $EXTRA_FLAGS
+# Instead of exec-ing claude (which closed the window the moment Claude exited),
+# drop to an interactive shell so the user can run commands and type 'claude' to
+# come back. The rcfile's claude() re-runs the same invocation (with the resume
+# flags already stripped above if the first attempt found no history).
+echo ""
+echo "==============================================="
+echo " Type 'claude' to return to Claude, or 'exit' to close."
+echo " הקלידו claude כדי לחזור, או exit כדי לסגור"
+echo "==============================================="
+RC_TMP="/tmp/kivun-direct-rc-$(id -u).sh"
+rm -f "$RC_TMP" 2>/dev/null
+cat > "$RC_TMP" << RCEOF
+[ -f "\$HOME/.bashrc" ] && . "\$HOME/.bashrc"
+claude() {
+    command "$CLAUDE_BIN" --append-system-prompt "$PROMPT" $EXTRA_FLAGS "\$@"
+    echo ""
+    echo " Type 'claude' to return, or 'exit' to close this window."
+    echo " הקלידו claude כדי לחזור, או exit כדי לסגור"
+}
+RCEOF
+exec bash --rcfile "$RC_TMP" -i
