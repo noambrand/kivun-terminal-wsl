@@ -89,7 +89,7 @@
 - **Folder picker dialog** on the desktop shortcut (screenshot above) - browse the folder tree **or** type/paste a Windows path, plus inline radio-button model selection (Opus / Sonnet / Haiku), one-click flag chips (Respond in Hebrew, High effort, Auto-accept file edits, Read-only, etc.), and a textarea for startup slash commands like `/voicemode:converse`.
 - **Right-click "Open with Kivun Terminal"** on any folder in File Explorer - launches straight into that folder, skipping the picker.
 - **Live two-line statusline** at the bottom of every Claude Code session - model, context %, total tokens, session duration, and 5-hour / 7-day usage with countdown to reset.
-- **Choose your terminal background color** for Konsole, right in the folder picker's **Advanced options** (or via `TERMINAL_COLOR=` in the config). Light-blue Kivun (`#C8E6FF`) on by default; switch to `dark`, `black`, `white`, `default` (your emulator's own theme), or any custom hex like `#1e1e2e`. Text color is picked automatically for readability; it applies on the next launch.
+- **Choose your terminal background color** for Konsole, right in the folder picker's **Advanced options** (or via `TERMINAL_COLOR=` in the config). Light-blue Kivun (`#C8E6FF`) on by default; switch to `dark`, `black`, `white`, `default` (your emulator's own theme), or any custom hex like `#1e1e2e`. Text color is picked automatically for readability. **Apply now** shows a color change in a new tab (Ctrl+Shift+T) right away; otherwise it applies on your next launch.
 - **Cap WSL's memory** from the folder picker's **Advanced options** — WSL2 runs a small Linux VM that can hold a lot of RAM. Set a limit (saved to your `.wslconfig`); it takes effect after WSL next restarts.
 - **BiDi wrapper** that fixes Hebrew/Arabic/Persian rendering bugs in Claude Code's TUI (see [BiDi Wrapper](#bidi-wrapper) below for the seven specific fixes).
 - **Auto-installs everything** - WSL2 + Ubuntu + Konsole + Node.js + Claude Code itself, on a clean Windows machine. The installer asks once and handles the rest.
@@ -253,7 +253,9 @@ A custom **light-blue Kivun color scheme** (`#C8E6FF` background, dark text, blu
 Change it in the folder picker's **Advanced options**, or via `TERMINAL_COLOR=` in your config:
 a named theme (`kivun`, `dark`, `black`, `white`), `default` to keep the terminal emulator's own
 theme, or any custom hex color such as `TERMINAL_COLOR=#1e1e2e`. The text color is chosen
-automatically for readability. A change applies on the next launch (close all open Kivun windows first).
+automatically for readability. **Apply now** regenerates the Konsole scheme so a new tab (Ctrl+Shift+T)
+shows the color right away; the already-open window keeps its color until you relaunch (close all open
+Kivun windows first).
 
 ## Terminal Font (Hebrew-friendly)
 
@@ -559,7 +561,7 @@ The surfaces (generic browser DOM, Claude.ai web UI, VS Code / IDE webview, Micr
 | Windows (WSL+Konsole) | `KivunTerminal.profile` + `ColorSchemeNoam.colorscheme` | `~/.local/share/konsole/` (בתוך WSL) |
 | Linux (Konsole) | אותו פרופיל וערכת צבעים | `~/.local/share/konsole/` |
 
-לשנות את צבע הרקע: בחלון בחירת התיקייה תחת **אפשרויות מתקדמות**, או `TERMINAL_COLOR=` בקובץ ה-config — ערכה בשם `kivun`, `dark`, `black`, `white`, או `default` כדי להשאיר את ערכת הטרמינל שלכם, או צבע HEX משלכם כמו `#1e1e2e`. צבע הטקסט נבחר אוטומטית לקריאות טובה. שינוי נכנס לתוקף בהפעלה הבאה (סגרו קודם את כל חלונות כיוון). באותו מקום אפשר גם להגביל את הזיכרון ש-WSL תופס (נשמר ב-`.wslconfig`, נכנס לתוקף אחרי הפעלה-מחדש של WSL).
+לשנות את צבע הרקע: בחלון בחירת התיקייה תחת **אפשרויות מתקדמות**, או `TERMINAL_COLOR=` בקובץ ה-config — ערכה בשם `kivun`, `dark`, `black`, `white`, או `default` כדי להשאיר את ערכת הטרמינל שלכם, או צבע HEX משלכם כמו `#1e1e2e`. צבע הטקסט נבחר אוטומטית לקריאות טובה. כפתור **Apply now** מרענן את ערכת הצבעים כך שטאב חדש (Ctrl+Shift+T) מציג את הצבע מיד; החלון הפתוח שומר על צבעו עד הפעלה מחדש (סגרו קודם את כל חלונות כיוון). באותו מקום אפשר גם להגביל את הזיכרון ש-WSL תופס (נשמר ב-`.wslconfig`, נכנס לתוקף אחרי הפעלה-מחדש של WSL).
 
 ### 🔤 פונט הטרמינל (ידידותי לעברית)
 

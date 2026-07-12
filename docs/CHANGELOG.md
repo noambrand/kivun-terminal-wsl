@@ -3,6 +3,25 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.2] - 2026-07-12
+
+### Improved — "Apply now" for terminal color, without a full relaunch
+
+Changing the terminal color in the picker's **Advanced options** used to take
+effect only on your next launch. Now the **Apply now** button regenerates
+Konsole's color scheme immediately, so a **new tab** (Ctrl+Shift+T) shows the new
+color right away — without relaunching Kivun and losing your running Claude
+session. The already-open window keeps its color (Konsole can't repaint a live
+session from a file edit), so the honest promise is "open a new tab to see it".
+
+Under the hood a small helper pair (`kivun-apply-color.cmd` + `kivun-apply-color.sh`)
+detects your real WSL distro and the WSLg user the same way the launcher does, so
+the regenerated Konsole files land in the home you actually see. It's best-effort:
+if WSL is unreachable the button still saves your choice and the next launch
+applies it, exactly as before. (Recoloring the *already-open* window live would
+need Konsole D-Bus, which is unreliable under WSLg; it stays on the roadmap until
+it can be tested on a real machine.)
+
 ## [1.6.1] - 2026-07-06
 
 ### Fixed — the window no longer flakes on a cold start

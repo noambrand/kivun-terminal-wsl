@@ -12,7 +12,7 @@ Unicode True
 ; used only for local/manual makensis builds that don't pass the flag — keep it
 ; current with VERSION (tools/bump-version.sh updates it).
 !ifndef PRODUCT_VERSION
-  !define PRODUCT_VERSION "1.6.1"
+  !define PRODUCT_VERSION "1.6.2"
 !endif
 !define PRODUCT_PUBLISHER "Noam Brand"
 !define PRODUCT_WEB_SITE "https://github.com/noambrand/kivun-terminal-wsl"
@@ -201,6 +201,12 @@ Section "Core Files" SEC_CORE
   ; WSL distro picker (v1.5.8): prints the Ubuntu distro to use so we reuse an
   ; existing "Ubuntu-24.04"/"Ubuntu-22.04" instead of creating a duplicate.
   File "..\payload\kivun-detect-distro.cmd"
+  ; Terminal-color "Apply now" (v1.6.2): the folder picker runs this pair to
+  ; regenerate the Konsole scheme in WSL so a NEW tab shows a color change
+  ; without a full relaunch. The .cmd detects the distro + WSLg user (same as
+  ; the launcher) and CR-strips + runs the .sh. See payload/kivun-apply-color.*.
+  File "..\payload\kivun-apply-color.cmd"
+  File "..\payload\kivun-apply-color.sh"
   ; One-click WSLg reset (v1.5.11): for the rare case the "blank window" wedge
   ; recurs after install, so the user never has to type `wsl --shutdown`.
   File "..\payload\kivun-fix-display.cmd"
@@ -792,6 +798,8 @@ Section "Uninstall"
   Delete "$INSTDIR\folder-picker.hta"
   Delete "$INSTDIR\kivun-diagnostics.cmd"
   Delete "$INSTDIR\kivun-detect-distro.cmd"
+  Delete "$INSTDIR\kivun-apply-color.cmd"
+  Delete "$INSTDIR\kivun-apply-color.sh"
   Delete "$INSTDIR\kivun-fix-display.cmd"
   Delete "$INSTDIR\kivun-ensure-user.sh"
   Delete "$INSTDIR\kivun-terminal.bat"

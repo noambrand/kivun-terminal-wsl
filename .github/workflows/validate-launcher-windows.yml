@@ -410,6 +410,43 @@ jobs:
             || (echo "FAIL: $HTA lost the WSL memory-cap input"; exit 1)
           echo "PASS: v1.6.1 cold-start flake fix + picker color/WSL-memory controls intact"
 
+      - name: Verify v1.6.2 terminal-color "Apply now" (live regen) invariants
+        run: |
+          set -eu
+          APPLY=payload/kivun-apply-color.sh
+          CMD=payload/kivun-apply-color.cmd
+          HTA=payload/folder-picker.hta
+          LAUNCH=payload/kivun-launch.sh
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          # The picker's "Apply now" regenerates the Konsole scheme in WSL so a NEW
+          # tab shows the color without a full relaunch. Both halves must ship, the
+          # HTA must actually invoke the .cmd, and the .cmd must detect the real
+          # distro + WSLg user and CR-strip the .sh (a picker run is NOT covered by
+          # the launch-time strip). If any link breaks, "Apply now" silently no-ops.
+          test -f "$APPLY" || (echo "FAIL: missing $APPLY"; exit 1)
+          test -f "$CMD"   || (echo "FAIL: missing $CMD"; exit 1)
+          grep -q 'kivun_resolve_color' "$APPLY" \
+            || (echo "FAIL: $APPLY lost the color resolver"; exit 1)
+          grep -q 'ColorSchemeNoam' "$APPLY" \
+            || (echo "FAIL: $APPLY no longer writes the Konsole scheme"; exit 1)
+          grep -q 'kivun-apply-color.cmd' "$HTA" \
+            || (echo "FAIL: $HTA applyTerminalColor no longer runs the live-apply .cmd"; exit 1)
+          grep -q 'kivun-detect-distro.cmd' "$CMD" \
+            || (echo "FAIL: $CMD hardcodes the distro instead of detecting it"; exit 1)
+          grep -q 'runtime-dir' "$CMD" \
+            || (echo "FAIL: $CMD lost WSLg-user detection (files would land in the wrong home)"; exit 1)
+          grep -q 'sed -i "s/' "$CMD" \
+            || (echo "FAIL: $CMD lost the CR-strip (a picker run isn't covered by the launch-time strip)"; exit 1)
+          grep -q 'kivun-apply-color.cmd' "$NSI" && grep -q 'kivun-apply-color.sh' "$NSI" \
+            || (echo "FAIL: $NSI does not ship the apply-color pair"; exit 1)
+          # Drift guard: apply.sh's named-theme resolver must stay identical to the
+          # launcher's, or the two paths could paint different colors for the same value.
+          A=$(grep -E '^[[:space:]]*(kivun|dark|black|white)\)' "$APPLY" | sed 's/\r$//; s/^[[:space:]]*//')
+          B=$(grep -E '^[[:space:]]*(kivun|dark|black|white)\)' "$LAUNCH" | sed 's/\r$//; s/^[[:space:]]*//')
+          [ -n "$A" ] && [ "$A" = "$B" ] \
+            || (echo "FAIL: apply-color resolver drifted from kivun-launch.sh"; printf '%s\n---\n%s\n' "$A" "$B"; exit 1)
+          echo "PASS: v1.6.2 terminal-color Apply-now live-regen invariants intact"
+
       - name: Verify v1.5.7 installer no-stall + reboot-detect invariants (NSI)
         run: |
           set -eu

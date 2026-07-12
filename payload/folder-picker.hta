@@ -595,7 +595,7 @@
   // installs that predate the file). The picker fetches the latest tag
   // from the GitHub API on launch and shows a banner if newer.
   var GITHUB_REPO = "noambrand/kivun-terminal-wsl";
-  var FALLBACK_VERSION = "1.6.1";
+  var FALLBACK_VERSION = "1.6.2";
   var ASSET_NAME_RE = /^Kivun_Terminal_Setup\.exe$/i;
   var resultFile = kivunDir + "\\kivun-workdir.txt";
   var startupFile = kivunDir + "\\kivun-startup-cmds.txt";
@@ -1454,10 +1454,13 @@
   }
 
   // ---- Terminal color (TERMINAL_COLOR in config.txt) -----------------
-  // Kivun renders inside Konsole, which only repaints on a NEW window/tab, so
-  // "Apply" saves the choice to config.txt and the next Kivun launch regenerates
-  // the Konsole color scheme from it. (A running window keeps its color; Konsole
-  // can't live-swap it.) config.txt is a Windows file, so this is a plain write.
+  // Kivun renders inside Konsole, which only repaints on a NEW window/tab. So
+  // "Apply now" (1) saves the choice to config.txt - a plain Windows write - and
+  // (2) regenerates the Konsole scheme inside WSL via kivun-apply-color.cmd, so a
+  // NEW tab shows the color immediately without a full relaunch. The already-open
+  // window keeps its color (Konsole can't live-swap a scheme onto a running
+  // session; recoloring it live would need Konsole D-Bus, which is unreliable
+  // under WSLg and is left to the roadmap until it can be tested on a real box).
   var NAMED_COLORS = { kivun: 1, dark: 1, black: 1, white: 1, "default": 1 };
 
   function readTerminalColor() {
@@ -1518,7 +1521,22 @@
     var val = currentColorValue();
     if (!val) { flashColorStatus("enter a #hex color"); return; }
     try { writeTerminalColorToConfig(val); } catch (e) {}
-    flashColorStatus("✓ saved - relaunch Kivun to apply");
+    // Live-apply: regenerate Konsole's scheme inside WSL so a NEW tab shows the
+    // color WITHOUT a full relaunch (a relaunch would kill the running Claude
+    // session). kivun-apply-color.cmd detects the real distro + WSLg user the
+    // same way the launcher does. Fire-and-forget (a cold WSL can take a few
+    // seconds, and we must not freeze the picker); it's best-effort because the
+    // config write above means the next launch applies the color regardless.
+    var applied = false;
+    try {
+      var safe = ("" + val).replace(/["^&|<>%]/g, "");   // color is named/#hex; strip cmd-hostile chars defensively
+      var cmd = 'cmd /c ""' + installDir + '\\kivun-apply-color.cmd" "' + safe + '""';
+      wshShell.Run(cmd, 0, false);   // hidden, no wait
+      applied = true;
+    } catch (e) {}
+    flashColorStatus(applied
+      ? "✓ applied - open a new tab (Ctrl+Shift+T) to see it"
+      : "✓ saved - relaunch Kivun to apply");
   }
 
   // ---- WSL memory cap (%USERPROFILE%\.wslconfig) ---------------------
