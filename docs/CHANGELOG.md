@@ -3,6 +3,42 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.7.0] - 2026-07-12
+
+### Added — optional auto-continue after the 5-hour limit resets (opt-in, default off)
+
+When Claude Code hits the 5-hour usage cap, the session stays alive but idle
+until you come back and type something. With the new **`AUTO_CONTINUE`** setting
+turned on, Kivun notices the block, waits until the limit's real reset time has
+passed, and then types `continue` once for you, so unattended work resumes on
+its own.
+
+This does **not** bypass the limit: it only waits for the reset the provider
+itself reports (the statusline's `resets_at` epoch, else the time parsed from the
+block message, else a conservative fixed wait) and then resumes. It is off by
+default and conservative when on:
+
+- **Capped** at `AUTO_CONTINUE_MAX` resumes per session (default 5), then it
+  stops on its own.
+- **Quiet hours** via `AUTO_CONTINUE_QUIET` (e.g. `23:00-07:00`): never types
+  anything inside that local-time window; resumes once it ends if still blocked.
+- **Fixed-wait fallback** `AUTO_CONTINUE_FALLBACK_MIN` (default 300 min) only
+  when the exact reset time is unknown.
+- **Disarms on any keystroke** while it is waiting — if you resume manually
+  first, nothing is injected.
+
+Implementation notes: the BiDi wrapper owns Claude's pty, so it can match the
+verbatim block line (`Claude usage limit reached`) and write `continue` directly
+— no keystroke simulation, works with the window minimized. The statusline now
+also persists `{ five_hour: { pct, resets_at }, ts }` to
+`~/.local/state/kivun-terminal/rate-limit.json` (atomic tmp+rename) so the
+watcher knows the exact reset epoch. A new **`KIVUN_BIDI_PASSTHROUGH=1`** relay
+mode lets an LTR user enable auto-continue (which forces the wrapper on) with
+**no** BiDi transformation. Zero behavior change when the feature is off.
+
+See `docs/RELEASE_NOTES_1.7.0.md` for the plain-language guide, caveats, and a
+short note on provider terms of service.
+
 ## [1.6.3] - 2026-07-12
 
 ### Fixed — typing Hebrew in the Claude prompt no longer corrupts the line

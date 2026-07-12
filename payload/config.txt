@@ -66,6 +66,30 @@ RESPONSE_LANGUAGE=english
 # inside Konsole. Default: hebrew.
 PRIMARY_LANGUAGE=hebrew
 
+# When the 5-hour usage limit is hit, Claude Code sits idle until you come
+# back and type something. With this ON, Kivun waits until the limit's real
+# reset time has passed and then types "continue" ONCE for you, so unattended
+# work resumes on its own. It does NOT bypass the limit — it only waits for the
+# reset the provider itself reports, then resumes. Your PC must stay on (not
+# asleep) and the Kivun window must stay open. If you resume manually first,
+# nothing is injected. Please read the caveats in docs/RELEASE_NOTES_1.7.0.md
+# (this automates around provider rate limits — use at your own discretion).
+# Default: false
+AUTO_CONTINUE=false
+
+# Safety cap: the most times auto-continue will resume in one session before it
+# stops on its own. Default: 5
+AUTO_CONTINUE_MAX=5
+
+# If the exact reset time can't be read, wait this many minutes after the block
+# before typing "continue". Default: 300 (5 hours)
+AUTO_CONTINUE_FALLBACK_MIN=300
+
+# Quiet hours — a local-time window in which auto-continue never types anything
+# (it waits and resumes once the window ends, if still blocked). Empty = always
+# allowed. Example: AUTO_CONTINUE_QUIET=23:00-07:00
+AUTO_CONTINUE_QUIET=
+
 
 # =================================================================
 # DISPLAY & INSTALL (occasional changes)

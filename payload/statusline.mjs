@@ -249,10 +249,29 @@ function fieldTpm(d) {
 }
 
 // ── 5-Hour Usage ──────────────────────
+// [v1.7.0] Also persists the five_hour {pct,resets_at} to a shared state file
+// so the auto-continue watcher knows the exact reset epoch. Statusline only
+// refreshes at turn end — which is precisely when a rate-limit block registers.
+// The write is atomic (tmp+rename) and errors are swallowed so the statusline
+// can never break or block on it.
+function writeRateLimitState(pct, resetsAt) {
+  try {
+    const base = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+    const dir = path.join(base, 'kivun-terminal');
+    fs.mkdirSync(dir, { recursive: true });
+    const target = path.join(dir, 'rate-limit.json');
+    const payload = JSON.stringify({ five_hour: { pct, resets_at: resetsAt }, ts: Date.now() });
+    const tmp = target + '.' + process.pid;
+    fs.writeFileSync(tmp, payload);
+    fs.renameSync(tmp, target);
+  } catch {}
+}
+
 function fieldUsage5h(d) {
   const rl = d.rate_limits?.five_hour;
   if (!rl) return `Session ${C.d}-- undefined --${C.n}`;
   const pct = Math.round(rl.used_percentage || 0);
+  writeRateLimitState(pct, rl.resets_at);
   const rst = resetIn(rl.resets_at);
   return `Session ${makeBar(pct)} ${pct}%${rst ? C.d + ' resets in ' + rst + C.n : ''}`;
 }

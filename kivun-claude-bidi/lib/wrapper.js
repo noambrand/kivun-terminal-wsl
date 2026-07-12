@@ -5,9 +5,15 @@
 // HEAVY bracket Injector, passes stdin through unchanged, and forwards
 // resize + terminating signals to the child.
 
-const pty = require('node-pty');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+// node-pty is a native module; require it lazily inside run() so the pure
+// helpers (makeStdinPipeline / makeOutputSink) stay unit-testable on a host
+// without node-pty built.
 const { Injector } = require('./injector');
 const { resolveClaudeBin } = require('./resolve-claude-bin');
+const { createAutoContinue } = require('./auto-continue');
 
 function currentSize(stdout) {
   return {
@@ -50,7 +56,39 @@ function makeStdinPipeline(child, env, isTTY, writeErr = (s) => process.stderr.w
   };
 }
 
+// [v1.7.0] Output sink seam — kept separate so `observeOutput` can be
+// unit-tested without a real pty (mirrors makeStdinPipeline).
+//   - `observeOutput` (when set) tees the RAW pty `data` to auto-continue
+//     BEFORE any BiDi transform, so the limit line is matched verbatim.
+//   - KIVUN_BIDI_PASSTHROUGH=1 relays raw bytes untouched and skips the
+//     injector entirely (an LTR user who enables auto-continue forces the
+//     wrapper on but wants NO BiDi transformation).
+// Zero behavior change when neither flag is set: onData → writeOut(injector.
+// write(data)), onEnd → writeOut(injector.end()), exactly as before.
+function makeOutputSink({ injector, env, writeOut, observeOutput = null }) {
+  const passthrough = String((env || {}).KIVUN_BIDI_PASSTHROUGH || '').trim() === '1';
+  return {
+    onData: (data) => {
+      if (observeOutput) observeOutput(data);
+      if (passthrough) writeOut(data);
+      else writeOut(injector.write(data));
+    },
+    onEnd: () => {
+      if (passthrough) return; // injector never used → nothing buffered to flush
+      writeOut(injector.end());
+    },
+  };
+}
+
+// State dir for the shared rate-limit.json (written by statusline.mjs) and the
+// auto-continue log. Matches the established `kivun-terminal` convention.
+function stateDir(env) {
+  const base = (env && env.XDG_STATE_HOME) || path.join(os.homedir(), '.local', 'state');
+  return path.join(base, 'kivun-terminal');
+}
+
 function run(args, env = process.env) {
+  const pty = require('node-pty');
   const cmd = resolveClaudeBin(env);
   const { cols, rows } = currentSize(process.stdout);
 
@@ -77,13 +115,44 @@ function run(args, env = process.env) {
   if (hadRawMode) stdin.setRawMode(true);
   stdin.resume();
 
+  // [v1.7.0] Auto-continue after a rate-limit reset (opt-in, default off).
+  let autoContinue = null;
+  if (String(env.KIVUN_AUTO_CONTINUE || '').trim().toLowerCase() === 'on') {
+    const dir = stateDir(env);
+    let acLog = () => {};
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      const logPath = path.join(dir, 'auto-continue.log');
+      acLog = (msg) => {
+        try { fs.appendFileSync(logPath, `${new Date().toISOString()} ${msg}\n`); } catch { /* noop */ }
+      };
+    } catch { /* logging is best-effort; never block the session */ }
+    autoContinue = createAutoContinue({
+      stateFile: path.join(dir, 'rate-limit.json'),
+      log: acLog,
+      write: (s) => child.write(s),
+      config: {
+        max: env.KIVUN_AUTO_CONTINUE_MAX,
+        fallbackMin: env.KIVUN_AUTO_CONTINUE_FALLBACK_MIN,
+        quiet: env.KIVUN_AUTO_CONTINUE_QUIET,
+      },
+    });
+  }
+
   const { onStdin, onStdinEnd } = makeStdinPipeline(child, env, hadRawMode);
-  stdin.on('data', onStdin);
+  const onStdinTee = autoContinue
+    ? (chunk) => { autoContinue.observeUserInput(); onStdin(chunk); }
+    : onStdin;
+  stdin.on('data', onStdinTee);
   if (onStdinEnd) stdin.on('end', onStdinEnd);
 
-  child.onData((data) => {
-    process.stdout.write(injector.write(data));
+  const sink = makeOutputSink({
+    injector,
+    env,
+    writeOut: (s) => process.stdout.write(s),
+    observeOutput: autoContinue ? (data) => autoContinue.observeOutput(data) : null,
   });
+  child.onData(sink.onData);
 
   const onResize = () => {
     const next = currentSize(process.stdout);
@@ -104,9 +173,10 @@ function run(args, env = process.env) {
   }
 
   child.onExit(({ exitCode, signal }) => {
-    process.stdout.write(injector.end());
+    sink.onEnd();
+    if (autoContinue) autoContinue.dispose();
 
-    stdin.off('data', onStdin);
+    stdin.off('data', onStdinTee);
     if (onStdinEnd) stdin.off('end', onStdinEnd);
     if (hadRawMode) {
       try { stdin.setRawMode(false); } catch (_) { /* not a TTY */ }
@@ -123,4 +193,4 @@ function run(args, env = process.env) {
   });
 }
 
-module.exports = { run, resolveClaudeBin, makeStdinPipeline };
+module.exports = { run, resolveClaudeBin, makeStdinPipeline, makeOutputSink, stateDir };

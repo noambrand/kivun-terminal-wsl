@@ -835,6 +835,44 @@ if [ -f "$SCRIPT_DIR/config.txt" ]; then
 fi
 export KIVUN_RTL_COST_OPTIMIZER_AUDIT
 
+# Auto-continue after a rate-limit reset (opt-in, default off). When true, the
+# BiDi wrapper watches claude's output for the 5h usage-limit block and, once
+# the real reset time has passed, types "continue" once so unattended work
+# resumes. Reads the reset epoch from the statusline state file, else parses the
+# time from the block message, else waits AUTO_CONTINUE_FALLBACK_MIN. Capped by
+# AUTO_CONTINUE_MAX per session; never injects during AUTO_CONTINUE_QUIET hours.
+AUTO_CONTINUE="false"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*AUTO_CONTINUE[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*AUTO_CONTINUE[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && AUTO_CONTINUE="$val"
+fi
+AUTO_CONTINUE_MAX="5"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*AUTO_CONTINUE_MAX[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*AUTO_CONTINUE_MAX[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && AUTO_CONTINUE_MAX="$val"
+fi
+AUTO_CONTINUE_FALLBACK_MIN="300"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*AUTO_CONTINUE_FALLBACK_MIN[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*AUTO_CONTINUE_FALLBACK_MIN[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && AUTO_CONTINUE_FALLBACK_MIN="$val"
+fi
+AUTO_CONTINUE_QUIET=""
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*AUTO_CONTINUE_QUIET[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*AUTO_CONTINUE_QUIET[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && AUTO_CONTINUE_QUIET="$val"
+fi
+KIVUN_AUTO_CONTINUE="off"
+[ "$AUTO_CONTINUE" = "true" ] && KIVUN_AUTO_CONTINUE="on"
+export KIVUN_AUTO_CONTINUE
+export KIVUN_AUTO_CONTINUE_MAX="$AUTO_CONTINUE_MAX"
+export KIVUN_AUTO_CONTINUE_FALLBACK_MIN="$AUTO_CONTINUE_FALLBACK_MIN"
+export KIVUN_AUTO_CONTINUE_QUIET="$AUTO_CONTINUE_QUIET"
+log "INFO - AUTO_CONTINUE=$AUTO_CONTINUE (KIVUN_AUTO_CONTINUE=$KIVUN_AUTO_CONTINUE, MAX=$AUTO_CONTINUE_MAX, FALLBACK_MIN=$AUTO_CONTINUE_FALLBACK_MIN, QUIET=$AUTO_CONTINUE_QUIET)"
+
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called
 # only when KIVUN_BIDI_WRAPPER=on. Side effects: creates
@@ -888,6 +926,17 @@ deploy_bidi_wrapper() {
 
     return 0
 }
+
+# [v1.7.0] Auto-continue lives inside the BiDi wrapper (it owns claude's pty —
+# the only place that can see the limit line and type "continue"). So if
+# AUTO_CONTINUE is on but the BiDi transform is off, force the wrapper path in
+# PASSTHROUGH mode: bytes relay untouched (no BiDi transform), only the
+# auto-continue watcher runs. An LTR user thus keeps a plain terminal.
+if [ "$AUTO_CONTINUE" = "true" ] && [ "$KIVUN_BIDI_WRAPPER" != "on" ]; then
+    KIVUN_BIDI_WRAPPER="on"
+    export KIVUN_BIDI_PASSTHROUGH=1
+    log "INFO - AUTO_CONTINUE=true forces BiDi wrapper ON in passthrough mode (KIVUN_BIDI_PASSTHROUGH=1; no BiDi transform)"
+fi
 
 CLAUDE_EXEC="claude"
 if [ "$KIVUN_BIDI_WRAPPER" = "on" ]; then
