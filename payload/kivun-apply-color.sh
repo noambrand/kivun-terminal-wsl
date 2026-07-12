@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# kivun-apply-color.sh <TERMINAL_COLOR value>   (v1.6.2)
+# kivun-apply-color.sh <TERMINAL_COLOR value>   (v1.6.3)
 #
-# Regenerate Konsole's color scheme + the profile's ColorScheme line from a
-# color value, so a NEW Konsole tab/window shows the chosen color WITHOUT a full
-# Kivun relaunch. This is the WSL half of the folder picker's "Apply now".
+# Regenerate Konsole's color scheme + the profile's ColorScheme line from a color
+# value, so the next FRESH Kivun window (a new Konsole process) shows the chosen
+# color. This is the WSL half of the folder picker's "Apply".
 #
-# Scope, on purpose: this affects tabs/windows opened AFTER it runs. The already
-# open window keeps its color - Konsole loads a scheme into memory when a session
-# starts and can't live-swap it from a file edit. Recoloring the running session
-# would need Konsole D-Bus, which is unreliable under WSLg (Qt6/Wayland, forked
-# instances) and is intentionally left to the roadmap until it can be tested on a
-# real machine. So the honest promise here is "new tab shows it", and the live
-# Claude session in the current tab is preserved (a relaunch would kill it).
+# Scope, on purpose: Konsole loads a color scheme into memory ONCE when a process
+# starts and caches it, so a new TAB in an already-open window - and the running
+# window itself - keep their color. Only a BRAND-NEW window (fresh process) picks
+# up a changed scheme. The launcher regenerates the scheme on every launch too, so
+# this pre-write is belt-and-suspenders. Live-recoloring a running window / new tab
+# would need Konsole D-Bus, unreliable under WSLg (Qt6/Wayland, forked instances),
+# left to the roadmap until it can be tested on a real machine. Honest promise:
+# "close all Kivun windows and reopen to see it"; the current session is preserved.
 #
 # Safe to run while Kivun is open (rewriting the files doesn't touch the running
 # session). Idempotent. Colour semantics are kept IDENTICAL to kivun-launch.sh;
@@ -192,8 +193,8 @@ CSEOF
 fi
 
 if [ "$KIVUN_USE_SCHEME" = "1" ]; then
-    echo "kivun-apply-color: TERMINAL_COLOR=${TERMINAL_COLOR} -> bg ${KIVUN_BG_RGB} / fg ${KIVUN_FG_RGB}; open a new tab (Ctrl+Shift+T) to see it"
+    echo "kivun-apply-color: TERMINAL_COLOR=${TERMINAL_COLOR} -> bg ${KIVUN_BG_RGB} / fg ${KIVUN_FG_RGB}; close all Kivun windows and reopen to see it"
 else
-    echo "kivun-apply-color: TERMINAL_COLOR=${TERMINAL_COLOR} -> Konsole default look (no custom scheme); open a new tab to see it"
+    echo "kivun-apply-color: TERMINAL_COLOR=${TERMINAL_COLOR} -> Konsole default look (no custom scheme); close all Kivun windows and reopen to see it"
 fi
 exit 0

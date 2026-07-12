@@ -1454,13 +1454,15 @@
   }
 
   // ---- Terminal color (TERMINAL_COLOR in config.txt) -----------------
-  // Kivun renders inside Konsole, which only repaints on a NEW window/tab. So
-  // "Apply now" (1) saves the choice to config.txt - a plain Windows write - and
-  // (2) regenerates the Konsole scheme inside WSL via kivun-apply-color.cmd, so a
-  // NEW tab shows the color immediately without a full relaunch. The already-open
-  // window keeps its color (Konsole can't live-swap a scheme onto a running
-  // session; recoloring it live would need Konsole D-Bus, which is unreliable
-  // under WSLg and is left to the roadmap until it can be tested on a real box).
+  // Kivun renders inside Konsole, which loads a color scheme into memory ONCE when
+  // the window's process starts, and caches it. So a new TAB in an already-open
+  // window keeps the old color, and only a BRAND-NEW window (a fresh Konsole
+  // process) shows a changed color. "Apply" therefore (1) saves the choice to
+  // config.txt - a plain Windows write - and (2) regenerates the Konsole scheme
+  // inside WSL via kivun-apply-color.cmd so the next fresh window is guaranteed to
+  // pick it up. To SEE the change you close ALL Kivun windows and reopen. (Live-
+  // recoloring a running window / new tab would need Konsole D-Bus, unreliable
+  // under WSLg; it's left to the roadmap until it can be tested on a real box.)
   var NAMED_COLORS = { kivun: 1, dark: 1, black: 1, white: 1, "default": 1 };
 
   function readTerminalColor() {
@@ -1521,22 +1523,20 @@
     var val = currentColorValue();
     if (!val) { flashColorStatus("enter a #hex color"); return; }
     try { writeTerminalColorToConfig(val); } catch (e) {}
-    // Live-apply: regenerate Konsole's scheme inside WSL so a NEW tab shows the
-    // color WITHOUT a full relaunch (a relaunch would kill the running Claude
-    // session). kivun-apply-color.cmd detects the real distro + WSLg user the
-    // same way the launcher does. Fire-and-forget (a cold WSL can take a few
-    // seconds, and we must not freeze the picker); it's best-effort because the
-    // config write above means the next launch applies the color regardless.
-    var applied = false;
+    // Pre-regenerate Konsole's scheme inside WSL so the next FRESH window is
+    // guaranteed to show the color (the launcher also regenerates it on every
+    // launch, so this is belt-and-suspenders). A running window / new tab can NOT
+    // repaint - Konsole caches the scheme per process - so the honest promise is
+    // "reopen to see it", NOT "new tab". kivun-apply-color.cmd detects the real
+    // distro + WSLg user the same way the launcher does. Fire-and-forget (a cold
+    // WSL can take a few seconds and we must not freeze the picker); best-effort
+    // because the config write above means the next launch applies it regardless.
     try {
       var safe = ("" + val).replace(/["^&|<>%]/g, "");   // color is named/#hex; strip cmd-hostile chars defensively
       var cmd = 'cmd /c ""' + installDir + '\\kivun-apply-color.cmd" "' + safe + '""';
       wshShell.Run(cmd, 0, false);   // hidden, no wait
-      applied = true;
     } catch (e) {}
-    flashColorStatus(applied
-      ? "✓ applied - open a new tab (Ctrl+Shift+T) to see it"
-      : "✓ saved - relaunch Kivun to apply");
+    flashColorStatus("✓ saved - close all Kivun windows, then reopen to see the new color");
   }
 
   // ---- WSL memory cap (%USERPROFILE%\.wslconfig) ---------------------
@@ -1796,7 +1796,7 @@
         <span class="status" id="color-status" style="margin-left:10px;"></span>
       </div>
     </div>
-    <div class="flag-help">Sets the Kivun window background; the text color is picked automatically for readability. Konsole only repaints on a new window, so the color takes effect the <b>next time you launch Kivun</b> (a running window keeps its color). <b>Keep Konsole default</b> leaves Konsole's own theme untouched.</div>
+    <div class="flag-help">Sets the Kivun window background; the text color is picked automatically for readability. The color takes effect in a <b>new Kivun window</b>: close all open Kivun windows, then reopen (a running window and any new tabs in it keep their color). <b>Keep Konsole default</b> leaves Konsole's own theme untouched.</div>
   </div>
 
   <div class="option" style="margin-top:12px">

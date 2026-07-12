@@ -3,6 +3,45 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.3] - 2026-07-12
+
+### Fixed — typing Hebrew in the Claude prompt no longer corrupts the line
+
+Typing and editing Hebrew in the Claude prompt could paint a growing run of
+spaces over the top banner, leave the cursor "one character off" from where you
+were typing, and stop Backspace from visibly deleting. Root cause was confirmed
+byte-for-byte from a live recording, not guessed: Claude's terminal redraws the
+whole screen on every keystroke and navigates to the input box with a
+cursor-forward move, and the BiDi wrapper mistook that navigation for real text
+spacing — converting it into literal spaces and stamping a stray direction mark
+at the wrong cell.
+
+Two targeted fixes in the BiDi wrapper (`injector.js` v1.1.14 + v1.1.15): never
+convert a cursor-forward move to spaces while it is line-start navigation, and
+suppress the line-start direction mark when the redraw carries absolute or
+vertical cursor motion (the screen-redraw signature). The input box is now a
+byte-exact pass-through, so typing, Backspace and arrow-key editing behave
+normally, while the BiDi fix for Hebrew *output* lines is untouched. Verified by
+replaying the live recording through the fixed wrapper (space paints and stray
+marks both drop to zero, output equals input for the whole session) with new
+regression tests.
+
+### Fixed — the keyboard toggle no longer goes "dead" right after a cold start
+
+On a cold start the Alt+Shift language toggle could do nothing for up to about a
+minute, then start working. The launcher's post-focus routine now keeps a
+low-cost watch through Claude's startup and re-arms the keyboard layout only if
+it was actually dropped while the app spun up, so Alt+Shift switches on the first
+press. (The toggle stays **Alt+Shift**, matching Windows.)
+
+### Changed — honest message when you change the terminal color
+
+Changing the color in the picker's **Advanced options** now says the truth:
+close all Kivun windows and reopen to see the new color. Konsole caches its color
+scheme per process, so a new tab in the same window keeps the old color — the
+1.6.2 "open a new tab to see it" wording could not deliver on Kivun. Your choice
+is still saved immediately and applies to the next fresh window.
+
 ## [1.6.2] - 2026-07-12
 
 ### Improved — "Apply now" for terminal color, without a full relaunch

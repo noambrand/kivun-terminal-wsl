@@ -1447,8 +1447,29 @@ if command -v xdotool >/dev/null 2>&1; then
           fi
           sleep 0.25
         done
+        # Phase 2 (v1.6.3) — the fast settle above locks the layout in the first
+        # ~6s then EXITS. But on a COLD start Claude's TUI keeps spinning up for
+        # 15-60s (npm + BiDi wrapper + init), and WSLg can DROP the layout again
+        # when the TUI grabs the terminal / re-syncs the keyboard — with nothing
+        # left to re-arm it, the toggle went "dead for up to a minute" until the
+        # user mashed the switch key. Keep a LOW-COST watch running through the
+        # cold-start window: poll ~1s and re-apply ONLY when the cycle was actually
+        # dropped (an intact layout is never touched, so a typing user is never
+        # yanked back to English). ~90s total covers the slowest first-run TUI
+        # spin-up; steady state does not drop, so we then stop.
+        if [ -n "$KIVUN_KBD_LAYOUTS" ]; then
+          _kbwatch=0
+          while [ "$_kbwatch" -lt 84 ]; do
+            _kbwatch=$((_kbwatch + 1))
+            sleep 1
+            _kb_loaded=$(setxkbmap -query 2>/dev/null | sed -n 's/^layout:[[:space:]]*//p' | tr -d '[:space:]')
+            [ "$_kb_loaded" = "$KIVUN_KBD_LAYOUTS" ] && continue
+            xdotool windowactivate "$WID" 2>/dev/null
+            apply_kivun_keyboard
+          done
+        fi
       ) >> "$LOG_FILE" 2>&1 &
-      log "INFO - Keyboard: scheduled post-focus layout re-apply (cold-start settle, xcb)"
+      log "INFO - Keyboard: scheduled post-focus layout re-apply (cold-start settle + ~90s watch, xcb)"
     fi
   else
     log "WARNING - Could not find Konsole window with xdotool"

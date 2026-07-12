@@ -94,6 +94,16 @@ const CP_C_UPPER = 0x43;
 // the BiDi run survives whole.
 const CSI_CURSOR_FORWARD_RE = /^\x1b\[(\d*)C$/;
 
+// Full-screen navigation signature. Matches a CSI that repositions to another
+// row or uses absolute addressing: absolute position H / f, vertical motion
+// up A / down B, next/prev line E / F, line-position d. (Horizontal-only moves
+// -- forward C, back D, column G -- are deliberately excluded; they stay on the
+// current row.) When one of these appears in the pre-strong-char line-start
+// buffer, the TUI is painting at an absolute cell (Claude's alt-screen input
+// box), NOT starting a scrolling paragraph -- so the line-start RLM must not
+// fire there (v1.1.15). See _flushLineStartBuffer.
+const NAV_CURSOR_RE = /\x1b\[[0-9;]*[ABEFHfd]/;
+
 // Per-run RLE/PDF bracketing of Hebrew runs INSIDE RTL paragraphs.
 // Default OFF in v1.1.11+. Confirmed via Konsole 23.08.5 A/B test
 // (April 2026, post-v1.1.10): bracketing each Hebrew run separately
@@ -283,6 +293,14 @@ class Injector {
     // Public counter — number of cursor-forward CSI sequences replaced
     // with literal spaces on RTL lines (v1.1.13).
     this.cursorForwardReplacedCount = 0;
+    // True only while re-processing the line-start buffer in
+    // _flushLineStartBuffer. Cursor-forward (`\x1b[NC`) seen here is the
+    // TUI navigating from screen-home to the input box (CR, forward-N,
+    // down-M, then the first glyph) — NOT inter-word spacing. Converting
+    // it to spaces paints blanks over the top rows and corrupts live
+    // Hebrew editing (v1.1.14 fix; confirmed via DUMP_RAW). See the
+    // cursor-forward branch in _stepAfterLineStart.
+    this._flushingLineStart = false;
     // Per-run bracketing tracking — set when we emit RLE for a run so
     // the matching PDF emit knows whether it should fire. When BRACKET_RTL_RUNS
     // is off and the line is RTL, runIsBracketed stays false through the run
@@ -427,14 +445,37 @@ class Injector {
     // content so SGR escapes inside the line-start region get the same
     // flatten treatment as SGR escapes after the first strong char.
     this.lineIsRTL = injectRlm;
+    // v1.1.15: suppress the line-start RLM when the buffered pre-strong-char
+    // bytes contain absolute/vertical cursor motion (\x1b[H, \x1b[NB, ...).
+    // That signature means the TUI is repainting at an absolute cell (the
+    // input box under Claude's alt-screen), NOT starting a scrolling
+    // paragraph. There the RLM is emitted at the home cell instead of the true
+    // start of the Hebrew line, so it never sets paragraph direction and only
+    // paints a stray mark that knocks live Hebrew input one column off
+    // (Backspace stops showing). Confirmed byte-for-byte from a July 2026
+    // DUMP_RAW capture: across a whole Hebrew typing session the ONLY thing
+    // the wrapper changed was 22 mispositioned RLMs. The RLM still fires for
+    // genuine scrolling lines (`● שלום\n`) whose buffer has no such motion, so
+    // that fix is untouched; lineIsRTL stays true either way so the
+    // FLATTEN_COLORS_RTL run-flattening on real Hebrew OUTPUT lines is
+    // unaffected. See NAV_CURSOR_RE.
+    const isNavRedraw = injectRlm && NAV_CURSOR_RE.test(buffered);
     let buffered_processed = buffered;
     if (injectRlm && STRIP_BULLET) {
       buffered_processed = buffered_processed.replace(BULLET_STRIP_RE, '');
     }
-    let out = injectRlm ? RLM : '';
+    let out = (injectRlm && !isNavRedraw) ? RLM : '';
+    // Cursor-forward inside this buffer is screen navigation (CR →
+    // forward-N → down-M → first glyph), not inter-word spacing. Flag it
+    // so the cursor-forward→spaces substitution is suppressed for these
+    // bytes — otherwise every keystroke of Hebrew input paints spaces over
+    // the top rows and desyncs live editing. Inter-word cursor-forward
+    // always arrives AFTER the first strong char, i.e. outside this loop.
+    this._flushingLineStart = true;
     for (const ch of buffered_processed) {
       out += this._stepAfterLineStart(ch.codePointAt(0), ch);
     }
+    this._flushingLineStart = false;
     return out;
   }
 
@@ -459,7 +500,17 @@ class Injector {
         // Replace with N space chars so the line is one continuous BiDi
         // region. Visually identical (cursor moved over blank cells; we
         // write spaces into those same cells).
-        if (cp === CP_C_UPPER && this.lineIsRTL && FLATTEN_COLORS_MODE === 'on') {
+        //
+        // v1.1.14: NEVER do this while flushing the line-start buffer.
+        // There the cursor-forward is the TUI navigating from screen-home
+        // to the input box (CR → forward-N → down-M → first glyph), moving
+        // over cells that are NOT blank same-line spacing. Substituting
+        // spaces there overwrites the top rows and corrupts live Hebrew
+        // input editing (confirmed via DUMP_RAW). Only genuine inter-word
+        // spacing — cursor-forward AFTER the line's first strong char —
+        // still converts, which is exactly what the BiDi-run fix needs.
+        if (cp === CP_C_UPPER && this.lineIsRTL && FLATTEN_COLORS_MODE === 'on'
+            && !this._flushingLineStart) {
           const m = seq.match(CSI_CURSOR_FORWARD_RE);
           if (m) {
             const n = m[1] === '' ? 1 : parseInt(m[1], 10);
