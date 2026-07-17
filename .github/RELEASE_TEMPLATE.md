@@ -16,6 +16,8 @@ Launch **Kivun Terminal** from your desktop and start chatting with Claude. 🎉
 
 > 📹 Prefer to watch first? **[Play the demo video (MP4)](https://github.com/noambrand/kivun-terminal-wsl/releases/download/TAG_PLACEHOLDER/Kivun_Terminal_v1.4.13.mp4)**
 
+> 🔏 **Digitally signed** by its verified publisher. A brand-new signature still needs to build reputation with Microsoft SmartScreen, so for a short while you may see *"Windows protected your PC"* (click **More info**, then **Run anyway**); this fades as more people install.
+
 ## ✨ What you get
 - Real RTL / bidirectional text for **11 languages** (Hebrew, Arabic, Persian, Urdu, and more)
 - A calm **light‑blue terminal theme**

@@ -111,8 +111,8 @@
 <summary>If something goes wrong: WSL not installed / SAC blocks / SmartScreen warning</summary>
 
 - **WSL2 missing.** If the wizard says *"WSL is not installed"*, open **Terminal (Admin)**, run `wsl --install`, reboot, and re-run the installer. You only do this once per machine.
-- <a id="windows-smartscreen"></a>**SmartScreen warning** (*"Windows protected your PC"*): click **More info** → **Run anyway**. The installer is unsigned; the warning fades once Microsoft's reputation signal accumulates from real downloads.
-- **Smart App Control on Windows 11** (the harder block - *"Smart App Control blocked an app that may be unsafe"* with only an *Ok* button): SAC refuses unsigned apps entirely. Open **Start** → search **Smart App Control** → set it to **Off**. SAC cannot be re-enabled without reinstalling Windows, so leave it off only if you're comfortable running other unsigned apps.
+- <a id="windows-smartscreen"></a>**SmartScreen warning** (*"Windows protected your PC"*): click **More info** → **Run anyway**. The installer is code-signed by its verified publisher, but a brand-new signature still builds Microsoft's reputation signal over time, so the warning can appear for a while and fades as real downloads accumulate.
+- **Smart App Control on Windows 11** (the harder block - *"Smart App Control blocked an app that may be unsafe"* with only an *Ok* button): SAC is very strict and may still block a newly signed app until it earns reputation. Open **Start** → search **Smart App Control** → set it to **Off**. SAC cannot be re-enabled without reinstalling Windows, so leave it off only if you're comfortable running other apps this way.
 - **Still stuck? Send a 1-click report.** Download **[`kivun-diagnostics.cmd`](https://github.com/noambrand/kivun-terminal-wsl/releases/latest)** from the latest release (or open **"Kivun Diagnostics"** from the Start menu if it installed) and double-click it. It saves **`Kivun-Report.txt`** to your Desktop - email it to noambbb@gmail.com. No admin, nothing sent automatically.
 
 </details>
