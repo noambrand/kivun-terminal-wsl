@@ -58,8 +58,35 @@ append to `~/.local/state/kivun-terminal/rtl-cost-optimizer.jsonl` while
 ## Test coverage
 
 Ship-blocking core = 10 fixtures in `test/core.test.js`. Extended = 8 in
-`test/extended.test.js`. End-to-end smoke at `test/smoke.sh` exercises the
-wrapper via node-pty against a fake-claude stand-in.
+`test/extended.test.js`. Those files pin the **legacy** env combo
+(`FLATTEN_COLORS_RTL=off`, `BRACKET_RTL_RUNS=on`); `test/*-defaults.test.js`
+re-run the same inputs against the **shipping defaults** (`FLATTEN=on`,
+`BRACKET=off`) — the code path real users run — and
+`test/known-limitations.test.js` pins default-mode behavior for a few narrow
+edge inputs so future changes to them are caught in review. End-to-end smoke at
+`test/smoke.sh` exercises the wrapper via node-pty against a fake-claude
+stand-in.
+
+## What the wrapper guarantees
+
+Working at the terminal byte-stream layer, the wrapper holds these properties:
+
+- **Mixed-line run ordering.** On a Hebrew-first line, embedded English/code/
+  number tokens keep their internal left-to-right order and are positioned
+  correctly relative to the Hebrew (line-start RLM sets paragraph direction).
+- **No character substitution.** Arrows (`→ ← ↑ ↓`) and box-drawing chars
+  (`├ └ │ ─ ┌ ┐ ┘ ┤`) pass through byte-for-byte — never mirrored or swapped,
+  so tree renderers and status indicators stay intact (HEAVY §8).
+- **Streaming-safe chunk handling.** Direction decisions survive Claude's
+  token-by-token streaming: the line-start buffer is held across `write()`
+  calls and UTF-8 codepoints split across chunk boundaries are re-assembled.
+- **Input passthrough.** Absolute/vertical cursor motion (the alt-screen input
+  box) suppresses the line-start RLM, so live Hebrew editing is not corrupted
+  (v1.1.14/v1.1.15).
+
+For the Claude **desktop app** (a different surface, not the terminal),
+[liorshaya/claude-desktop-rtl](https://github.com/liorshaya/claude-desktop-rtl)
+is a separate DOM/CSS-based tool.
 
 ## Copy/paste note
 

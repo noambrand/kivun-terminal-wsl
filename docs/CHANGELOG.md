@@ -3,6 +3,27 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.7.1] - 2026-07-18
+
+### Changed — BiDi wrapper: default-mode test coverage (test/docs only, no runtime change)
+
+Hardened the test suite so the automated checks cover the exact code path real
+users run. No behavior changed and the Hebrew rendering was verified working.
+
+- The richest fixtures (`core` / `extended` / `ltr-island`) were pinned to the
+  legacy env combo and CI didn't run the shipping-default injector tests. Added
+  `test/core-defaults.test.js`, `test/extended-defaults.test.js`,
+  `test/ltr-island-defaults.test.js` (same inputs, shipping defaults
+  `FLATTEN=on`/`BRACKET=off`), and added those plus the existing
+  `flatten-colors-rtl` / `no-bracket-rtl-runs` / `cursor-forward-rtl` tests to
+  the CI test list (both jobs in `build-linux.yml`). Expectations were derived
+  from the injector's semantics and confirmed against actual output — no bug found.
+- Added `test/known-limitations.test.js` to pin default-mode output for a few
+  narrow edge inputs so any future change to them is caught in review.
+- Added a "What the wrapper guarantees" section to `kivun-claude-bidi/README.md`
+  (mixed-line ordering, no character substitution, streaming-safe chunking,
+  input passthrough), with a pointer from the root README.
+
 ## [1.7.0] - 2026-07-12
 
 ### Added — optional auto-continue after the 5-hour limit resets (opt-in, default off)

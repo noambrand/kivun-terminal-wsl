@@ -115,7 +115,16 @@ jobs:
           cd "$WRAPPER_DIR"
           # Test deps aren't installed by --production; pull them now.
           npm install --no-audit --no-fund
-          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js test/rtl-cost-optimizer.test.js
+          # Legacy-pinned corpus (FLATTEN=off, BRACKET=on) + capability/optimizer,
+          # plus the SHIPPING-DEFAULT corpus (FLATTEN=on, BRACKET=off): the
+          # *-defaults + flatten/no-bracket/cursor-forward files exercise the
+          # code path real users run, and known-limitations pins F2/F4 behavior.
+          node --test \
+            test/core.test.js test/extended.test.js test/ltr-island.test.js \
+            test/capability.test.js test/rtl-cost-optimizer.test.js \
+            test/core-defaults.test.js test/extended-defaults.test.js test/ltr-island-defaults.test.js \
+            test/flatten-colors-rtl.test.js test/no-bracket-rtl-runs.test.js test/cursor-forward-rtl.test.js \
+            test/known-limitations.test.js
 
       - name: Smoke-test wrapper end-to-end against fake claude
         run: |
@@ -234,4 +243,12 @@ jobs:
           WRAPPER_DIR="$HOME/.local/share/kivun-terminal/kivun-claude-bidi"
           cd "$WRAPPER_DIR"
           npm install --no-audit --no-fund
-          node --test test/core.test.js test/extended.test.js test/ltr-island.test.js test/capability.test.js test/rtl-cost-optimizer.test.js
+          # Mirror of the Ubuntu job: legacy-pinned corpus + shipping-default
+          # corpus (*-defaults, flatten/no-bracket/cursor-forward) + F2/F4
+          # known-limitations, all against Fedora's node-pty native binary.
+          node --test \
+            test/core.test.js test/extended.test.js test/ltr-island.test.js \
+            test/capability.test.js test/rtl-cost-optimizer.test.js \
+            test/core-defaults.test.js test/extended-defaults.test.js test/ltr-island-defaults.test.js \
+            test/flatten-colors-rtl.test.js test/no-bracket-rtl-runs.test.js test/cursor-forward-rtl.test.js \
+            test/known-limitations.test.js

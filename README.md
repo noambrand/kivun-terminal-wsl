@@ -307,6 +307,8 @@ v1.1.0 ships a `kivun-claude-bidi` Node.js wrapper that pipes Claude Code's outp
 
 Toggle the wrapper itself via `KIVUN_BIDI_WRAPPER=on|off` in your config. Each individual fix has its own toggle (`KIVUN_BIDI_STRIP_BULLET`, `KIVUN_BIDI_STRIP_INCOMING`, `KIVUN_BIDI_FLATTEN_COLORS_RTL`, `KIVUN_BIDI_BRACKET_RTL_RUNS`). Test coverage as of v1.1.16: 87 injector unit fixtures + end-to-end smoke against a fake-claude stand-in via node-pty.
 
+**What it guarantees:** the wrapper holds mixed-line run ordering, non-substitution of arrows/box-drawing characters, streaming-safe chunk handling, and input passthrough for live Hebrew editing. See [`kivun-claude-bidi/README.md`](kivun-claude-bidi/README.md#what-the-wrapper-guarantees) for details. For the Claude desktop app (a different surface), [liorshaya/claude-desktop-rtl](https://github.com/liorshaya/claude-desktop-rtl) is a separate DOM/CSS-based tool.
+
 
 ## Tech Stack
 
