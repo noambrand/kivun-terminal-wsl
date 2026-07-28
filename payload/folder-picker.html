@@ -1,0 +1,1807 @@
+<!DOCTYPE html>
+<!--
+  Kivun Terminal - Folder Picker (HTA dialog)
+
+  v1.4.0 adds an inline Claude-flags picker — model radios,
+  conversation-continuation radios, common-flag chip buttons,
+  free-text custom flags, and a startup-slash-commands textarea
+  (e.g. /voicemode:converse). Reads/writes config.txt's
+  CLAUDE_FLAGS line + emits a separate kivun-startup-cmds.txt
+  for the bash launcher to type into the running Claude session.
+
+  Note: --dangerously-skip-permissions is INTENTIONALLY not surfaced
+  as a checkbox/chip. The safer alternative is in-session: launch
+  normally and press Shift+Tab inside Claude Code to toggle auto mode.
+  Power users can still type the flag into the Custom field if they
+  insist; the launcher passes it through verbatim.
+
+  Run with: mshta.exe folder-picker.hta
+-->
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<title>Kivun Terminal - Pick Folder</title>
+<style>
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", "Segoe UI Variable", Arial, sans-serif;
+    font-size: 16px;
+    margin: 0;
+    padding: 20px 32px;
+    background: #f3f3f3;
+    color: #1c1c1c;
+    box-sizing: border-box;
+  }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px 0; }
+  .hint { font-size: 14px; color: #404040; margin: 0 0 16px 0; line-height: 1.5; }
+  .hint code, .hint kbd {
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    font-size: 13px;
+    background: #e8e8e8;
+    padding: 2px 7px;
+    border-radius: 3px;
+  }
+
+  .option {
+    background: #fff;
+    border: 1px solid #d4d4d4;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 4px;
+  }
+  .opt-label {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .opt-num {
+    display: inline-block;
+    width: 24px; height: 24px; line-height: 24px;
+    text-align: center;
+    background: #0078d4; color: #fff;
+    border-radius: 50%;
+    font-size: 13px; font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .or-sep { text-align: center; margin: 8px 0; position: relative; }
+  .or-sep:before {
+    content: ""; position: absolute; top: 50%; left: 0; right: 0;
+    border-top: 1px solid #cfcfcf; z-index: 0;
+  }
+  .or-sep span {
+    position: relative; display: inline-block; padding: 0 16px;
+    background: #f3f3f3; color: #606060;
+    font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+    z-index: 1;
+  }
+
+  input[type=text] {
+    width: 100%; box-sizing: border-box;
+    padding: 11px 14px;
+    font-family: "Consolas", "Cascadia Mono", "Segoe UI", monospace;
+    font-size: 16px;
+    border: 1px solid #b8b8b8;
+    background: #fff;
+    border-radius: 4px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input[type=text]:focus, textarea:focus {
+    outline: none;
+    border-color: #0078d4;
+    box-shadow: 0 0 0 1px #0078d4;
+  }
+  textarea {
+    width: 100%; box-sizing: border-box;
+    padding: 9px 12px;
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    font-size: 13px;
+    border: 1px solid #b8b8b8;
+    background: #fff;
+    border-radius: 4px;
+    resize: vertical;
+  }
+  button {
+    padding: 9px 16px;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    background: #fafafa;
+    border: 1px solid #b8b8b8;
+    cursor: pointer;
+    white-space: nowrap;
+    border-radius: 4px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: #eaeaea; border-color: #888; }
+  button:active { background: #d8d8d8; }
+  button.primary {
+    background: #0078d4; color: #fff; border-color: #005a9e;
+    font-weight: 600;
+  }
+  button.primary:hover { background: #1186e0; border-color: #00467a; }
+  button.primary:active { background: #005a9e; }
+  button.browse { min-width: 220px; font-weight: 600; }
+  button.config { min-width: 180px; font-size: 12px; }
+  button.cancel { min-width: 100px; }
+  button.ok { min-width: 240px; font-size: 15px; }
+
+  /* Advanced collapsible (wraps flags + startup cmds + env vars) */
+  .advanced-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: transparent;
+    border: 1px dashed #c0c0c0;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0 0 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #404040;
+    cursor: pointer;
+    text-align: left;
+  }
+  .advanced-toggle:hover { background: #ececec; border-color: #a8a8a8; color: #1c1c1c; }
+  .advanced-toggle .arrow {
+    display: inline-block;
+    width: 12px;
+    transition: transform 0.15s ease;
+  }
+  .advanced-toggle.open .arrow { transform: rotate(90deg); }
+  .advanced-toggle .sub { font-weight: 400; color: #707070; font-size: 12px; }
+  .advanced-body { display: none; margin-top: 4px; }
+  .advanced-body.open { display: block; }
+
+  /* Flag picker grid */
+  .flag-grid {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 8px 14px;
+    align-items: start;
+    margin-top: 4px;
+  }
+  .flag-grid > .lbl {
+    font-weight: 600;
+    color: #303030;
+    font-size: 13px;
+    text-align: left;
+    padding-top: 4px;
+  }
+  .radio-row, .check-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-size: 13px;
+    color: #303030;
+  }
+  .radio-row label, .check-row label {
+    cursor: pointer;
+    user-select: none;
+    line-height: 1.6;
+  }
+  .radio-row input, .check-row input {
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* Common flag chips */
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip-row button.chip {
+    padding: 4px 11px;
+    font-size: 12px;
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    background: #eaf3fb;
+    border: 1px solid #a9cfee;
+    color: #003e6b;
+    border-radius: 14px;
+    min-width: 0;
+  }
+  .chip-row button.chip:hover {
+    background: #d6e8f5;
+    border-color: #0078d4;
+  }
+
+  .flag-grid input[type=text] {
+    padding: 7px 11px;
+    font-size: 13px;
+  }
+  .flag-help {
+    font-size: 11px;
+    color: #707070;
+    margin-top: 2px;
+  }
+  .flag-tip {
+    font-size: 12px;
+    color: #404040;
+    background: #fff7e0;
+    border: 1px solid #ecd9a8;
+    border-radius: 4px;
+    padding: 7px 11px;
+    margin-top: 8px;
+  }
+  .flag-tip kbd {
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    background: #fff;
+    border: 1px solid #c9bb89;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .flag-preview {
+    margin-top: 10px;
+    padding: 8px 11px;
+    background: #f7f7f7;
+    border: 1px solid #d4d4d4;
+    border-radius: 4px;
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    font-size: 12px;
+    color: #1c1c1c;
+    word-break: break-all;
+  }
+  .flag-preview .label {
+    color: #707070;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 11px;
+    margin-right: 8px;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #d8d8d8;
+  }
+  .actions .right { display: flex; gap: 10px; }
+  .err {
+    color: #b00020;
+    font-size: 13px;
+    min-height: 16px;
+    margin: 6px 0 0 0;
+    font-weight: 500;
+  }
+
+  /* Update-available banner (hidden until a newer release is detected) */
+  .update-banner {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    margin: 0 0 12px 0;
+    border-radius: 6px;
+    background: #fff8dc;
+    border: 1px solid #f0c060;
+    color: #604000;
+    font-size: 14px;
+  }
+  .update-banner .text { flex: 1; }
+  .update-banner button { min-width: 0; }
+  .update-banner button.dismiss {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid #c0a060;
+    color: #604000;
+    font-size: 12px;
+  }
+  .update-banner a { color: #604000; }
+
+  /* Profile bar (v1.4.0; chip-button refactor in v1.4.1 — HTA's <select>
+     onchange is unreliable per project memory; chip onclick fires reliably) */
+  .profile-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #cfd8dc;
+    border-radius: 6px;
+    padding: 9px 14px;
+    margin-bottom: 14px;
+  }
+  .profile-bar .lbl {
+    font-size: 13px;
+    font-weight: 600;
+    color: #303030;
+    margin-right: 4px;
+  }
+  .profile-chip-row {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+    min-width: 200px;
+  }
+  .profile-chip-row button.profile-chip {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #f4f4f4;
+    border: 1px solid #c8c8c8;
+    color: #303030;
+    border-radius: 14px;
+    cursor: pointer;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .profile-chip-row button.profile-chip:hover {
+    background: #e5e5e5;
+    border-color: #888;
+  }
+  .profile-chip-row button.profile-chip.active {
+    background: #0078d4;
+    border-color: #005a9e;
+    color: #fff;
+    font-weight: 600;
+  }
+  .profile-chip-row button.profile-chip.active:hover {
+    background: #1186e0;
+  }
+  .profile-bar > button {
+    padding: 5px 10px;
+    font-size: 12px;
+    min-width: 0;
+  }
+  .profile-bar .status {
+    font-size: 11px;
+    color: #707070;
+    margin-left: 4px;
+    min-width: 80px;
+  }
+  .profile-bar .status.saved { color: #2e7d32; }
+
+  /* Mask-toggle "eye" button on the env-vars textarea */
+  .env-row { position: relative; }
+  .env-row .mask-toggle {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 3px 9px;
+    font-size: 11px;
+    background: #fafafa;
+    border: 1px solid #c8c8c8;
+    border-radius: 3px;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .env-row .mask-toggle:hover { background: #eee; }
+
+  /* Richer "resolved command" preview */
+  .flag-preview .cmd-line {
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+  .flag-preview .cmd-line .arg-line {
+    color: #1c1c1c;
+  }
+  .flag-preview .cmd-line .secondary {
+    color: #555;
+    font-size: 11px;
+    display: block;
+    margin-top: 2px;
+  }
+  .flag-preview .cmd-line .secondary .key {
+    color: #003e6b;
+    font-weight: 600;
+  }
+</style>
+<script src="webview-shim.js"></script>
+<script>
+  // Resize to fit all four sections WITHOUT scrolling. We use a generous
+  // 1040x980 baseline and then re-fit to actual content height after
+  // layout settles, so different DPI / font-render heights still get a
+  // scroll-free dialog. Caps at the screen size minus a small margin so
+  // the title bar + Windows taskbar stay visible on small displays.
+  window.resizeTo(1040, 690);
+  function autoSizeToContent() {
+    try {
+      var availW = window.screen.availWidth;
+      var availH = window.screen.availHeight;
+      var w = 1040;
+      var h;
+      var advBody = document.getElementById("advanced-body");
+      var advancedOpen = advBody && advBody.className.indexOf("open") >= 0;
+      if (advancedOpen) {
+        // Expanded: size to actual content (capped so we don't overflow
+        // off-screen below the taskbar).
+        h = Math.min(document.body.scrollHeight + 60, availH - 60);
+        if (h < 690) h = 690;
+      } else {
+        // Collapsed: fixed compact height. scrollHeight in HTA is not
+        // always reliable when content is display:none, so we hardcode
+        // instead of measuring. Sized to fit the optional update-banner
+        // without triggering scrollbars.
+        h = 690;
+      }
+      window.resizeTo(w, h);
+      // Center the dialog so the bottom (Launch button + actions) stays
+      // visible regardless of monitor height. Earlier we let HTA pick
+      // the position, which often dropped the window low enough that
+      // the action row was hidden behind the taskbar.
+      var x = Math.max(0, Math.floor((availW - w) / 2));
+      var y = Math.max(0, Math.floor((availH - h) / 2));
+      window.moveTo(x, y);
+    } catch (e) {}
+  }
+
+  var wshShell = new ActiveXObject("WScript.Shell");
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var shell = new ActiveXObject("Shell.Application");
+
+  function getInstallDir() { return window.__APP_DIR__ || ""; }
+
+  // ---- Update check --------------------------------------------------
+  // Async-ish background check against the GitHub Releases API. On
+  // success, shows a yellow banner with a Download button that opens
+  // the .exe asset URL directly. On failure (offline, GitHub down,
+  // rate-limited, etc.) silently does nothing — never blocks the user.
+
+  function readInstalledVersion() {
+    try {
+      var verFile = installDir + "\\VERSION";
+      if (fso.FileExists(verFile)) {
+        var content = readUtf8(verFile);
+        var trimmed = content.replace(/^\s+|\s+$/g, "").replace(/[\r\n].*/, "");
+        if (trimmed) return trimmed;
+      }
+    } catch (e) {}
+    return FALLBACK_VERSION;
+  }
+
+  function compareVersions(a, b) {
+    var pa = (a || "0").split(".");
+    var pb = (b || "0").split(".");
+    var n = Math.max(pa.length, pb.length);
+    for (var i = 0; i < n; i++) {
+      var na = parseInt(pa[i] || "0", 10); if (isNaN(na)) na = 0;
+      var nb = parseInt(pb[i] || "0", 10); if (isNaN(nb)) nb = 0;
+      if (na > nb) return 1;
+      if (na < nb) return -1;
+    }
+    return 0;
+  }
+
+  function checkForUpdate() {
+    try {
+      var local = readInstalledVersion();
+      var http = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+      http.Open("GET", "https://api.github.com/repos/" + GITHUB_REPO + "/releases/latest", false);
+      http.SetRequestHeader("User-Agent", "kivun-picker/" + local);
+      http.SetRequestHeader("Accept", "application/vnd.github+json");
+      try { http.SetTimeouts(5000, 5000, 5000, 5000); } catch (_) {}
+      http.Send();
+      if (http.Status !== 200) return;
+      var data;
+      try { data = JSON.parse(http.ResponseText); } catch (_) { return; }
+      var latest = (data.tag_name || "").replace(/^v/, "");
+      if (!latest || compareVersions(latest, local) <= 0) return;
+      var assetUrl = null;
+      if (data.assets && data.assets.length) {
+        for (var i = 0; i < data.assets.length; i++) {
+          var a = data.assets[i];
+          if (a && a.name && ASSET_NAME_RE.test(a.name)) {
+            assetUrl = a.browser_download_url;
+            break;
+          }
+        }
+      }
+      var releaseUrl = data.html_url || ("https://github.com/" + GITHUB_REPO + "/releases/latest");
+      showUpdateBanner(local, latest, releaseUrl, assetUrl || releaseUrl);
+    } catch (e) {
+      // network error, offline, antivirus blocking, etc. — silent
+    }
+  }
+
+  // Stashed at banner-render time; read by openLatestRelease/openLatestDownload
+  // when the user clicks. SECURITY (v1.4.9, audit #3): we no longer
+  // interpolate URLs into onclick="" string literals — that path could be
+  // broken out of by a hostile JSON response containing  '  in the URL.
+  var __pendingReleaseUrl = "";
+  var __pendingDownloadUrl = "";
+
+  function showUpdateBanner(currentV, newV, releaseUrl, downloadUrl) {
+    var b = document.getElementById("update-banner");
+    if (!b) return;
+    __pendingReleaseUrl = isTrustedUpdateUrl(releaseUrl) ? releaseUrl : "";
+    __pendingDownloadUrl = isTrustedUpdateUrl(downloadUrl) ? downloadUrl : "";
+    var safeNew = escapeHtml(newV);
+    var safeCur = escapeHtml(currentV);
+    b.innerHTML =
+      '<span class="text">🆕 <b>Update available:</b> v' + safeNew +
+      ' &nbsp;<span style="opacity:.7">(you have v' + safeCur + ')</span> ' +
+      '&nbsp;<a href="javascript:openLatestRelease()" style="font-size:12px">release notes</a></span>' +
+      '<button type="button" class="primary" onclick="openLatestDownload()">Download v' + safeNew + '</button>' +
+      '<button type="button" class="dismiss" onclick="dismissUpdateBanner()" title="Hide until next launch">✕</button>';
+    b.style.display = "flex";
+    try { autoSizeToContent(); } catch (_) {}
+  }
+
+  function openLatestRelease() { openUpdateUrl(__pendingReleaseUrl); }
+  function openLatestDownload() { openUpdateUrl(__pendingDownloadUrl); }
+
+  // SECURITY (v1.4.9, audit finding #3): only open URLs that point to this
+  // project's GitHub release pages or release-asset CDN. Even though TLS
+  // protects api.github.com under normal conditions, a corp-MITM root CA
+  // can rewrite the JSON; without an allowlist a hostile proxy could swap
+  // browser_download_url for any URL and ride the user's click into
+  // arbitrary download/run.
+  function isTrustedUpdateUrl(url) {
+    if (!url || typeof url !== "string") return false;
+    // GitHub release pages, asset download URLs, and CDN host.
+    var prefixes = [
+      "https://github.com/" + GITHUB_REPO + "/",
+      "https://github.com/" + GITHUB_REPO,
+      "https://api.github.com/repos/" + GITHUB_REPO + "/",
+      "https://objects.githubusercontent.com/"
+    ];
+    for (var i = 0; i < prefixes.length; i++) {
+      if (url.length >= prefixes[i].length && url.substr(0, prefixes[i].length) === prefixes[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function openUpdateUrl(url) {
+    if (!isTrustedUpdateUrl(url)) return;
+    // WScript.Shell.Run executes a PROGRAM; a bare https:// URL is not a program,
+    // so Run('"https://..."') threw and the click silently did nothing (the
+    // "button doesn't go to the latest release" bug). Open the URL through
+    // ShellExecute (protocol handler / default browser), with a cmd-start fallback.
+    try {
+      new ActiveXObject("Shell.Application").ShellExecute(url, "", "", "open", 1);
+    } catch (e) {
+      try { wshShell.Run('cmd /c start "" "' + url + '"', 0, false); } catch (e2) {}
+    }
+  }
+
+  function dismissUpdateBanner() {
+    var b = document.getElementById("update-banner");
+    if (b) b.style.display = "none";
+    try { autoSizeToContent(); } catch (_) {}
+  }
+
+  var installDir = getInstallDir();
+  var kivunDir = wshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%") + "\\Kivun-WSL";
+
+  // Update-check config. FALLBACK_VERSION is bumped at release time and
+  // used when no VERSION file is present in the install dir (older
+  // installs that predate the file). The picker fetches the latest tag
+  // from the GitHub API on launch and shows a banner if newer.
+  var GITHUB_REPO = "noambrand/kivun-terminal-wsl";
+  var FALLBACK_VERSION = "1.6.2";
+  var ASSET_NAME_RE = /^Kivun_Terminal_Setup\.exe$/i;
+  var resultFile = kivunDir + "\\kivun-workdir.txt";
+  var startupFile = kivunDir + "\\kivun-startup-cmds.txt";
+  var convFile = kivunDir + "\\kivun-conv-once.txt";
+  var envFile = kivunDir + "\\kivun-env.txt";
+  var profilesFile = kivunDir + "\\profiles.json";
+  var configFile = installDir + "\\config.txt";
+
+  // Voice-alert ("Sound alerts") controls. Kivun runs Claude inside WSL, so the
+  // live config the alert scripts read lives in the DISTRO's home at
+  // ~/.claude/sounds/config.json — NOT a Windows path. We reach it the same way
+  // the launcher does: `wsl -d Ubuntu` (the hardcoded DISTRO in
+  // kivun-terminal.bat). Reads capture WSL stdout into a Windows temp file;
+  // writes go through voice.js, which preserves any unknown keys and re-reads
+  // config on every play, so changes apply immediately. Quirk handled in
+  // wslSetStateCmd: `voice.js every N` also turns repeat ON, so repeat is set
+  // LAST. soundCfg is the parsed config, or null when WSL is unreachable or
+  // voice alerts aren't installed in the distro yet.
+  var SND_DISTRO = "Ubuntu";  // keep in sync with DISTRO in kivun-terminal.bat
+  var soundReadTmp = kivunDir + "\\kivun-sound-config.tmp.json";
+  var soundCfg = null;
+
+  // v1.4.0: profiles state. profiles.json is now the source of truth for
+  // CLAUDE_FLAGS / model / conv / startup commands / env vars; config.txt
+  // keeps only the BiDi tunables and language settings. Migration from a
+  // pre-v1.4 config.txt happens once on first run inside loadProfiles().
+  // Schema inspired by talayash/claude-terminal (MIT) but transcribed,
+  // not copied — different stack (HTA+JScript vs Tauri+React).
+  var profilesState = { version: 1, active: "Default", profiles: [] };
+  var maskEnvValues = true;  // safer default: env-var values masked in preview
+
+  if (!fso.FolderExists(kivunDir)) { fso.CreateFolder(kivunDir); }
+
+  function writeUtf8NoBom(path, content) {
+    var stream = new ActiveXObject("ADODB.Stream");
+    stream.Type = 2; stream.Charset = "utf-8"; stream.Open();
+    stream.WriteText(content);
+    stream.Position = 0; stream.Type = 1; stream.Position = 3;
+    var outStream = new ActiveXObject("ADODB.Stream");
+    outStream.Type = 1; outStream.Open();
+    stream.CopyTo(outStream);
+    outStream.SaveToFile(path, 2);
+    outStream.Close(); stream.Close();
+  }
+
+  function readUtf8(path) {
+    if (!fso.FileExists(path)) return "";
+    var stream = new ActiveXObject("ADODB.Stream");
+    stream.Type = 2; stream.Charset = "utf-8"; stream.Open();
+    stream.LoadFromFile(path);
+    var text = stream.ReadText();
+    stream.Close();
+    return text;
+  }
+
+  function deleteIfExists(path) {
+    try { if (fso.FileExists(path)) fso.DeleteFile(path); } catch (e) {}
+  }
+
+  function writePath(p) { writeUtf8NoBom(resultFile, p); }
+
+  function clearError() { document.getElementById("err").innerText = ""; }
+  function showError(msg) { document.getElementById("err").innerText = msg; }
+
+  function browseFolder() {
+    clearError();
+    var startPath = wshShell.ExpandEnvironmentStrings("%USERPROFILE%");
+    // BIF_NEWDIALOGSTYLE | BIF_EDITBOX = 0x50.
+    var folder = shell.BrowseForFolder(0, "Pick a folder", 0x50, startPath);
+    if (folder != null) {
+      document.getElementById("path").value = folder.Self.Path;
+      document.getElementById("path").focus();
+    }
+  }
+
+  function editConfig() {
+    clearError();
+    if (!fso.FileExists(configFile)) {
+      showError("config.txt not found at " + configFile);
+      return;
+    }
+    wshShell.Run("notepad.exe \"" + configFile + "\"", 1, false);
+  }
+
+  // ---- Flag picker ---------------------------------------------------
+
+  function getRadioValue(name) {
+    var radios = document.getElementsByName(name);
+    for (var i = 0; i < radios.length; i++) {
+      if (radios[i].checked) return radios[i].value;
+    }
+    return "";
+  }
+  function setRadioValue(name, value) {
+    var radios = document.getElementsByName(name);
+    for (var i = 0; i < radios.length; i++) {
+      if (radios[i].value == value) { radios[i].checked = true; return; }
+    }
+    if (radios.length) radios[0].checked = true;
+  }
+
+  // Append a flag template to the custom-flags textbox (chip click).
+  // For flags that don't combine cleanly when repeated (multiple
+  // --append-system-prompt, --effort low + high, --permission-mode A
+  // and B), the latest click REPLACES the prior value. Otherwise the
+  // chip is a no-op when its flag is already present.
+  //
+  // The whole body is wrapped in try/catch — a thrown exception in an
+  // HTA event handler kills mshta silently, and the launcher then sees
+  // no kivun-workdir.txt and silently falls back to Konsole-at-home,
+  // which is indistinguishable from "I clicked Launch" to the user.
+  function addCustomFlag(template) {
+    try {
+      var box = document.getElementById("flag-custom");
+      var current = (box && box.value ? box.value : "").replace(/^\s+|\s+$/g, "");
+
+      var replaceablePatterns = [
+        [/--append-system-prompt\s+"[^"]*"/g, "--append-system-prompt"],
+        [/--effort\s+\S+/g,                   "--effort"],
+        [/--permission-mode\s+\S+/g,          "--permission-mode"],
+        [/--fallback-model\s+\S+/g,           "--fallback-model"]
+      ];
+      for (var i = 0; i < replaceablePatterns.length; i++) {
+        var pattern = replaceablePatterns[i][0];
+        var leadToken = replaceablePatterns[i][1];
+        if (template.indexOf(leadToken) === 0) {
+          current = current.replace(pattern, "").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+          box.value = current ? (current + " " + template) : template;
+          updateFlagPreview();
+          if (box.focus) box.focus();
+          return;
+        }
+      }
+
+      var firstToken = template.split(/\s/)[0];
+      if (current && current.indexOf(firstToken) >= 0) return;
+      box.value = current ? (current + " " + template) : template;
+      updateFlagPreview();
+      if (box.focus) box.focus();
+    } catch (e) {
+      try { showError("addCustomFlag error: " + (e.message || e.description || e)); } catch (_) {}
+    }
+  }
+
+  function composeFlags() {
+    var parts = [];
+    var model = getRadioValue("flag-model");
+    if (model) parts.push("--model " + model);
+    var conv = getRadioValue("flag-conv");
+    if (conv) parts.push(conv);
+    var custom = document.getElementById("flag-custom").value;
+    custom = custom.replace(/^\s+|\s+$/g, "");
+    if (custom) parts.push(custom);
+    return parts.join(" ");
+  }
+
+  // Compose flags for persistence to config.txt. Excludes --continue and
+  // --resume: those are per-launch decisions and must NOT carry over to
+  // right-click "Open with Kivun Terminal" launches, which read CLAUDE_FLAGS
+  // from config.txt. A folder with no prior conversation would otherwise
+  // crash with "No conversation found to continue".
+  function composeFlagsForConfig() {
+    var parts = [];
+    var model = getRadioValue("flag-model");
+    if (model) parts.push("--model " + model);
+    var custom = document.getElementById("flag-custom").value;
+    custom = custom.replace(/^\s+|\s+$/g, "");
+    if (custom) parts.push(custom);
+    return parts.join(" ");
+  }
+
+  function setAdvancedOpen(open) {
+    var btn = document.getElementById("advanced-toggle");
+    var body = document.getElementById("advanced-body");
+    if (!btn || !body) return;
+    if (open) {
+      btn.className = "advanced-toggle open";
+      body.className = "advanced-body open";
+      var arrow = btn.getElementsByTagName("span")[0];
+      if (arrow) arrow.innerHTML = "▼";
+    } else {
+      btn.className = "advanced-toggle";
+      body.className = "advanced-body";
+      var arrow2 = btn.getElementsByTagName("span")[0];
+      if (arrow2) arrow2.innerHTML = "▶";
+    }
+  }
+
+  function toggleAdvanced() {
+    var body = document.getElementById("advanced-body");
+    var isOpen = body && body.className.indexOf("open") >= 0;
+    setAdvancedOpen(!isOpen);
+    try { autoSizeToContent(); } catch (e) {}
+  }
+
+  // Auto-expand Advanced if any field inside has non-default content,
+  // so users restoring a profile with custom flags/cmds/envs can see them.
+  function autoExpandAdvancedIfDirty() {
+    var custom = (document.getElementById("flag-custom") || {value: ""}).value;
+    var conv = getRadioValue("flag-conv");
+    var model = getRadioValue("flag-model");
+    var startup = (document.getElementById("startup-cmds") || {value: ""}).value;
+    var envv = (document.getElementById("env-vars") || {value: ""}).value;
+    var dirty = (custom && custom.replace(/\s/g, "")) ||
+                conv ||
+                (model && model !== "opus") ||
+                (startup && startup.replace(/\s/g, "")) ||
+                (envv && envv.replace(/\s/g, ""));
+    if (dirty) setAdvancedOpen(true);
+  }
+
+  function escapeHtml(s) {
+    if (s === null || s === undefined) return "";
+    return ("" + s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function updateFlagPreview() {
+    var s = composeFlags();
+    var flagsEl = document.getElementById("flag-effective");
+    if (flagsEl) flagsEl.innerText = s ? s : "(none — default Claude behavior)";
+
+    // Startup-cmds secondary line
+    var stEl = document.getElementById("preview-startup");
+    if (stEl) {
+      var raw = (document.getElementById("startup-cmds") || {value: ""}).value || "";
+      var lines = raw.split(/\r?\n/);
+      var cleaned = [];
+      for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i].replace(/^\s+|\s+$/g, "");
+        if (ln) cleaned.push(ln);
+      }
+      if (cleaned.length) {
+        stEl.style.display = "block";
+        stEl.innerHTML = "↳ then types: " + escapeHtml(cleaned.join(", "));
+      } else {
+        stEl.style.display = "none";
+        stEl.innerHTML = "";
+      }
+    }
+
+    // Env-vars secondary line (masked unless toggled)
+    var envEl = document.getElementById("preview-env");
+    if (envEl) {
+      var entries = parseEnvVars((document.getElementById("env-vars") || {value: ""}).value || "");
+      if (entries.length) {
+        envEl.style.display = "block";
+        var parts = [];
+        for (var j = 0; j < entries.length; j++) {
+          var k = escapeHtml(entries[j].key);
+          var v = escapeHtml(entries[j].val);
+          if (maskEnvValues) {
+            parts.push('<span class="key">' + k + '</span>=…(set)');
+          } else {
+            parts.push('<span class="key">' + k + '</span>=' + v);
+          }
+        }
+        var label = maskEnvValues ? "↳ with env (masked): " : "↳ with env: ";
+        envEl.innerHTML = label + parts.join(", ");
+      } else {
+        envEl.style.display = "none";
+        envEl.innerHTML = "";
+      }
+    }
+  }
+
+  function loadFlagsFromConfig() {
+    // Opus is ALWAYS the default radio when the picker opens. We do not
+    // restore the previously-launched model from config.txt — the user
+    // wants to make a fresh choice every session, and a stale "--model
+    // haiku" from yesterday's experiment shouldn't quietly carry over.
+    setRadioValue("flag-model", "opus");
+
+    var content = readUtf8(configFile);
+    var match = content.match(/^CLAUDE_FLAGS=(.*)$/m);
+    var current = match ? match[1].replace(/^\s+|\s+$/g, "") : "";
+    if (!current) { updateFlagPreview(); return; }
+
+    // --model X: strip from `current` so it doesn't pollute the custom
+    // textbox, but do NOT use it to override the radio above.
+    var m = current.match(/--model\s+(\S+)/);
+    if (m) {
+      current = current.replace(m[0], "");
+    }
+
+    // --continue / --resume (mutually exclusive)
+    if (/(^|\s)--continue(\s|$)/.test(current)) {
+      setRadioValue("flag-conv", "--continue");
+      current = current.replace(/--continue/g, "");
+    } else if (/(^|\s)--resume(\s|$)/.test(current)) {
+      setRadioValue("flag-conv", "--resume");
+      current = current.replace(/--resume/g, "");
+    } else {
+      setRadioValue("flag-conv", "");
+    }
+
+    // Whatever's left becomes the custom field
+    current = current.replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+    document.getElementById("flag-custom").value = current;
+
+    updateFlagPreview();
+  }
+
+  function writeFlagsToConfig(newFlags) {
+    var content = readUtf8(configFile);
+    if (!content) return;
+    if (/^CLAUDE_FLAGS=.*$/m.test(content)) {
+      content = content.replace(/^CLAUDE_FLAGS=.*$/m, "CLAUDE_FLAGS=" + newFlags);
+    } else {
+      var nl = (content.indexOf("\r\n") >= 0) ? "\r\n" : "\n";
+      if (content.length && content.charAt(content.length - 1) !== "\n") content += nl;
+      content += "CLAUDE_FLAGS=" + newFlags + nl;
+    }
+    writeUtf8NoBom(configFile, content);
+  }
+
+  function writeStartupCmds() {
+    var raw = document.getElementById("startup-cmds").value;
+    var lines = raw.split(/\r?\n/);
+    var cleaned = [];
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i].replace(/^\s+|\s+$/g, "");
+      if (ln) cleaned.push(ln);
+    }
+    if (cleaned.length === 0) {
+      deleteIfExists(startupFile);
+      return;
+    }
+    writeUtf8NoBom(startupFile, cleaned.join("\n") + "\n");
+  }
+
+  function writeConvFlag() {
+    // One-shot per-launch resume choice (--continue / --resume). Written to a
+    // sidecar that the .bat applies to THIS launch only, then deletes, so it
+    // never carries over to right-click launches. Those read CLAUDE_FLAGS from
+    // config.txt, where the conversation flags are deliberately excluded.
+    var conv = getRadioValue("flag-conv");
+    if (!conv) { deleteIfExists(convFile); return; }
+    writeUtf8NoBom(convFile, conv);
+  }
+
+  function ok() {
+    clearError();
+    var p = document.getElementById("path").value;
+    if (p == null) p = "";
+    p = p.replace(/^\s+|\s+$/g, "");
+    p = p.replace(/^"+|"+$/g, "");
+    if (p == "") {
+      showError("Enter a folder path or click Browse.");
+      document.getElementById("path").focus();
+      return;
+    }
+    if (!fso.FolderExists(p)) {
+      showError("Folder does not exist: " + p);
+      document.getElementById("path").focus();
+      return;
+    }
+    // Persist current dialog state to the active profile + write the
+    // sidecar files the launcher consumes (startup cmds, env vars).
+    try {
+      var active = getActiveProfile();
+      captureDialogToProfile(active);
+      saveProfiles();
+    } catch (e) {}
+    // Keep config.txt's CLAUDE_FLAGS in sync for backwards compat with
+    // any external tool that scrapes config.txt; profiles.json is the
+    // source of truth from v1.4.0 onwards. Conversation flags
+    // (--continue/--resume) are excluded because right-click launches
+    // read this line and would crash on folders with no prior session.
+    try { writeFlagsToConfig(composeFlagsForConfig()); } catch (e) {}
+    try { var _cv = currentColorValue(); if (_cv) writeTerminalColorToConfig(_cv); } catch (e) {}
+    try { writeStartupCmds(); } catch (e) {}
+    try { writeConvFlag(); } catch (e) {}
+    try { writeEnvFile(); } catch (e) {}
+    writePath(p);
+    window.close();
+  }
+
+  function cancel() { window.close(); }
+
+  function onKey(ev) {
+    var e = ev || window.event;
+    var k = e.keyCode;
+    if (k == 13) { ok(); return false; }
+    if (k == 27) { cancel(); return false; }
+    return true;
+  }
+
+  // Bind chip click handlers programmatically so the flag template
+  // strings (some containing embedded double-quotes) survive HTA's
+  // HTML-entity decoding pass intact. Inline onclick='addCustomFlag("…&quot;…&quot;…")'
+  // breaks because &quot; decodes to " before the JS engine sees it,
+  // producing a malformed string literal.
+  function bindChips() {
+    var chips = [
+      ["chip-hebrew",      '--append-system-prompt "respond in Hebrew"'],
+      ["chip-effort-high", '--effort high'],
+      ["chip-concise",     '--append-system-prompt "be concise; keep responses short"'],
+      ["chip-stepbystep",  '--append-system-prompt "explain your reasoning step by step"'],
+      ["chip-tests",       '--append-system-prompt "always include tests for any code changes"'],
+      ["chip-acceptedits", '--permission-mode acceptEdits'],
+      ["chip-readonly",    '--disallowedTools "Edit Write MultiEdit"'],
+      ["chip-fallback",    '--fallback-model sonnet'],
+      ["chip-confirm",     '--append-system-prompt "describe planned changes before making them"']
+    ];
+    for (var i = 0; i < chips.length; i++) {
+      (function(template) {
+        var el = document.getElementById(chips[i][0]);
+        if (el) el.onclick = function() { addCustomFlag(template); };
+      })(chips[i][1]);
+    }
+  }
+
+  // Catch any unhandled JScript error and display it instead of letting
+  // mshta exit silently — a silent exit is interpreted by the .bat as
+  // "user cancelled" and Konsole opens at the home folder, looking to
+  // the user like Launch fired itself.
+  window.onerror = function(msg, url, line) {
+    try {
+      var el = document.getElementById("err");
+      if (el) el.innerText = "Picker error (line " + line + "): " + msg;
+    } catch (_) {}
+    return true;
+  };
+
+  // ---- Profiles (v1.4.0) ---------------------------------------------
+
+  function defaultProfileObj(name) {
+    return {
+      name: name || "Default",
+      folder: "",
+      model: "opus",
+      conv: "",
+      customFlags: "",
+      startupCmds: "",
+      envVars: ""
+    };
+  }
+
+  // First-run migration: synthesize a Default profile from the legacy
+  // CLAUDE_FLAGS line in config.txt so existing users don't lose their
+  // pinned flags when they upgrade to v1.4.0.
+  function migrateFromConfigToDefault() {
+    var p = defaultProfileObj("Default");
+    var content = readUtf8(configFile);
+    var match = content.match(/^CLAUDE_FLAGS=(.*)$/m);
+    var current = match ? match[1].replace(/^\s+|\s+$/g, "") : "";
+    if (current) {
+      var m = current.match(/--model\s+(\S+)/);
+      if (m) { p.model = m[1]; current = current.replace(m[0], ""); }
+      if (/(^|\s)--continue(\s|$)/.test(current)) {
+        p.conv = "--continue";
+        current = current.replace(/--continue/g, "");
+      } else if (/(^|\s)--resume(\s|$)/.test(current)) {
+        p.conv = "--resume";
+        current = current.replace(/--resume/g, "");
+      }
+      p.customFlags = current.replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+    }
+    return p;
+  }
+
+  // v1.4.3: scrub deprecated/dropped flags from each profile's customFlags
+  // on load. Right now this just removes `--effort low`, which v1.4.2
+  // dropped from the chip palette but which existing migrated profiles
+  // still carry (the v1.4.0 migration pulled it from CLAUDE_FLAGS into
+  // customFlags). User feedback v1.4.3: *"still the default is --effort
+  // low"* despite the chip removal — because the chip removal didn't
+  // touch persisted profile data. This sweeps it on every load so users
+  // never have to manually delete it.
+  function scrubDeprecatedFlags(p) {
+    if (!p || !p.customFlags) return;
+    var f = p.customFlags;
+    f = f.replace(/--effort\s+low(\s|$)/g, " ");
+    f = f.replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+    p.customFlags = f;
+  }
+
+  function loadProfiles() {
+    var raw = readUtf8(profilesFile);
+    if (raw) {
+      try {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.profiles && parsed.profiles.length) {
+          profilesState = parsed;
+          if (!profilesState.version) profilesState.version = 1;
+          for (var i = 0; i < profilesState.profiles.length; i++) {
+            scrubDeprecatedFlags(profilesState.profiles[i]);
+          }
+          saveProfiles();  // persist the cleanup so it doesn't run forever
+          return;
+        }
+      } catch (e) { /* fall through to migration */ }
+    }
+    // First run (or corrupt file): seed with migrated Default. Migration
+    // also goes through the scrubber so a stale CLAUDE_FLAGS=--effort low
+    // in config.txt doesn't end up in the new Default profile.
+    var def = migrateFromConfigToDefault();
+    scrubDeprecatedFlags(def);
+    profilesState = {
+      version: 1,
+      active: "Default",
+      profiles: [def]
+    };
+    saveProfiles();
+  }
+
+  function saveProfiles() {
+    try {
+      var json = JSON.stringify(profilesState, null, 2);
+      writeUtf8NoBom(profilesFile, json);
+    } catch (e) {
+      try { showError("Could not save profiles: " + (e.message || e.description || e)); } catch (_) {}
+    }
+  }
+
+  function findProfile(name) {
+    for (var i = 0; i < profilesState.profiles.length; i++) {
+      if (profilesState.profiles[i].name === name) return i;
+    }
+    return -1;
+  }
+
+  function getActiveProfile() {
+    var i = findProfile(profilesState.active);
+    if (i < 0) {
+      // active points at a deleted profile — fall back to first
+      profilesState.active = profilesState.profiles[0].name;
+      i = 0;
+    }
+    return profilesState.profiles[i];
+  }
+
+  function captureDialogToProfile(target) {
+    target.folder      = (document.getElementById("path").value || "").replace(/^\s+|\s+$/g, "");
+    // Default profile never persists the model — it always resets to opus on
+    // open so the user is never surprised by a stale Sonnet/Haiku choice.
+    // Named project profiles remember their model as an explicit per-project choice.
+    target.model       = (target.name === "Default") ? "opus" : getRadioValue("flag-model");
+    target.conv        = getRadioValue("flag-conv");
+    target.customFlags = (document.getElementById("flag-custom").value || "").replace(/^\s+|\s+$/g, "");
+    target.startupCmds = document.getElementById("startup-cmds").value || "";
+    target.envVars     = document.getElementById("env-vars").value || "";
+  }
+
+  function applyProfileToDialog(p) {
+    document.getElementById("path").value         = p.folder || "";
+    // Default profile always shows Opus — model is not persisted there.
+    setRadioValue("flag-model", (p.name === "Default") ? "opus" : (p.model || "opus"));
+    setRadioValue("flag-conv", p.conv || "");
+    document.getElementById("flag-custom").value  = p.customFlags || "";
+    document.getElementById("startup-cmds").value = p.startupCmds || "";
+    document.getElementById("env-vars").value     = p.envVars || "";
+    updateFlagPreview();
+  }
+
+  // Track which profile is currently shown in the dialog so a switch
+  // saves the outgoing edits before loading the incoming profile.
+  var currentDialogProfile = null;
+
+  // v1.4.1: chip buttons replace <select>. HTA's <select> onchange does not
+  // fire reliably (project memory project_kivun_picker_features.md), and the
+  // same fix worked for model selection. One <button class="profile-chip">
+  // per saved profile; the active one gets .active styling. Closure binds
+  // the profile name into each chip's onclick so iteration variable doesn't
+  // collapse to the last value (a JScript ES3 trap).
+  // v1.4.3: build chip HTML as a single innerHTML string with inline
+  // onclick attributes. createElement + .onclick was unreliable in HTA —
+  // dynamically created buttons sometimes rendered without firing handlers
+  // even though the same pattern works on STATIC elements (the existing
+  // flag chips). innerHTML construction sidesteps this — IE parses the
+  // attribute string into a real onclick handler at render time.
+  // SECURITY: passing the profile NAME through onclick="" string-interp
+  // (v1.4.1–v1.4.8) was a JScript-injection vector — a profile name
+  // like  x'); evil(); //  survived &#39; HTML-escaping because the
+  // attribute is HTML-decoded before JS parsing. v1.4.9 fixes this by
+  // passing a profile INDEX (a literal integer, no interpolation risk)
+  // and looking the name up from trusted state inside the handler.
+  function populateProfileChips() {
+    var row = document.getElementById("profile-chips");
+    if (!row) return;
+    var html = "";
+    for (var i = 0; i < profilesState.profiles.length; i++) {
+      var name = profilesState.profiles[i].name;
+      var isActive = (name === profilesState.active);
+      var nameEsc = escapeHtml(name);
+      var cls = "profile-chip" + (isActive ? " active" : "");
+      var ttl = isActive ? "Active profile — already loaded" : "Switch to profile: " + name;
+      html += '<button type="button" class="' + cls + '" title="' + escapeHtml(ttl) + '"'
+            + ' onclick="switchToProfileByIndex(' + i + ')">' + nameEsc + '</button>';
+    }
+    row.innerHTML = html;
+  }
+
+  function switchToProfileByIndex(idx) {
+    var p = profilesState.profiles[idx];
+    if (!p) return;
+    switchToProfile(p.name);
+  }
+
+  function switchToProfile(name) {
+    if (name === currentDialogProfile) return;  // already active, no-op
+    // Save outgoing dialog state into its profile object so edits the user
+    // made to the previously-active profile aren't lost on switch.
+    if (currentDialogProfile) {
+      var idxOut = findProfile(currentDialogProfile);
+      if (idxOut >= 0) {
+        captureDialogToProfile(profilesState.profiles[idxOut]);
+      }
+    }
+    profilesState.active = name;
+    var idxIn = findProfile(name);
+    if (idxIn >= 0) {
+      applyProfileToDialog(profilesState.profiles[idxIn]);
+      currentDialogProfile = name;
+      populateProfileChips();  // re-render so .active styling moves
+      saveProfiles();
+      flashStatus("loaded");
+    }
+  }
+
+  function flashStatus(kind) {
+    var s = document.getElementById("profile-status");
+    if (!s) return;
+    s.className = "status saved";
+    s.innerText = (kind === "saved") ? "✓ saved" : "✓ loaded";
+    setTimeout(function () { try { s.innerText = ""; s.className = "status"; } catch (_) {} }, 1400);
+  }
+
+  function saveProfileAs() {
+    clearError();
+    var name = "";
+    try { name = window.prompt("Save current settings as a new profile.\nProfile name:", ""); } catch (e) {}
+    if (name === null || name === undefined) return;
+    name = ("" + name).replace(/^\s+|\s+$/g, "");
+    if (!name) { showError("Profile name cannot be empty."); return; }
+    if (findProfile(name) >= 0) { showError("A profile named \"" + name + "\" already exists."); return; }
+    var p = defaultProfileObj(name);
+    captureDialogToProfile(p);
+    profilesState.profiles.push(p);
+    profilesState.active = name;
+    currentDialogProfile = name;
+    populateProfileChips();
+    saveProfiles();
+    flashStatus("saved");
+  }
+
+  function renameProfile() {
+    clearError();
+    var idx = findProfile(profilesState.active);
+    if (idx < 0) return;
+    var oldName = profilesState.profiles[idx].name;
+    var newName = "";
+    try { newName = window.prompt("Rename profile \"" + oldName + "\" to:", oldName); } catch (e) {}
+    if (newName === null || newName === undefined) return;
+    newName = ("" + newName).replace(/^\s+|\s+$/g, "");
+    if (!newName || newName === oldName) return;
+    if (findProfile(newName) >= 0) { showError("A profile named \"" + newName + "\" already exists."); return; }
+    profilesState.profiles[idx].name = newName;
+    profilesState.active = newName;
+    currentDialogProfile = newName;
+    populateProfileChips();
+    saveProfiles();
+    flashStatus("saved");
+  }
+
+  function deleteProfile() {
+    clearError();
+    var idx = findProfile(profilesState.active);
+    if (idx < 0) return;
+    var name = profilesState.profiles[idx].name;
+    if (name === "Default") {
+      showError("The Default profile cannot be deleted (it auto-rebuilds on next launch).");
+      return;
+    }
+    var ok = false;
+    try { ok = window.confirm("Delete profile \"" + name + "\"? This cannot be undone."); } catch (e) {}
+    if (!ok) return;
+    profilesState.profiles.splice(idx, 1);
+    if (profilesState.profiles.length === 0) {
+      profilesState.profiles.push(defaultProfileObj("Default"));
+    }
+    profilesState.active = profilesState.profiles[0].name;
+    currentDialogProfile = profilesState.active;
+    populateProfileChips();
+    applyProfileToDialog(profilesState.profiles[0]);
+    saveProfiles();
+    flashStatus("saved");
+  }
+
+  // ---- Env vars (v1.4.0) ----------------------------------------------
+  // Parse the env-vars textarea into [{key,val}]. Lines starting with #
+  // are comments; blank lines ignored. Malformed lines (no '=') skipped.
+  function parseEnvVars(raw) {
+    var out = [];
+    if (!raw) return out;
+    var lines = raw.split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i].replace(/^\s+|\s+$/g, "");
+      if (!ln || ln.charAt(0) === "#") continue;
+      var eq = ln.indexOf("=");
+      if (eq <= 0) continue;
+      var key = ln.substring(0, eq).replace(/^\s+|\s+$/g, "");
+      var val = ln.substring(eq + 1);
+      if (!key) continue;
+      // Validate KEY: alphanumeric + underscore. Reject anything else
+      // so a malformed line can't be smuggled into WSLENV / set.
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+      out.push({ key: key, val: val });
+    }
+    return out;
+  }
+
+  function writeEnvFile() {
+    var entries = parseEnvVars(document.getElementById("env-vars").value);
+    if (entries.length === 0) {
+      deleteIfExists(envFile);
+      return;
+    }
+    var lines = [];
+    for (var i = 0; i < entries.length; i++) {
+      lines.push(entries[i].key + "=" + entries[i].val);
+    }
+    writeUtf8NoBom(envFile, lines.join("\n") + "\n");
+  }
+
+  function toggleMaskEnv() {
+    maskEnvValues = !maskEnvValues;
+    var btn = document.getElementById("mask-toggle");
+    if (btn) btn.innerText = maskEnvValues ? "👁 show values" : "🙈 hide values";
+    updateFlagPreview();
+  }
+
+  // ---- Voice alerts (Sound alerts) — WSL-routed ------------------------
+  // Inline equivalent of the Sound ON/OFF, Regular/Funny and repeat .cmd
+  // controls. Kivun's config.json lives inside the WSL distro, so every read
+  // and write goes through `wsl -d Ubuntu`. Findings (wav/CLAUDE.md):
+  // config.json is the single source of truth, re-read on every play (instant
+  // apply), and repeat_minutes is capped at 15. Everything is wrapped
+  // never-to-throw so a sound action can't break the picker or the launch.
+
+  function clampSoundMinutes(v) {
+    var n = parseInt(v, 10);
+    if (isNaN(n) || n < 1) n = 2;
+    if (n > 15) n = 15;   // the system ignores anything above 15 minutes
+    return n;
+  }
+
+  function loadSoundConfig() {
+    soundCfg = null;
+    try {
+      deleteIfExists(soundReadTmp);
+      // cmd /c so we can redirect WSL stdout into a Windows temp file. The path
+      // has no spaces, so the sh -c argument needs no inner quoting.
+      var readCmd = 'cmd /c wsl.exe -d ' + SND_DISTRO +
+        ' -- sh -c "cat $HOME/.claude/sounds/config.json" > "' + soundReadTmp + '" 2>nul';
+      wshShell.Run(readCmd, 0, true);   // hidden, wait
+      if (!fso.FileExists(soundReadTmp)) return;
+      var raw = readUtf8(soundReadTmp);
+      deleteIfExists(soundReadTmp);
+      if (!raw || !raw.replace(/^\s+|\s+$/g, "")) return;
+      var c = JSON.parse(raw);
+      if (!c || typeof c !== "object") return;
+      soundCfg = {
+        enabled: (c.enabled !== false),
+        mode: (c.mode === "funny") ? "funny" : "regular",
+        repeat_enabled: (c.repeat_enabled === true),
+        repeat_minutes: clampSoundMinutes(c.repeat_minutes)
+      };
+    } catch (e) { soundCfg = null; }
+  }
+
+  function wslSetStateCmd(cfg) {
+    // Drive voice.js to the exact desired state in one wsl call. Order matters:
+    // `every N` also flips repeat ON, so the final `repeat on|off` runs LAST.
+    // voice.js does load-modify-save, so any unknown keys in config.json survive.
+    var seq = "cd $HOME/.claude/sounds && " +
+              "node voice.js mode " + cfg.mode + " && " +
+              "node voice.js " + (cfg.enabled ? "on" : "off") + " && " +
+              "node voice.js every " + cfg.repeat_minutes + " && " +
+              "node voice.js repeat " + (cfg.repeat_enabled ? "on" : "off");
+    return 'wsl.exe -d ' + SND_DISTRO + ' -- sh -c "' + seq + '"';
+  }
+
+  function saveSoundConfig() {
+    if (!soundCfg) return;
+    try { wshShell.Run(wslSetStateCmd(soundCfg), 0, true); } catch (e) {}  // hidden, wait
+  }
+
+  function applySoundConfigToUI() {
+    var checking = document.getElementById("sound-checking");
+    var block = document.getElementById("sound-block");
+    var na = document.getElementById("sound-na");
+    var help = document.getElementById("sound-help");
+    if (checking) checking.style.display = "none";
+    if (!soundCfg) {
+      if (block) block.style.display = "none";
+      if (help) help.style.display = "none";
+      if (na) na.style.display = "block";
+      return;
+    }
+    if (na) na.style.display = "none";
+    if (block) block.style.display = "block";
+    if (help) help.style.display = "block";
+    setRadioValue("snd-enabled", soundCfg.enabled ? "on" : "off");
+    setRadioValue("snd-mode", soundCfg.mode);
+    var rep = document.getElementById("snd-repeat");
+    if (rep) rep.checked = soundCfg.repeat_enabled;
+    var mins = document.getElementById("snd-minutes");
+    if (mins) mins.value = soundCfg.repeat_minutes;
+  }
+
+  function flashSoundStatus() {
+    var s = document.getElementById("snd-status");
+    if (!s) return;
+    s.className = "status saved";
+    s.innerText = "✓ saved";
+    try { setTimeout(function () { try { s.innerText = ""; s.className = "status"; } catch (_) {} }, 1400); } catch (_) {}
+  }
+
+  function captureSoundUI() {
+    if (!soundCfg) return;
+    soundCfg.enabled = (getRadioValue("snd-enabled") === "on");
+    soundCfg.mode = (getRadioValue("snd-mode") === "funny") ? "funny" : "regular";
+    var rep = document.getElementById("snd-repeat");
+    soundCfg.repeat_enabled = !!(rep && rep.checked);
+    var mins = document.getElementById("snd-minutes");
+    var n = clampSoundMinutes(mins ? mins.value : 2);
+    soundCfg.repeat_minutes = n;
+    if (mins && ("" + mins.value) !== ("" + n)) mins.value = n;  // reflect clamp
+  }
+
+  // Every control writes the FULL desired state (one wsl call), so the four
+  // fields can never drift apart regardless of voice.js side effects.
+  function onSoundChange() {
+    if (!soundCfg) return;
+    captureSoundUI();
+    saveSoundConfig();
+    flashSoundStatus();
+  }
+
+  function testSounds() {
+    try {
+      var seq = "cd $HOME/.claude/sounds && for a in done permission waiting save; do node voice.js test $a; sleep 2; done";
+      wshShell.Run('wsl.exe -d ' + SND_DISTRO + ' -- sh -c "' + seq + '"', 0, false);  // hidden, no wait
+    } catch (e) {}
+  }
+
+  // Deferred: the first wsl.exe call can be slow on a cold distro, so we render
+  // the picker first (with a "checking…" note) and populate once the read returns.
+  function initSoundControls() {
+    try {
+      loadSoundConfig();
+      applySoundConfigToUI();
+      autoSizeToContent();
+    } catch (e) {}
+  }
+
+  // ---- Terminal color (TERMINAL_COLOR in config.txt) -----------------
+  // Kivun renders inside Konsole, which loads a color scheme into memory ONCE when
+  // the window's process starts, and caches it. So a new TAB in an already-open
+  // window keeps the old color, and only a BRAND-NEW window (a fresh Konsole
+  // process) shows a changed color. "Apply" therefore (1) saves the choice to
+  // config.txt - a plain Windows write - and (2) regenerates the Konsole scheme
+  // inside WSL via kivun-apply-color.cmd so the next fresh window is guaranteed to
+  // pick it up. To SEE the change you close ALL Kivun windows and reopen. (Live-
+  // recoloring a running window / new tab would need Konsole D-Bus, unreliable
+  // under WSLg; it's left to the roadmap until it can be tested on a real box.)
+  var NAMED_COLORS = { kivun: 1, dark: 1, black: 1, white: 1, "default": 1 };
+
+  function readTerminalColor() {
+    var content = readUtf8(configFile);
+    var m = content ? content.match(/^[ \t]*TERMINAL_COLOR[ \t]*=(.*)$/m) : null;
+    var v = m ? m[1].replace(/^\s+|\s+$/g, "") : "kivun";
+    return v || "kivun";
+  }
+
+  function applyColorToUI(val) {
+    val = (val || "kivun");
+    var lc = ("" + val).toLowerCase();
+    var isNamed = NAMED_COLORS[lc] ? true : false;
+    setRadioValue("term-color", isNamed ? lc : "custom");
+    var hx = document.getElementById("term-hex");
+    if (hx && !isNamed) hx.value = val;
+  }
+
+  function currentColorValue() {
+    var v = getRadioValue("term-color");
+    if (v === "custom") {
+      var hx = document.getElementById("term-hex");
+      return hx ? hx.value.replace(/^\s+|\s+$/g, "") : "";
+    }
+    return v || "kivun";
+  }
+
+  function writeTerminalColorToConfig(val) {
+    var content = readUtf8(configFile);
+    if (!content) return;
+    if (/^[ \t]*TERMINAL_COLOR[ \t]*=.*$/m.test(content)) {
+      content = content.replace(/^[ \t]*TERMINAL_COLOR[ \t]*=.*$/m, "TERMINAL_COLOR=" + val);
+    } else {
+      var nl = (content.indexOf("\r\n") >= 0) ? "\r\n" : "\n";
+      if (content.length && content.charAt(content.length - 1) !== "\n") content += nl;
+      content += "TERMINAL_COLOR=" + val + nl;
+    }
+    writeUtf8NoBom(configFile, content);
+  }
+
+  function flashColorStatus(msg) {
+    var s = document.getElementById("color-status");
+    if (!s) return;
+    s.className = "status saved";
+    s.innerText = msg || "✓ saved";
+    try { setTimeout(function () { try { s.innerText = ""; s.className = "status"; } catch (_) {} }, 2200); } catch (_) {}
+  }
+
+  function onColorPick() {
+    if (getRadioValue("term-color") === "custom") {
+      var hx = document.getElementById("term-hex");
+      if (hx && hx.focus) hx.focus();
+    }
+  }
+  function onColorHexType() { setRadioValue("term-color", "custom"); }
+
+  function applyTerminalColor() {
+    var val = currentColorValue();
+    if (!val) { flashColorStatus("enter a #hex color"); return; }
+    try { writeTerminalColorToConfig(val); } catch (e) {}
+    // Pre-regenerate Konsole's scheme inside WSL so the next FRESH window is
+    // guaranteed to show the color (the launcher also regenerates it on every
+    // launch, so this is belt-and-suspenders). A running window / new tab can NOT
+    // repaint - Konsole caches the scheme per process - so the honest promise is
+    // "reopen to see it", NOT "new tab". kivun-apply-color.cmd detects the real
+    // distro + WSLg user the same way the launcher does. Fire-and-forget (a cold
+    // WSL can take a few seconds and we must not freeze the picker); best-effort
+    // because the config write above means the next launch applies it regardless.
+    try {
+      var safe = ("" + val).replace(/["^&|<>%]/g, "");   // color is named/#hex; strip cmd-hostile chars defensively
+      var cmd = 'cmd /c ""' + installDir + '\\kivun-apply-color.cmd" "' + safe + '""';
+      wshShell.Run(cmd, 0, false);   // hidden, no wait
+    } catch (e) {}
+    flashColorStatus("✓ saved - close all Kivun windows, then reopen to see the new color");
+  }
+
+  // ---- WSL memory cap (%USERPROFILE%\.wslconfig) ---------------------
+  // Kivun runs a small Linux VM (WSL2) that can hold a lot of RAM. This caps it.
+  // Written quietly, preserving any other .wslconfig keys; it takes effect only
+  // after WSL fully restarts (close all WSL windows, or reboot) - we never
+  // restart WSL for the user (that would close their other WSL work).
+  function wslconfigPath() {
+    return wshShell.ExpandEnvironmentStrings("%USERPROFILE%") + "\\.wslconfig";
+  }
+
+  function readWslMemoryGb() {
+    var content = readUtf8(wslconfigPath());
+    if (!content) return "";
+    var lines = content.split(/\r?\n/);
+    var inW = false, val = "";
+    for (var i = 0; i < lines.length; i++) {
+      var t = lines[i].replace(/^\s+|\s+$/g, "");
+      if (/^\[.*\]$/.test(t)) { inW = (t.toLowerCase() === "[wsl2]"); continue; }
+      if (inW) {
+        var m = t.match(/^memory\s*=\s*(.*)$/i);
+        if (m) val = m[1].replace(/gb\s*$/i, "").replace(/^\s+|\s+$/g, "");
+      }
+    }
+    return val;
+  }
+
+  function writeWslMemoryGb(gb) {
+    // gb = a whole-number string ("3") to set a cap, or "" to remove it.
+    // Preserves every other key/section in an existing .wslconfig.
+    var path = wslconfigPath();
+    var content = readUtf8(path);
+    var lines = content ? content.split(/\r?\n/) : [];
+    var out = [], inW = false, sawWsl2 = false, wroteMem = false;
+    for (var i = 0; i < lines.length; i++) {
+      var raw = lines[i];
+      var t = raw.replace(/^\s+|\s+$/g, "");
+      if (/^\[.*\]$/.test(t)) {
+        if (inW && gb && !wroteMem) { out.push("memory=" + gb + "GB"); wroteMem = true; }
+        inW = (t.toLowerCase() === "[wsl2]");
+        if (inW) sawWsl2 = true;
+        out.push(raw);
+        continue;
+      }
+      if (inW && /^memory\s*=/i.test(t)) {
+        if (gb && !wroteMem) { out.push("memory=" + gb + "GB"); wroteMem = true; }
+        continue;  // drop old memory line
+      }
+      out.push(raw);
+    }
+    if (inW && gb && !wroteMem) { out.push("memory=" + gb + "GB"); wroteMem = true; }
+    if (!sawWsl2 && gb) {
+      if (out.length && ("" + out[out.length - 1]).replace(/\s/g, "") !== "") out.push("");
+      out.push("[wsl2]");
+      out.push("memory=" + gb + "GB");
+    }
+    writeUtf8NoBom(path, out.join("\r\n"));
+  }
+
+  function flashWslStatus(msg) {
+    var s = document.getElementById("wsl-mem-status");
+    if (!s) return;
+    s.className = "status saved";
+    s.innerText = msg || "✓ saved";
+    try { setTimeout(function () { try { s.innerText = ""; s.className = "status"; } catch (_) {} }, 2600); } catch (_) {}
+  }
+
+  function applyWslMemory() {
+    var el = document.getElementById("wsl-mem");
+    var raw = el ? ("" + el.value).replace(/^\s+|\s+$/g, "").replace(/gb$/i, "") : "";
+    if (raw !== "" && !/^\d{1,3}$/.test(raw)) { flashWslStatus("enter a whole number of GB"); return; }
+    try { writeWslMemoryGb(raw); } catch (e) {}
+    flashWslStatus(raw ? ("✓ saved " + raw + "GB - restart WSL to apply") : "✓ cleared - restart WSL to apply");
+  }
+
+  function init() {
+    try {
+      deleteIfExists(startupFile);   // start each session fresh
+      deleteIfExists(envFile);       // env file too — only the chosen profile's vars apply
+      bindChips();
+      loadProfiles();
+      populateProfileChips();
+      var active = getActiveProfile();
+      currentDialogProfile = active.name;
+      applyProfileToDialog(active);
+      try { applyColorToUI(readTerminalColor()); } catch (e) {}
+      try { var wm = document.getElementById("wsl-mem"); if (wm) wm.value = readWslMemoryGb(); } catch (e) {}
+      autoSizeToContent();
+      var p = document.getElementById("path");
+      if (p && p.focus) p.focus();
+      // Defer the GitHub check so the picker renders first; the sync
+      // WinHttp call can briefly block the UI thread on slow links.
+      try { window.setTimeout(checkForUpdate, 100); } catch (_) {}
+      // Populate the sound controls after first render (cold-distro safe).
+      try { window.setTimeout(initSoundControls, 140); } catch (_) {}
+    } catch (e) {
+      try { showError("init error: " + (e.message || e.description || e)); } catch (_) {}
+    }
+  }
+
+</script>
+</head>
+<body onload="init()">
+  <div id="update-banner" class="update-banner"></div>
+  <div class="profile-bar">
+    <span class="lbl">Profile:</span>
+    <span id="profile-chips" class="profile-chip-row"></span>
+    <button type="button" onclick="saveProfileAs()" title="Save current settings as a new profile">+ New</button>
+    <button type="button" onclick="renameProfile()" title="Rename the current profile">Rename</button>
+    <button type="button" onclick="deleteProfile()" title="Delete the current profile (Default cannot be deleted)">Delete</button>
+    <span class="status" id="profile-status"></span>
+  </div>
+
+  <h1>Pick a folder for Kivun Terminal</h1>
+  <p class="hint">
+    Choose <b>one</b> of the two options below, optionally tune the Claude flags + startup commands, then click <b>Launch Kivun Terminal</b>.
+    Switch <b>Profile</b> at the top to load a saved combo (folder, model, flags, startup commands, env vars).
+  </p>
+
+  <div class="option">
+    <div class="opt-label"><span class="opt-num">1</span> Type or paste a Windows path:</div>
+    <input type="text" id="path" onkeydown="return onKey(event)" placeholder="C:\Users\you\Documents\MyProject" />
+  </div>
+
+  <div class="or-sep"><span>OR</span></div>
+
+  <div class="option">
+    <div class="opt-label"><span class="opt-num">2</span> Pick a folder from the Windows folder tree:</div>
+    <button type="button" class="browse" onclick="browseFolder()">Browse Folder Tree...</button>
+  </div>
+
+  <button type="button" id="advanced-toggle" class="advanced-toggle" title="Click to expand: model, conversation flags, startup slash commands, environment variables" onclick="toggleAdvanced()">
+    <span class="arrow">▶</span>
+    <span>Advanced options</span>
+    <span class="sub">— click to show model, flags, startup slash commands, env vars</span>
+  </button>
+  <div id="advanced-body" class="advanced-body">
+
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label"><span class="opt-num">3</span> Claude flags (optional):</div>
+    <div class="flag-grid">
+
+      <div class="lbl">Model:</div>
+      <div class="radio-row">
+        <label><input type="radio" name="flag-model" value="opus" onclick="updateFlagPreview()" checked /> Opus <span style="color:#707070">(most capable)</span></label>
+        <label><input type="radio" name="flag-model" value="sonnet" onclick="updateFlagPreview()" /> Sonnet <span style="color:#707070">(balanced)</span></label>
+        <label><input type="radio" name="flag-model" value="haiku" onclick="updateFlagPreview()" /> Haiku <span style="color:#707070">(fastest)</span></label>
+        <label><input type="radio" name="flag-model" value="" onclick="updateFlagPreview()" /> Let Claude decide</label>
+      </div>
+
+      <div class="lbl">Conversation:</div>
+      <div class="radio-row">
+        <label><input type="radio" name="flag-conv" value="" onclick="updateFlagPreview()" checked /> Start fresh</label>
+        <label><input type="radio" name="flag-conv" value="--continue" onclick="updateFlagPreview()" /> Continue last</label>
+        <label><input type="radio" name="flag-conv" value="--resume" onclick="updateFlagPreview()" /> Pick from history</label>
+      </div>
+
+      <div class="lbl">Quick options:</div>
+      <div class="chip-row">
+        <button type="button" class="chip" id="chip-hebrew"      title="Asks Claude to reply in Hebrew">+ Respond in Hebrew</button>
+        <button type="button" class="chip" id="chip-effort-high" title="--effort high — Claude thinks harder before answering; slower and more thorough">+ High effort</button>
+        <button type="button" class="chip" id="chip-concise"     title="Tells Claude to keep replies short and to the point">+ Concise responses</button>
+        <button type="button" class="chip" id="chip-stepbystep"  title="Tells Claude to explain its reasoning step by step before any conclusion">+ Step-by-step reasoning</button>
+        <button type="button" class="chip" id="chip-tests"       title="Tells Claude to always include tests when writing or changing code">+ Always include tests</button>
+        <button type="button" class="chip" id="chip-acceptedits" title="--permission-mode acceptEdits — auto-accept file edits without asking each time (Shift+Tab inside Claude does the same per-session)">+ Auto-accept file edits</button>
+        <button type="button" class="chip" id="chip-readonly"    title="Disable Edit/Write/MultiEdit tools — Claude can read and explain code but can't modify files">+ Read-only (no file edits)</button>
+        <button type="button" class="chip" id="chip-fallback"    title="--fallback-model sonnet — if Opus is at capacity at launch, auto-switch to Sonnet so the session still starts">+ Don't fail if Opus is busy</button>
+        <button type="button" class="chip" id="chip-confirm"     title="Tells Claude to describe planned changes before making them">+ Confirm before changes</button>
+      </div>
+
+      <div class="lbl">Custom:</div>
+      <div>
+        <input type="text" id="flag-custom" onkeyup="updateFlagPreview()" placeholder="" />
+        <div class="flag-help">Anything in this box is appended verbatim to the Claude command. Chips above append into here; you can also edit freely.</div>
+      </div>
+    </div>
+
+    <div class="flag-preview">
+      <span class="label">Will run:</span>
+      <div class="cmd-line">
+        <div class="arg-line">$ claude <span id="flag-effective">(none)</span></div>
+        <div class="secondary" id="preview-startup" style="display:none"></div>
+        <div class="secondary" id="preview-env" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label"><span class="opt-num">4</span> Startup slash commands (optional):</div>
+    <textarea id="startup-cmds" rows="3" onkeyup="updateFlagPreview()" placeholder="One per line, e.g.&#10;/voicemode:converse&#10;/model opus"></textarea>
+    <div class="flag-help">Each line is typed into Claude after the session opens. Use this to auto-launch voice mode, switch to a specific model, etc. Leave empty for normal launch.</div>
+  </div>
+
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label">
+      <span class="opt-num">5</span> Environment variables (optional):
+      <button type="button" id="mask-toggle" style="margin-left:auto; padding:4px 10px; font-size:11px; min-width:0;" onclick="toggleMaskEnv()" title="Toggle whether env-var values are shown in the preview below. Values are always masked by default — click to reveal.">👁 show values</button>
+    </div>
+    <div class="env-row">
+      <textarea id="env-vars" rows="3" onkeyup="updateFlagPreview()" placeholder="KEY=VAL, one per line. Lines starting with # are ignored.&#10;e.g.&#10;ANTHROPIC_API_KEY=sk-ant-...&#10;DEBUG=1"></textarea>
+    </div>
+    <div class="flag-help">Per-profile environment variables passed into the Claude session. Values are masked in the preview by default for screenshot safety — click <b>👁 show values</b> above to reveal.</div>
+  </div>
+
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label"><span class="opt-num">6</span> 🔊 Sound alerts (voice):</div>
+    <div id="sound-checking" class="flag-help">Checking voice-alert settings in WSL…</div>
+    <div id="sound-na" class="flag-help" style="display:none">Voice alerts aren't set up in WSL yet (or WSL is unreachable). They install automatically the first time you launch Kivun.</div>
+    <div id="sound-block" style="display:none">
+      <div class="flag-grid">
+        <div class="lbl">Sounds:</div>
+        <div class="radio-row">
+          <label><input type="radio" name="snd-enabled" value="on" onclick="onSoundChange()" /> On</label>
+          <label><input type="radio" name="snd-enabled" value="off" onclick="onSoundChange()" /> Off</label>
+        </div>
+
+        <div class="lbl">Voice pack:</div>
+        <div class="radio-row">
+          <label><input type="radio" name="snd-mode" value="regular" onclick="onSoundChange()" /> Regular</label>
+          <label><input type="radio" name="snd-mode" value="funny" onclick="onSoundChange()" /> Funny <span style="color:#707070">(playful phrasing)</span></label>
+        </div>
+
+        <div class="lbl">Repeat reminder:</div>
+        <div class="check-row">
+          <label><input type="checkbox" id="snd-repeat" onclick="onSoundChange()" /> Remind me again every</label>
+          <input type="text" id="snd-minutes" value="2" onchange="onSoundChange()" style="width:46px; padding:6px 8px; font-size:13px;" />
+          <span>minutes <span style="color:#707070">(max 15)</span></span>
+        </div>
+
+        <div class="lbl"></div>
+        <div>
+          <button type="button" onclick="testSounds()" title="Play the four alerts (done, permission, waiting, save) in the selected voice pack">▶ Test Sounds</button>
+          <span class="status" id="snd-status" style="margin-left:10px;"></span>
+        </div>
+      </div>
+    </div>
+    <div class="flag-help" id="sound-help" style="display:none">These are <b>global</b> settings (inside WSL): one switch for <b>every project, folder, and window</b> (not per-project, not per-profile). Turning <b>Sounds: Off</b> here silences <b>all</b> alerts everywhere, takes effect immediately (no restart), and stays off across updates until you turn it back on. Note: playing sound from WSL needs WSLg/PulseAudio, so the <b>Test</b> button may be silent on some machines even though the settings still take effect.</div>
+  </div>
+
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label"><span class="opt-num">7</span> 🎨 Terminal color:</div>
+    <div class="flag-grid">
+      <div class="lbl">Background:</div>
+      <div class="radio-row">
+        <label><input type="radio" name="term-color" value="kivun" onclick="onColorPick()" /> Kivun <span style="color:#707070">(light blue)</span></label>
+        <label><input type="radio" name="term-color" value="dark" onclick="onColorPick()" /> Dark</label>
+        <label><input type="radio" name="term-color" value="black" onclick="onColorPick()" /> Black</label>
+        <label><input type="radio" name="term-color" value="white" onclick="onColorPick()" /> White</label>
+        <label><input type="radio" name="term-color" value="default" onclick="onColorPick()" /> Keep Konsole default</label>
+        <label><input type="radio" name="term-color" value="custom" onclick="onColorPick()" /> Custom</label>
+      </div>
+
+      <div class="lbl">Custom color:</div>
+      <div class="check-row">
+        <input type="text" id="term-hex" value="" placeholder="#1e1e2e" onkeyup="onColorHexType()" style="width:100px; padding:6px 8px; font-size:13px;" />
+        <button type="button" onclick="applyTerminalColor()" title="Save this terminal color">Apply</button>
+        <span class="status" id="color-status" style="margin-left:10px;"></span>
+      </div>
+    </div>
+    <div class="flag-help">Sets the Kivun window background; the text color is picked automatically for readability. The color takes effect in a <b>new Kivun window</b>: close all open Kivun windows, then reopen (a running window and any new tabs in it keep their color). <b>Keep Konsole default</b> leaves Konsole's own theme untouched.</div>
+  </div>
+
+  <div class="option" style="margin-top:12px">
+    <div class="opt-label"><span class="opt-num">8</span> 🧠 WSL memory limit:</div>
+    <div class="check-row">
+      <label>Limit WSL to</label>
+      <input type="text" id="wsl-mem" value="" placeholder="3" style="width:56px; padding:6px 8px; font-size:13px;" />
+      <span>GB of RAM</span>
+      <button type="button" onclick="applyWslMemory()" title="Save the WSL memory cap to your .wslconfig">Save</button>
+      <span class="status" id="wsl-mem-status" style="margin-left:10px;"></span>
+    </div>
+    <div class="flag-help">Kivun runs a small Linux system (WSL2) that can hold a lot of RAM. Set a cap (e.g. <b>3</b>) to keep it in check, or leave blank for no limit. Saved to your <code>.wslconfig</code>. It takes effect only <b>after WSL fully restarts</b> - close all Kivun/WSL windows, or restart your PC. Kivun will not restart WSL for you.</div>
+  </div>
+
+  </div><!-- /advanced-body -->
+
+  <div class="actions">
+    <button type="button" class="config" onclick="editConfig()" title="Open config.txt in Notepad for advanced settings (language, theme, BiDi tunables)">Open config.txt (advanced)</button>
+    <div class="right">
+      <button type="button" class="cancel" onclick="cancel()">Cancel</button>
+      <button type="button" class="primary ok" onclick="ok()">Launch Kivun Terminal</button>
+    </div>
+  </div>
+  <p class="err" id="err"></p>
+</body>
+</html>

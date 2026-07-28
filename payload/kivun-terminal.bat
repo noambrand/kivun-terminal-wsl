@@ -153,31 +153,33 @@ REM "Launch fired itself".
 set "PICKER_INVOKED=0"
 if /i not "%FOLDER_PICKER:~0,4%"=="true" goto :picker_done
 if not "%~1"=="" goto :picker_done
-call :LOG "INFO - FOLDER_PICKER enabled, launching HTA dialog"
-if not exist "%~dp0folder-picker.hta" (
-    call :LOG "WARNING - folder-picker.hta not found in install dir, falling back to .wsf"
-    if not exist "%~dp0folder-picker.wsf" (
-        call :LOG "WARNING - folder-picker.wsf also not found; skipping picker"
-        goto :picker_done
-    )
+call :LOG "INFO - FOLDER_PICKER enabled, launching picker"
+REM v1.8.0: the picker is now KivunPicker.exe, a SIGNED native program that hosts
+REM the SAME dialog inside the Edge WebView2 control, replacing mshta.exe +
+REM folder-picker.hta. Windows Defender's ML heuristic flagged the mshta+.hta
+REM LOLBin pattern regardless of the file's contents or our signature; the signed
+REM exe removes that pattern. A directly-invoked GUI exe blocks this .bat until its
+REM window closes, exactly like mshta did, so :picker_read below is unchanged.
+if exist "%~dp0KivunPicker.exe" (
+    set "PICKER_INVOKED=1"
+    "%~dp0KivunPicker.exe"
+    goto :picker_read
+)
+REM Legacy fallbacks - only if the signed exe is somehow missing from the install.
+if exist "%~dp0folder-picker.hta" (
+    call :LOG "WARNING - KivunPicker.exe missing; falling back to legacy HTA picker"
+    set "PICKER_INVOKED=1"
+    mshta.exe "%~dp0folder-picker.hta"
+    goto :picker_read
+)
+if exist "%~dp0folder-picker.wsf" (
+    call :LOG "WARNING - KivunPicker.exe and HTA missing; falling back to legacy .wsf picker"
     set "PICKER_INVOKED=1"
     cscript //Nologo "%~dp0folder-picker.wsf" >nul 2>&1
     goto :picker_read
 )
-REM v1.3.0: HTA picker replaces the .wsf BrowseForFolder. The HTA
-REM offers a path edit field, a Browse button (which still calls the
-REM native BrowseForFolder for the tree), AND an "Edit Default Flags"
-REM button that opens config.txt in Notepad — all in one dialog.
-REM Why HTA: native BrowseForFolder doesn't allow custom buttons.
-REM
-REM v1.3.3: invoke mshta.exe DIRECTLY (no `start /wait`). cmd waits
-REM for mshta to exit by default, and `start /wait mshta.exe ...`
-REM was unreliably synchronous in some configurations — Konsole
-REM could begin launching before the user finished with the picker
-REM dialog. Direct invocation guarantees the .bat blocks until the
-REM dialog window closes.
-set "PICKER_INVOKED=1"
-mshta.exe "%~dp0folder-picker.hta"
+call :LOG "WARNING - no picker available; skipping folder picker"
+goto :picker_done
 :picker_read
 if not exist "%LOCALAPPDATA%\Kivun-WSL\kivun-workdir.txt" (
     call :LOG "INFO - User cancelled folder picker — terminating launcher"

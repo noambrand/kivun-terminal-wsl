@@ -186,8 +186,21 @@ Section "Core Files" SEC_CORE
   SetOutPath "$INSTDIR\sounds"
   File /r "..\payload\sounds\*.*"
   SetOutPath "$INSTDIR"
-  File "..\payload\folder-picker.wsf"
-  File "..\payload\folder-picker.hta"
+  ; v1.8.0: the folder picker is now a SIGNED native program (KivunPicker.exe)
+  ; hosting the same UI inside Edge WebView2, replacing mshta.exe + folder-picker.hta.
+  ; Windows Defender flagged the mshta+.hta LOLBin pattern. The legacy .hta and .wsf
+  ; pickers (both LOLBin launch patterns) are no longer shipped; remove any leftover
+  ; copies on upgrade. folder-picker.html is generated from folder-picker.hta at
+  ; build time by picker-app\build-picker.js. The WebView2 DLLs are Microsoft-signed
+  ; support files; the runtime ships with Windows 11 / Edge.
+  Delete "$INSTDIR\folder-picker.hta"
+  Delete "$INSTDIR\folder-picker.wsf"
+  File "..\payload\KivunPicker.exe"
+  File "..\payload\folder-picker.html"
+  File "..\payload\webview-shim.js"
+  File "..\payload\Microsoft.Web.WebView2.Core.dll"
+  File "..\payload\Microsoft.Web.WebView2.WinForms.dll"
+  File "..\payload\WebView2Loader.dll"
   ; Window-icon helper: kivun-set-icon.py reads kivun-icon.png and writes
   ; _NET_WM_ICON via python-xlib so the Konsole window + taskbar show the
   ; Kivun icon under WSLg. See payload/kivun-set-icon.py.

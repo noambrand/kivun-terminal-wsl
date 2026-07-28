@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Kivun Terminal - Folder Picker (signed native host)
+
+    Same fix as ClaudeCode Launchpad CLI: the picker used to run as an HTA hosted
+    by mshta.exe, which Windows Defender's ML heuristic flags as a LOLBin pattern
+    (mshta running a local .hta) regardless of contents or signature. KivunPicker.exe
+    is a signed WinForms process that hosts the SAME picker UI inside the Edge
+    WebView2 control; the Windows operations it needs are handled by the signed
+    program instead of ActiveX/COM. Targets .NET Framework 4.8 (built into
+    Windows 10 1903+/11) so end users need no runtime download.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>KivunPicker</AssemblyName>
+    <RootNamespace>LaunchpadPicker</RootNamespace>
+    <ApplicationIcon>kivun_icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>x64</PlatformTarget>
+    <Deterministic>true</Deterministic>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Company>Noam Brand</Company>
+    <Product>Kivun Terminal</Product>
+    <AssemblyTitle>Kivun Terminal Folder Picker</AssemblyTitle>
+    <Description>Folder picker and launch options for Kivun Terminal.</Description>
+    <Version>1.8.0</Version>
+    <FileVersion>1.8.0.0</FileVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+</Project>

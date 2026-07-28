@@ -3,6 +3,40 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.8.0] - 2026-07-28
+
+### Changed — the folder picker is now a signed program, not an HTA (fixes the Defender false alarm)
+
+Windows Defender's machine-learning heuristic could flag the folder picker as
+malware. The detection is on the *command line* pattern `mshta.exe <a local
+.hta>` — a living-off-the-land technique — so it fires regardless of the file's
+contents or our signature, and signing the launcher can't clear it (the process
+Defender sees is Microsoft's own `mshta.exe`, and an `.hta` can't be signed).
+This is the same fix already shipped in ClaudeCode Launchpad CLI v3.0.0.
+
+v1.8.0 removes `mshta` entirely. The picker is now **KivunPicker.exe**, a small
+signed native program that shows the *same* dialog by hosting the existing
+picker UI inside the Microsoft Edge **WebView2** control. The UI (folder browse,
+flags, profiles, colors, RTL languages, sounds, update check) is unchanged — it
+is generated from the same source at build time — while the Windows operations
+it needs (read/write files, browse for a folder, run a command) are handled by
+the signed program instead of ActiveX/COM.
+
+`kivun-terminal.bat` now launches `KivunPicker.exe` (a directly-invoked GUI exe
+blocks the launcher until it closes, exactly like mshta did, so the folder is
+read back the same way). Benefits: no `mshta` LOLBin pattern for Defender to
+flag, and the picker process carries the publisher's Authenticode signature.
+
+Notes:
+- Requires the Microsoft Edge WebView2 Runtime (ships with Windows 11 and with
+  Microsoft Edge); if missing, the picker shows a friendly message pointing to
+  the free Microsoft download instead of failing silently.
+- The legacy `folder-picker.hta` **and** the older `folder-picker.wsf` picker
+  (also a LOLBin launch pattern, via `cscript`) are no longer installed, and any
+  leftover copies are removed on upgrade. Kivun now ships no HTA/WSF launchers.
+- `.NET Framework 4.8` (built into Windows 10 1903+/11) is the only runtime the
+  program itself needs — nothing extra to download.
+
 ## [1.7.1] - 2026-07-18
 
 ### Changed — BiDi wrapper: default-mode test coverage (test/docs only, no runtime change)

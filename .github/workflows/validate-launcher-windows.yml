@@ -410,6 +410,27 @@ jobs:
             || (echo "FAIL: $HTA lost the WSL memory-cap input"; exit 1)
           echo "PASS: v1.6.1 cold-start flake fix + picker color/WSL-memory controls intact"
 
+      - name: Verify v1.8.0 signed-picker fix (mshta/HTA retired)
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          # v1.8.0 replaced mshta.exe + folder-picker.hta with the SIGNED
+          # KivunPicker.exe (Defender flags the mshta+.hta LOLBin pattern). The
+          # launcher must invoke the signed exe as the PRIMARY picker, the installer
+          # must package it, and the legacy .hta/.wsf LOLBin pickers must no longer
+          # be shipped (the .hta stays in the repo only as the source for the HTML).
+          grep -qE '"%~dp0KivunPicker\.exe"' "$BAT" \
+            || (echo "FAIL: $BAT no longer launches the signed KivunPicker.exe"; exit 1)
+          awk '/KivunPicker\.exe/{if(!k)k=NR} /mshta\.exe/{if(!m)m=NR} END{ exit (k && (!m || k<m)) ? 0 : 1 }' "$BAT" \
+            || (echo "FAIL: mshta is not strictly a fallback below the signed exe in $BAT"; exit 1)
+          grep -qE '^[[:space:]]*File .*KivunPicker\.exe' "$NSI" \
+            || (echo "FAIL: $NSI does not package KivunPicker.exe"; exit 1)
+          if grep -qE '^[[:space:]]*File .*folder-picker\.(hta|wsf)' "$NSI"; then
+            echo "FAIL: $NSI still ships a legacy .hta/.wsf picker"; exit 1
+          fi
+          echo "PASS: v1.8.0 signed picker is primary; legacy HTA/WSF retired"
+
       - name: Verify v1.6.2 terminal-color "Apply now" (live regen) invariants
         run: |
           set -eu
