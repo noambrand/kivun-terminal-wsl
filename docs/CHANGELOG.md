@@ -3,6 +3,21 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added — auto-continue "safe resume" (default on)
+
+When the 5-hour limit resets, the watcher used to type a bare `continue` into the
+session. It now (by default) types a short prompt that asks Claude to **run `git status`
+and re-read the file it was mid-edit on first**, so a change that already landed before
+the pause is reconciled instead of silently duplicated. Only Claude can reconcile — the
+watcher just types — so the guard lives in the injected text. This guards the clean
+limit-reset resume only; a hard crash mid-edit is Claude's own checkpointing. Turn it
+off with `AUTO_CONTINUE_SAFE_RESUME=false` in `config.txt` for the old plain `continue`.
+Mirrors the same change in the ClaudeCode Launchpad sibling. Config flows
+`config.txt → kivun-launch.sh → KIVUN_AUTO_CONTINUE_SAFE_RESUME → wrapper`; new pure
+helpers `resumeText()`/`boolOr()` with unit tests (17/17 pass).
+
 ## [1.8.0] - 2026-07-28
 
 ### Changed — the folder picker is now a signed program, not an HTA (fixes the Defender false alarm)

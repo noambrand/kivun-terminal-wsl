@@ -45,6 +45,28 @@ function intOr(v, dflt) {
   return Number.isFinite(n) && n >= 0 ? n : dflt;
 }
 
+// Parse a config boolean; absent/unrecognised → the given default.
+function boolOr(v, dflt) {
+  if (v == null) return dflt;
+  const s = String(v).trim().toLowerCase();
+  if (/^(1|true|yes|on)$/.test(s)) return true;
+  if (/^(0|false|no|off)$/.test(s)) return false;
+  return dflt;
+}
+
+// The message injected when the limit resets. Default is a "safe resume": instead
+// of a bare "continue" it asks Claude to reconcile its OWN git/file state first,
+// so a change that already landed (fully or partially) right before the pause is
+// not silently re-applied or duplicated. Only Claude can reconcile — this watcher
+// just types — so the guard lives in the words we inject. AUTO_CONTINUE_SAFE_RESUME=false
+// reverts to plain "continue". Single line (no embedded CR; a trailing \r is added
+// at the call site to submit).
+const SAFE_RESUME_PROMPT =
+  'Before continuing, run git status and re-read the file you were editing. ' +
+  'If an edit already applied, do not repeat it, reconcile first. Then continue the task.';
+
+function resumeText(safe) { return safe ? SAFE_RESUME_PROMPT : 'continue'; }
+
 // Parse "09:00-17:00" (local) into minute-of-day bounds. Returns null when the
 // value is empty or malformed (→ quiet hours disabled). Supports a window that
 // wraps past midnight (e.g. "22:00-06:00").
@@ -101,6 +123,7 @@ function createAutoContinue(opts) {
   const MAX = intOr(config.max, DEFAULT_MAX);
   const FALLBACK_MIN = intOr(config.fallbackMin, DEFAULT_FALLBACK_MIN);
   const QUIET = parseQuiet(config.quiet);
+  const SAFE_RESUME = boolOr(config.safeResume, true); // reconcile-first resume, default on
 
   // State: 'IDLE' → 'BLOCKED' (armed) → 'DONE'. `capped` is a terminal state
   // once the per-session resume cap is hit.
@@ -160,11 +183,11 @@ function createAutoContinue(opts) {
   }
 
   function fire() {
-    write('continue\r');
+    write(resumeText(SAFE_RESUME) + '\r');
     resumeCount += 1;
     state = 'DONE';
     armedAt = null;
-    log(`auto-continue: injected "continue" (resume ${resumeCount}/${MAX}) at ${new Date(now()).toISOString()}`);
+    log(`auto-continue: injected ${SAFE_RESUME ? 'safe-resume prompt' : '"continue"'} (resume ${resumeCount}/${MAX}) at ${new Date(now()).toISOString()}`);
     if (resumeCount >= MAX) {
       capped = true;
       log(`auto-continue: resume cap (${MAX}) reached; disarmed for this session`);
@@ -228,6 +251,9 @@ module.exports = {
   parseResetFromMessage,
   parseQuiet,
   inQuiet,
+  resumeText,
+  boolOr,
+  SAFE_RESUME_PROMPT,
   LIMIT_PATTERNS,
   GRACE_S,
 };

@@ -135,6 +135,7 @@ function run(args, env = process.env) {
         max: env.KIVUN_AUTO_CONTINUE_MAX,
         fallbackMin: env.KIVUN_AUTO_CONTINUE_FALLBACK_MIN,
         quiet: env.KIVUN_AUTO_CONTINUE_QUIET,
+        safeResume: env.KIVUN_AUTO_CONTINUE_SAFE_RESUME,
       },
     });
   }
