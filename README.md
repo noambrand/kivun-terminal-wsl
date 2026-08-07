@@ -74,9 +74,9 @@
 > Technical details (BiDi wrapper, RLM injection, Konsole 23.x workarounds, etc.) live in the rest of this README and in [`docs/`](docs/) for anyone who wants them.
 
 <p align="center">
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe"><img src="https://img.shields.io/badge/⬇_Download_for_Windows-a78bfa?style=for-the-badge" alt="Download for Windows"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest/download/Kivun_Terminal_Setup.exe"><img src="https://img.shields.io/badge/Download%20for%20Windows-0078D6?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmZmZmZiI%2BPHBhdGggZD0iTTAgMy40NDkgOS43NSAyLjF2OS40NTFIMG0xMC45NDktOS42MDJMMjQgMHYxMS40SDEwLjk0OU0wIDEyLjZoOS43NXY5LjQ1MUwwIDIwLjY5OU0xMC45NDkgMTIuNkgyNFYyNGwtMTIuOS0xLjgwMSIvPjwvc3ZnPg%3D%3D&logoColor=white" alt="Download for Windows" height="42"></a>
   &nbsp;
-  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/badge/🐧_Linux_(apt/dnf/pacman/zypper)-c084fc?style=for-the-badge" alt="Linux installer"></a>
+  <a href="https://github.com/noambrand/kivun-terminal-wsl/releases/latest"><img src="https://img.shields.io/badge/Download%20for%20Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" height="42"></a>
 </p>
 
 ## What's included out of the box
