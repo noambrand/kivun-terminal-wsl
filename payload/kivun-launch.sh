@@ -865,13 +865,20 @@ if [ -f "$SCRIPT_DIR/config.txt" ]; then
         | sed -e 's/^[[:space:]]*AUTO_CONTINUE_QUIET[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
     [ -n "$val" ] && AUTO_CONTINUE_QUIET="$val"
 fi
+AUTO_CONTINUE_SAFE_RESUME="true"
+if [ -f "$SCRIPT_DIR/config.txt" ]; then
+    val=$(grep -E '^[[:space:]]*AUTO_CONTINUE_SAFE_RESUME[[:space:]]*=' "$SCRIPT_DIR/config.txt" 2>/dev/null | tail -1 \
+        | sed -e 's/^[[:space:]]*AUTO_CONTINUE_SAFE_RESUME[[:space:]]*=[[:space:]]*//' -e 's/\r$//' -e 's/[[:space:]]*$//')
+    [ -n "$val" ] && AUTO_CONTINUE_SAFE_RESUME="$val"
+fi
 KIVUN_AUTO_CONTINUE="off"
 [ "$AUTO_CONTINUE" = "true" ] && KIVUN_AUTO_CONTINUE="on"
 export KIVUN_AUTO_CONTINUE
 export KIVUN_AUTO_CONTINUE_MAX="$AUTO_CONTINUE_MAX"
 export KIVUN_AUTO_CONTINUE_FALLBACK_MIN="$AUTO_CONTINUE_FALLBACK_MIN"
 export KIVUN_AUTO_CONTINUE_QUIET="$AUTO_CONTINUE_QUIET"
-log "INFO - AUTO_CONTINUE=$AUTO_CONTINUE (KIVUN_AUTO_CONTINUE=$KIVUN_AUTO_CONTINUE, MAX=$AUTO_CONTINUE_MAX, FALLBACK_MIN=$AUTO_CONTINUE_FALLBACK_MIN, QUIET=$AUTO_CONTINUE_QUIET)"
+export KIVUN_AUTO_CONTINUE_SAFE_RESUME="$AUTO_CONTINUE_SAFE_RESUME"
+log "INFO - AUTO_CONTINUE=$AUTO_CONTINUE (KIVUN_AUTO_CONTINUE=$KIVUN_AUTO_CONTINUE, MAX=$AUTO_CONTINUE_MAX, FALLBACK_MIN=$AUTO_CONTINUE_FALLBACK_MIN, QUIET=$AUTO_CONTINUE_QUIET, SAFE_RESUME=$AUTO_CONTINUE_SAFE_RESUME)"
 
 # Copy the wrapper source out of /mnt/c into a WSL-native path, run npm
 # install once, and return the absolute path to the wrapper binary. Called

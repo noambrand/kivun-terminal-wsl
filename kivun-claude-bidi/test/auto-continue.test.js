@@ -14,6 +14,8 @@ const { spawnSync } = require('child_process');
 const {
   createAutoContinue,
   parseResetFromMessage,
+  resumeText,
+  boolOr,
   GRACE_S,
 } = require('../lib/auto-continue');
 const { makeOutputSink } = require('../lib/wrapper');
@@ -33,7 +35,9 @@ function build({ stateFile = null, clock, config = {} } = {}) {
     now: clock.now,
     write: (s) => writes.push(s),
     log: (m) => logs.push(m),
-    config,
+    // Default safeResume OFF in tests so the timing assertions stay on the simple
+    // 'continue\r'; the safe-resume text has its own dedicated tests below.
+    config: { safeResume: false, ...config },
     setInterval: () => 0,
     clearInterval: () => {},
   });
@@ -62,6 +66,54 @@ describe('auto-continue v1.7.0', () => {
     clock.set(resetsAtSec * 1000 + GRACE_S * 1000);
     ac.checkTimers();
     assert.deepEqual(writes, ['continue\r']);
+  });
+
+  it('UT_ResumeText — safe reconcile prompt vs plain continue', () => {
+    assert.equal(resumeText(false), 'continue');
+    assert.match(resumeText(true), /git status/);
+    assert.match(resumeText(true), /do not repeat/);
+  });
+
+  it('UT_BoolOr — config boolean parsing falls back to default', () => {
+    assert.equal(boolOr(undefined, true), true);
+    assert.equal(boolOr('false', true), false);
+    assert.equal(boolOr(' OFF ', true), false);
+    assert.equal(boolOr('1', false), true);
+    assert.equal(boolOr('maybe', true), true);
+  });
+
+  it('UT_SafeResumeInjectsPrompt — safeResume on types the reconcile prompt, not bare continue', () => {
+    const base = 1_800_000_000_000;
+    const resetsAtSec = Math.floor(base / 1000) + 3600;
+    const clock = makeClock(base);
+    const { ac, writes } = build({
+      stateFile: tmpStateFile(resetsAtSec), clock, config: { safeResume: true },
+    });
+
+    ac.observeOutput(LIMIT);
+    clock.set(resetsAtSec * 1000 + GRACE_S * 1000);
+    ac.checkTimers();
+    assert.deepEqual(writes, [resumeText(true) + '\r']);
+  });
+
+  it('UT_SafeResumeDefaultOn — omitting safeResume defaults to the prompt (production default)', () => {
+    const base = 1_800_000_000_000;
+    const resetsAtSec = Math.floor(base / 1000) + 3600;
+    const clock = makeClock(base);
+    // Bypass build()'s test-only safeResume:false to verify the REAL default (on).
+    const writes = [];
+    const ac = createAutoContinue({
+      stateFile: tmpStateFile(resetsAtSec),
+      now: clock.now,
+      write: (s) => writes.push(s),
+      config: {},                      // no safeResume → default true
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    ac.observeOutput(LIMIT);
+    clock.set(resetsAtSec * 1000 + GRACE_S * 1000);
+    ac.checkTimers();
+    assert.deepEqual(writes, [resumeText(true) + '\r']);
   });
 
   it('UT_IgnoreNonLimitOutput — ordinary output never arms', () => {
