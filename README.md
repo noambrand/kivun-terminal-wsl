@@ -26,6 +26,12 @@
   <img src="https://img.shields.io/badge/downloads-1217%2B-blue" alt="Total Downloads">
 </p>
 
+<p align="center">
+  <b>English</b> &bull;
+  <a href="README.ar.md"><b>العربية</b></a> &bull;
+  <a href="README.fa.md"><b>فارسی</b></a>
+</p>
+
 <h3 align="center">Real RTL Claude Code terminal. Hebrew, Arabic, Persian, Urdu and 8 more - rendered correctly, on Windows and Linux.</h3>
 
 <p align="center"><sub><strong>macOS support deprecated as of v1.2.4</strong> - no native Mac terminal renders mixed Hebrew+English correctly today. <a href="mac/README.md">Details &amp; uninstall instructions →</a></sub></p>
@@ -49,6 +55,8 @@
 <td valign="middle"><a href="#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a></td>
 <td valign="middle">🌐</td>
 <td valign="middle"><a href="README.ar.md"><b>العربية</b></a></td>
+<td valign="middle">🌐</td>
+<td valign="middle"><a href="README.fa.md"><b>فارسی</b></a></td>
 </tr></table>
 
 ## English

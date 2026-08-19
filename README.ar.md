@@ -29,7 +29,8 @@
 <p align="center">
   <a href="README.md"><b>English</b></a> &bull;
   <a href="README.md#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a> &bull;
-  <b>العربية</b>
+  <b>العربية</b> &bull;
+  <a href="README.fa.md"><b>فارسی</b></a>
 </p>
 
 <div dir="rtl">
