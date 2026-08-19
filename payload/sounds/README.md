@@ -43,6 +43,29 @@ clip never goes silent. Switch any time (applies immediately):
 - Double-click **Regular Sounds ON** / **Funny Sounds ON**
 - or `node voice.js mode regular|funny`
 
+## Make it your own — write your own jokes (in any language)
+
+Every clip is a plain `.wav` file, so you can swap in your own recording. Want Claude to
+deliver *your* punchline — or to speak Hebrew, Arabic, or any other language? Record it
+and drop it in.
+
+1. Record a short clip (1–3 seconds works best) and save it as a `.wav`.
+2. Name it exactly `done.wav`, `permission.wav`, `waiting.wav`, or `save.wav`.
+3. Put it in the matching set: `funny/` for the joke clips, `regular/` for the plain
+   ones. After install these live in `~/.claude/sounds/funny/` and
+   `~/.claude/sounds/regular/`.
+4. Double-click **Test Sounds** to hear it. Nothing else to configure — `config.json`
+   `"mode"` decides which set plays.
+
+- **Any language.** `play.js` plays the file by name, so the voice and language are
+  whatever you record — Hebrew, Arabic, English, your own voice, all fine. (Built-in
+  voice packs in more languages are planned; recording your own works today.)
+- **Mix and match.** Replace just one clip (say a funnier `done.wav`) and leave the rest.
+- **Never goes silent.** The fallback is `funny → regular → flat`, so if you record only
+  a Hebrew `funny/done.wav`, every other alert still plays.
+- **Keep your originals** if you want them back, or re-run the installer to restore the
+  bundled clips.
+
 ## How playback works per platform
 
 | Platform | Player | Notes |

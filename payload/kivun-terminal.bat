@@ -1,4 +1,17 @@
 @echo off
+REM v1.9.0 BUGFIX - read every sidecar file as UTF-8.
+REM The picker writes kivun-workdir.txt (and config/env/startup sidecars) as
+REM UTF-8, but cmd reads with the OEM console codepage - 862 on a Hebrew
+REM Windows. A project path containing Hebrew therefore came back as mojibake:
+REM `set /p PICKED=` below produced a path that does not exist, wslpath
+REM converted the garbage, the folder was unreachable inside WSL, and the
+REM launcher silently fell back to the home directory - so the user's chosen
+REM project "did not open". Measured: without this line wslpath returns
+REM /mnt/c/.../<mojibake> and `test -d` fails; with it the real folder is
+REM reachable. This file is itself valid UTF-8 (Hebrew appears in the
+REM CLAUDE_PROMPT line below), so 65001 also stops THAT string being mangled.
+REM ClaudeCode Launchpad CLI has always set this; Kivun never did.
+chcp 65001 >nul 2>&1
 REM ========================================
 REM   Kivun Terminal v1.0.6 - WSL Launcher
 REM   WSL + Ubuntu + Konsole with full RTL/BiDi
@@ -376,6 +389,44 @@ if "%WORK_DIR%"=="" (
 if "%WORK_DIR%"=="." (
     set "WORK_DIR=%USERPROFILE%"
     call :LOG "INFO - WORK_DIR was '.', substituting USERPROFILE=%USERPROFILE%"
+)
+REM v1.9.0: strip a trailing backslash from the PICKED folder too, the same way
+REM the install dir is handled further down. Two separate failures come from it:
+REM wslpath returns "." for a path ending in `\` (so the guard below silently
+REM sent the user to their home directory), and inside a quoted argument the
+REM trailing backslash ESCAPES the closing quote, mangling everything after it.
+REM Hit whenever the picked folder is a drive root - the browse dialog returns
+REM `Y:\` - or the path was typed with a trailing slash. A bare drive letter is
+REM not a directory, so restore it as `Y:\.` (same folder, no trailing slash).
+if "%WORK_DIR:~-1%"=="\" (
+    set "WORK_DIR=%WORK_DIR:~0,-1%"
+    call :LOG "INFO - stripped trailing backslash from WORK_DIR"
+)
+if "%WORK_DIR:~-1%"==":" set "WORK_DIR=%WORK_DIR%\."
+REM v1.9.0: if the folder the user PICKED is unreachable, say so and STOP.
+REM The wslpath fallbacks below quietly substitute the home directory, which
+REM reads as "the launcher ignored my choice" with no clue why - and worse, the
+REM user starts working in a folder that is not their project. Never open a
+REM different folder than the one that was chosen: stop, explain, let them
+REM relaunch once it is reachable. (The empty/"." guards above are a different
+REM case - there the user never chose anything.)
+if not exist "%WORK_DIR%" (
+    echo.
+    echo   ----------------------------------------------------------
+    echo   This folder could not be opened:
+    echo     %WORK_DIR%
+    echo.
+    echo   If it is on a network drive, connect that drive and launch
+    echo   again. Claude was NOT started, so nothing opened in the
+    echo   wrong place.
+    echo   ----------------------------------------------------------
+    echo.
+    call :LOG "ERROR - WORK_DIR unreachable, refused to substitute another folder: %WORK_DIR%"
+    REM KIVUN_HIDDEN=1 means there is no console window to read the message or
+    REM answer a prompt, so never pause there - KivunTerminal.exe surfaces the
+    REM non-zero exit as a MessageBox with the tail of LAUNCH_LOG instead.
+    if not defined KIVUN_HIDDEN pause
+    exit /b 1
 )
 for /f "delims=" %%i in ('wsl -d %DISTRO% wslpath "%WORK_DIR%" 2^>nul') do set "WSL_PATH=%%i"
 REM Belt-and-suspenders: if wslpath still returned "" or ".", fall back

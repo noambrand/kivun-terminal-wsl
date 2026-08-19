@@ -1,4 +1,8 @@
 @echo off
+REM UTF-8, same reason as kivun-terminal.bat: this script wslpath-converts its
+REM own install directory, which breaks if that path has non-ASCII characters
+REM and the console is on the OEM codepage.
+chcp 65001 >nul 2>&1
 setlocal EnableExtensions
 REM kivun-apply-color.cmd <color-value>   (v1.6.2)
 REM

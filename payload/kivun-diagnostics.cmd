@@ -1,4 +1,7 @@
 @echo off
+REM UTF-8: the report reads UTF-8 sidecar files, so without this a Hebrew
+REM project path is reported as mojibake and hides the very bug being chased.
+chcp 65001 >nul 2>&1
 REM ============================================================
 REM  Kivun Terminal - Diagnostics & Problem Report
 REM  Run from the Start Menu ("Kivun Diagnostics") or by double-

@@ -3,7 +3,45 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.9.0] - 2026-08-19
+
+### Fixed — a project folder with Hebrew (or any non-English) letters in its path
+
+Picking a folder whose path contained Hebrew silently launched Claude in the **home
+directory** instead. The picker writes the chosen path to `kivun-workdir.txt` as UTF-8,
+but `kivun-terminal.bat` never set a codepage, so cmd read that file with the OEM console
+codepage (862 on a Hebrew Windows) and got mojibake. The mangled path failed the folder
+check, `wslpath` converted the garbage, and the launcher's own "path unreachable" guard
+fell back to `%USERPROFILE%` — from the user's side, "my project didn't open".
+
+Fix: `chcp 65001` at the top of the launcher, ahead of every file read — the same line
+ClaudeCode Launchpad CLI has always had. Measured before/after on a Hebrew-named folder:
+before, `wslpath` returned `/mnt/c/.../<mojibake>` and `test -d` failed inside WSL; after,
+the real folder is reachable. Same line added to `kivun-apply-color.cmd` (it wslpath-converts
+its own install directory) and `kivun-diagnostics.cmd` (it reported the mangled path, hiding
+the bug). Bonus: the launcher file is itself UTF-8 and contains Hebrew in the `CLAUDE_PROMPT`
+line, which the OEM codepage was also corrupting on every launch.
+
+### Fixed — a project folder path ending in a backslash
+
+Picking a drive root (the browse dialog returns `Y:\`), or typing a path with a trailing
+slash, sent the user to their home directory instead. Two separate faults, one cause:
+`wslpath` returns `.` for a path ending in `\` (so the launcher's "unreachable path" guard
+substituted `%USERPROFILE%`), and inside a quoted argument a trailing backslash **escapes
+the closing quote**, mangling every argument after it. Measured: a child process received
+1 argument instead of 3. The launcher already stripped the trailing slash off its own
+install directory; now it does the same for the picked folder, and restores a bare drive
+letter as `Y:\.` so it stays a real directory. Same fix in ClaudeCode Launchpad CLI, where
+the mangled argument reached `wt.exe` and Windows Terminal reported the path as not found.
+
+### Changed — an unreachable picked folder stops the launch instead of silently swapping it
+
+When the folder the user picked could not be reached (most often a mapped network drive that
+is not connected), the launcher quietly substituted `%USERPROFILE%` and started Claude there.
+From the user's side that reads as "it ignored my choice", and worse, they start working in a
+folder that is not their project. It now names the path, explains the likely cause, and stops
+without starting Claude. The empty/`.` guards are untouched — in those cases the user never
+chose a folder in the first place.
 
 ### Added — auto-continue "safe resume" (default on)
 
