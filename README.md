@@ -90,7 +90,7 @@
 ## What's included out of the box
 
 <p align="center">
-  <img src="picker.png" alt="Kivun Terminal folder picker (v1.4.8) - folder selection up top, an Advanced options toggle that hides model / flags / startup slash-commands / env-vars by default, and a yellow 'Update available' banner that checks GitHub Releases on launch and offers a one-click Download button" width="780">
+  <img src="assets/picker.png" alt="Kivun Terminal folder picker (v1.4.8) - folder selection up top, an Advanced options toggle that hides model / flags / startup slash-commands / env-vars by default, and a yellow 'Update available' banner that checks GitHub Releases on launch and offers a one-click Download button" width="780">
 </p>
 
 - **🆕 Named profiles (v1.4.0+)** - save folder + model + flags + startup slash-commands + environment variables per project. The chip row at the top of the picker lets you switch between profiles in one click; the active profile is highlighted blue. Per-profile env vars (`ANTHROPIC_API_KEY`, `DEBUG`, custom `MCP_*`, …) are propagated through `WSLENV` on Windows / `export` on Linux so they reach the Claude Code session. Values are masked in the resolved-command preview by default for screenshot safety; click `👁 show values` to reveal.

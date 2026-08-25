@@ -85,7 +85,7 @@
 ## شو فيه جاهز من الصندوق
 
 <p align="center">
-  <img src="picker.png" alt="Kivun Terminal folder picker (v1.4.8)" width="780">
+  <img src="assets/picker.png" alt="Kivun Terminal folder picker (v1.4.8)" width="780">
 </p>
 
 <ul dir="rtl">
