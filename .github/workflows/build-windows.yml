@@ -100,8 +100,8 @@ jobs:
           cp payload/kivun-diagnostics.cmd release-assets/
           MP4="Kivun_Terminal_v1.4.13.mp4"
           GIF="Kivun_Terminal_v1.4.13.gif"
-          [ -f "Kivun Terminal_v1.4.13.mp4" ] && cp "Kivun Terminal_v1.4.13.mp4" "release-assets/$MP4"
-          [ -f "$GIF" ] && cp "$GIF" "release-assets/$GIF"
+          [ -f "assets/Kivun Terminal_v1.4.13.mp4" ] && cp "assets/Kivun Terminal_v1.4.13.mp4" "release-assets/$MP4"
+          [ -f "assets/$GIF" ] && cp "assets/$GIF" "release-assets/$GIF"
           if [ ! -f "release-assets/$MP4" ] || [ ! -f "release-assets/$GIF" ]; then
             echo "Demo media not in repo — carrying forward from a previous release..."
             for tag in $(gh release list --limit 40 --json tagName --jq '.[].tagName'); do

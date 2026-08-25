@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="Kivun_Terminal_Hero.png" width="700" alt="Kivun Terminal - RTL Claude Code on Windows and Linux">
+  <img src="assets/Kivun_Terminal_Hero.png" width="700" alt="Kivun Terminal - RTL Claude Code on Windows and Linux">
 </p>
 
 <p align="center">
-  <img src="Kivun_Terminal_v1.4.13.gif" width="700" alt="Kivun Terminal demo - Hebrew RTL Claude Code session">
+  <img src="assets/Kivun_Terminal_v1.4.13.gif" width="700" alt="Kivun Terminal demo - Hebrew RTL Claude Code session">
 </p>
 
 <p align="center">

@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="Kivun_Terminal_Hero.png" width="700" alt="Kivun Terminal - Claude Code با پشتیبانی راست‌به‌چپ روی ویندوز و لینوکس">
+  <img src="assets/Kivun_Terminal_Hero.png" width="700" alt="Kivun Terminal - Claude Code با پشتیبانی راست‌به‌چپ روی ویندوز و لینوکس">
 </p>
 
 <p align="center">
-  <img src="Kivun_Terminal_v1.4.13.gif" width="700" alt="نمایش Kivun Terminal - یک نشست Claude Code راست‌به‌چپ">
+  <img src="assets/Kivun_Terminal_v1.4.13.gif" width="700" alt="نمایش Kivun Terminal - یک نشست Claude Code راست‌به‌چپ">
 </p>
 
 <p align="center">
