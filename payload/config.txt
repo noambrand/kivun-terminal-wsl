@@ -276,5 +276,5 @@ KIVUN_RTL_COST_OPTIMIZER_AUDIT=on
 # =================================================================
 # - Ubuntu credentials: created interactively by the WSL setup, not
 #   stored in this file.
-# - More info: docs/SECURITY.txt, docs/CREDENTIALS.txt,
+# - More info: docs/SECURITY.txt, docs/ACCOUNT_SETUP.txt,
 #   docs/README_INSTALLATION.md, docs/TROUBLESHOOTING.md.
