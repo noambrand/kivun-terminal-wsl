@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="README.md"><b>English</b></a> &bull;
+  <a href="README.md#%D7%A2%D7%91%D7%A8%D7%99%D7%AA"><b>עברית</b></a> &bull;
   <a href="README.ar.md"><b>العربية</b></a> &bull;
   <b>فارسی</b>
 </p>
