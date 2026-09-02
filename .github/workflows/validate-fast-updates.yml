@@ -1,0 +1,91 @@
+name: Validate fast-updates wiring (v1.10.0)
+
+# Guard for the v1.10.0 "Claude on the latest channel" feature. Mirrors the
+# :_REPAIR_UPDATER guard in validate-launcher-windows.yml: one grep per invariant,
+# so a refactor that silently drops the wiring fails here, not on a user's PC.
+
+on:
+  push:
+    paths:
+      - 'payload/kivun-fast-updates.sh'
+      - 'payload/kivun-install-claude.sh'
+      - 'payload/kivun-repair-updater.sh'
+      - 'payload/kivun-terminal.bat'
+      - 'linux/install.sh'
+      - 'installer/Kivun_Terminal_Setup.nsi'
+      - '.github/workflows/validate-fast-updates.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fast-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fresh installs and the updater repair name the channel
+        run: |
+          set -eu
+          grep -q 'bash /tmp/claude-installer.sh latest' payload/kivun-install-claude.sh \
+            || (echo "FAIL: kivun-install-claude.sh runs the installer without 'latest'"; exit 1)
+          grep -q '"\$CC" install latest' payload/kivun-repair-updater.sh \
+            || (echo "FAIL: kivun-repair-updater.sh migrates without 'latest'"; exit 1)
+          grep -q "bash \"\$CLAUDE_INSTALL_SCRIPT\" latest" linux/install.sh \
+            || (echo "FAIL: linux/install.sh runs the installer without 'latest'"; exit 1)
+          grep -q 'claude install latest' linux/install.sh \
+            || (echo "FAIL: linux/install.sh does not move an existing Claude to 'latest'"; exit 1)
+          echo "PASS: every install and repair path passes 'latest'"
+
+      - name: The launcher runs the shipped one-shot script, and the installer packages it
+        run: |
+          set -eu
+          BAT=payload/kivun-terminal.bat
+          FU=payload/kivun-fast-updates.sh
+          NSI=installer/Kivun_Terminal_Setup.nsi
+          test -f "$FU" || (echo "FAIL: shipped script $FU is missing"; exit 1)
+          grep -q '^:_FAST_UPDATES' "$BAT" \
+            || (echo "FAIL: :_FAST_UPDATES helper missing"; exit 1)
+          grep -q 'call :_FAST_UPDATES' "$BAT" \
+            || (echo "FAIL: :_FAST_UPDATES is never called"; exit 1)
+          awk '/^:_FAST_UPDATES/{b=1} b{print} b&&/^exit \/b/{exit}' "$BAT" \
+            | grep -q 'kivun-fast-updates\.sh' \
+            || (echo "FAIL: :_FAST_UPDATES does not run the shipped kivun-fast-updates.sh"; exit 1)
+          grep -q 'sed -i.*kivun-fast-updates\.sh' "$BAT" \
+            || (echo "FAIL: .bat does not CRLF-normalize kivun-fast-updates.sh"; exit 1)
+          grep -qF 'File "..\payload\kivun-fast-updates.sh"' "$NSI" \
+            || (echo "FAIL: installer does not bundle kivun-fast-updates.sh"; exit 1)
+          grep -qF 'Delete "$INSTDIR\kivun-fast-updates.sh"' "$NSI" \
+            || (echo "FAIL: uninstaller does not remove kivun-fast-updates.sh"; exit 1)
+          echo "PASS: launcher wiring and packaging present"
+
+      - name: The script is one-shot, offline, cannot block a launch, and keeps other settings
+        run: |
+          set -eu
+          FU=payload/kivun-fast-updates.sh
+          grep -q 'fast-updates-set' "$FU" \
+            || (echo "FAIL: script has no one-shot marker"; exit 1)
+          grep -q '^set -u' "$FU" \
+            || (echo "FAIL: script does not run with set -u"; exit 1)
+          [ "$(grep -c '^exit 0' "$FU")" -ge 1 ] \
+            || (echo "FAIL: script has no unconditional exit 0"; exit 1)
+          # Behavioural: existing keys survive, channel key is added, marker is set.
+          export HOME="$(mktemp -d)"
+          mkdir -p "$HOME/.claude" "$HOME/.local/bin"
+          printf '#!/bin/sh\nexit 0\n' > "$HOME/.local/bin/claude"; chmod +x "$HOME/.local/bin/claude"
+          printf '{\n  "model": "keep-me",\n  "hooks": {"Stop": []}\n}\n' > "$HOME/.claude/settings.json"
+          bash "$FU"
+          python3 - "$HOME/.claude/settings.json" <<'PY'
+          import json, sys
+          s = json.load(open(sys.argv[1], encoding="utf-8"))
+          assert s.get("autoUpdatesChannel") == "latest", "channel key not written"
+          assert s.get("model") == "keep-me" and isinstance(s.get("hooks", {}).get("Stop"), list), "existing keys were lost"
+          PY
+          test -f "$HOME/.kivun/fast-updates-set" || (echo "FAIL: marker not set after success"; exit 1)
+          # Behavioural: a second run is a no-op that still exits 0.
+          bash "$FU"
+          # Behavioural: no settings file at all is created with just the key.
+          rm -f "$HOME/.claude/settings.json" "$HOME/.kivun/fast-updates-set"
+          bash "$FU"
+          grep -q '"autoUpdatesChannel": "latest"' "$HOME/.claude/settings.json" \
+            || (echo "FAIL: script did not create settings.json with the channel key"; exit 1)
+          echo "PASS: one key written, nothing else touched, one-shot, always exit 0"

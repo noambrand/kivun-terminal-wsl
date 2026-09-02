@@ -468,6 +468,7 @@ REM block on a first install) but is also re-stripped here so a CRLF-shipped
 REM copy never trips bash with the same exit-127 "No such file" class of error.
 wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-install-claude.sh" 2>&1 >> "%LOG_FILE%"
 wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-repair-updater.sh" 2>&1 >> "%LOG_FILE%"
+wsl -d %DISTRO% -- sed -i "s/\r$//" "%INST_WSL%kivun-fast-updates.sh" 2>&1 >> "%LOG_FILE%"
 if %ERRORLEVEL% EQU 0 (
     call :LOG "SUCCESS - Line endings fixed"
 ) else (
@@ -534,6 +535,14 @@ REM forever ("no write permission to npm prefix"). Runs here (not at
 REM :claude_present) so INST_WSL is set, the script is CRLF-fixed, and the
 REM non-root WSL_USER_FLAG is known. Runs at most once and never blocks launch.
 call :_REPAIR_UPDATER
+
+REM One-time switch to Anthropic's CURRENT release channel. A Claude
+REM installed without an explicit channel follows `stable`, which can sit on the
+REM same build for weeks, so the user sees "it stopped updating" while the
+REM auto-updater is working fine and simply has nothing to fetch. Fresh installs
+REM already pass `latest`; this covers everyone who installed before that.
+REM Marker-guarded, offline, and always exits 0 - it cannot block the launch.
+call :_FAST_UPDATES
 
 REM Check if Konsole is installed
 call :LOG "INFO - Checking if Konsole is installed"
@@ -1005,6 +1014,18 @@ call :LOG "INFO - Checking Claude updater health (one-time repair)"
 wsl -d %DISTRO% %WSL_USER_FLAG% bash "%INST_WSL%kivun-repair-updater.sh" >> "%LOG_FILE%" 2>&1
 exit /b
 
+:_FAST_UPDATES
+REM Put an EXISTING Claude on the `latest` release channel. The logic
+REM lives in the shipped kivun-fast-updates.sh and runs via `wsl bash <script>`
+REM (NOT an inline `bash -lc "..."`), for the same cmd.exe quoting reason as
+REM :_REPAIR_UPDATER. It writes one key into ~/.claude/settings.json, so it is
+REM instant and works offline; Claude's own updater picks the newer build up on
+REM its next check. One-shot (marker-guarded) and always exits 0. Runs as the
+REM non-root %WSL_USER_FLAG% user, whose $HOME holds .claude.
+call :LOG "INFO - Ensuring Claude follows the current release channel (one-time)"
+wsl -d %DISTRO% %WSL_USER_FLAG% bash "%INST_WSL%kivun-fast-updates.sh" >> "%LOG_FILE%" 2>&1
+exit /b
+
 :_install_failed
 call :LOG "ERROR - Claude auto-install failed"
 echo Claude install failed. See: wsl -d %DISTRO% -- cat /tmp/kivun-claude.log
@@ -1019,7 +1040,7 @@ echo.
 echo ========================================
 echo   Claude Code is required but not installed in Ubuntu.
 echo   Install manually:
-echo     wsl -d %DISTRO% -- bash -lc "curl -fsSL https://claude.ai/install.sh ^| bash"
+echo     wsl -d %DISTRO% -- bash -lc "curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh ^&^& bash /tmp/c.sh latest"
 echo   Then re-run Kivun Terminal.
 echo   NOTE: Windows-side Claude Code does NOT work here.
 echo ========================================

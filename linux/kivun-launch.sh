@@ -541,7 +541,7 @@ case "$CLAUDE_EXEC" in
             echo "PATH: $PATH"
             echo ""
             echo "Install it with:"
-            echo "  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh"
+            echo "  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh latest"
             echo ""
             echo "Press Enter to close."
             read -r

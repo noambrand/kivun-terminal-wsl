@@ -175,22 +175,36 @@ esac
 # starts executing bytes as they arrive, so a mid-download network drop
 # can leave the system in a half-installed state. Downloading to a
 # completed file lets us refuse execution if curl didn't finish cleanly.
+#
+# Both branches below end on the `latest` release channel. Anthropic publishes
+# two: `stable`, which can sit on one build for weeks, and `latest`, the current
+# one. An install with no channel argument follows `stable` forever, so the user
+# ends up dozens of releases behind while the auto-updater reports itself
+# healthy. Passing `latest` also makes the binary persist
+# "autoUpdatesChannel": "latest" in ~/.claude/settings.json, which every later
+# auto-update reads.
 log "Checking Claude Code..."
 if command -v claude >/dev/null 2>&1; then
     log "Claude Code already installed: $(claude --version 2>/dev/null | head -1)"
+    log "Putting it on the current release channel..."
+    if claude install latest 2>&1 | tee -a "$LOG_FILE"; then
+        log "Claude Code set to the current release channel"
+    else
+        err "Could not set the release channel — Claude still works, but may update slowly"
+    fi
 else
     log "Installing Claude Code via Anthropic installer..."
     CLAUDE_INSTALL_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/claude-install-XXXXXX.sh")
     if curl -fsSL -o "$CLAUDE_INSTALL_SCRIPT" https://claude.ai/install.sh 2>&1 | tee -a "$LOG_FILE" \
        && [ -s "$CLAUDE_INSTALL_SCRIPT" ]; then
         chmod +x "$CLAUDE_INSTALL_SCRIPT"
-        if bash "$CLAUDE_INSTALL_SCRIPT" 2>&1 | tee -a "$LOG_FILE"; then
+        if bash "$CLAUDE_INSTALL_SCRIPT" latest 2>&1 | tee -a "$LOG_FILE"; then
             log "Claude Code installed"
         else
             err "Claude Code installer ran but exited non-zero — install may be incomplete"
         fi
     else
-        err "Failed to download Claude Code installer. Retry later with:  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh"
+        err "Failed to download Claude Code installer. Retry later with:  curl -fsSL https://claude.ai/install.sh -o /tmp/c.sh && bash /tmp/c.sh latest"
     fi
     rm -f "$CLAUDE_INSTALL_SCRIPT"
 fi

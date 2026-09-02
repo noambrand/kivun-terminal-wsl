@@ -39,7 +39,10 @@ mkdir -p "$HOME/.kivun"
 
 # Run the system binary's own installer to migrate to ~/.local/bin. Mark only
 # on success so a transient failure (e.g. offline) retries on the next launch.
-if "$CC" install >> /tmp/kivun-claude.log 2>&1; then
+# `latest` puts the migrated copy on the current release channel rather than the
+# slower `stable` one — a bare `install` would rescue the permissions but leave
+# the user pinned to a channel that can sit still for weeks.
+if "$CC" install latest >> /tmp/kivun-claude.log 2>&1; then
   touch "$MARKER"
 fi
 
