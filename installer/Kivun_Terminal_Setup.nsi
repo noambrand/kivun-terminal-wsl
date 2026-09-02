@@ -237,7 +237,7 @@ Section "Core Files" SEC_CORE
   File "..\docs\README.md"
   File "..\docs\README_INSTALLATION.md"
   File "..\docs\SECURITY.txt"
-  File "..\docs\CREDENTIALS.txt"
+  File "..\docs\ACCOUNT_SETUP.txt"
   File "..\docs\TROUBLESHOOTING.md"
 
   ; config.txt: only install if it doesn't already exist, so users don't
@@ -831,6 +831,8 @@ Section "Uninstall"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\README_INSTALLATION.md"
   Delete "$INSTDIR\SECURITY.txt"
+  Delete "$INSTDIR\ACCOUNT_SETUP.txt"
+  ; Older versions installed this under its previous name; remove that too.
   Delete "$INSTDIR\CREDENTIALS.txt"
   Delete "$INSTDIR\TROUBLESHOOTING.md"
   Delete "$INSTDIR\kivun_icon.ico"
