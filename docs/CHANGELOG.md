@@ -3,6 +3,38 @@
 All notable changes to Kivun Terminal are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.10.0] - 2026-09-03
+
+### Added: Claude Code now stays on Anthropic's current release channel
+
+Anthropic publishes Claude Code on two channels. `stable` is conservative and can sit on
+the same build for weeks; `latest` is the current one. Whichever channel a machine installed
+from is the one its built-in auto-updater follows from then on, so a Claude installed without
+an explicit channel quietly falls behind while reporting itself up to date. Measured on
+2026-09-03: `stable` was at 2.1.236 and `latest` at 2.1.258, twenty-two releases apart.
+
+Kivun now puts Claude on `latest` everywhere it installs or repairs it:
+
+- A fresh install inside WSL passes `latest` to Anthropic's installer, so the first build is
+  the current one and the updater follows the current channel from then on.
+- A machine that already had Claude before this version runs the new `kivun-fast-updates.sh`
+  once, on the next launch. It writes one key, `"autoUpdatesChannel": "latest"`, into
+  `~/.claude/settings.json` using python3 or node, whichever is present, through a temp
+  file so a crash can never leave a truncated settings file. It runs offline, takes a
+  moment, and always exits 0, so it can never block a launch. Only a machine with neither
+  python3 nor node falls back to a detached `claude install latest`.
+- The one-time updater repair migrates to `latest` instead of a bare `install`.
+- The Linux installer does the same on both of its paths, and every "install it yourself"
+  hint in the launcher now shows the `latest` form.
+
+The new script is packaged by the Windows installer, CRLF-normalised like the other shipped
+scripts, and removed on uninstall.
+
+### Changed
+
+- The picker screenshot in the READMEs was refreshed.
+- The README language switcher now includes Hebrew and no longer lists one language twice.
+
 ## [1.9.0] - 2026-08-19
 
 ### Fixed — a project folder with Hebrew (or any non-English) letters in its path
