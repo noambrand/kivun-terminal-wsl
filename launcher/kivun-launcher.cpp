@@ -129,6 +129,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     // and the (possibly quoted) forwarded args coexist:
     //   "cmd.exe" /S /C ""C:\..\kivun-terminal.bat" "C:\My Dir""
     size_t len = wcslen(comspec) + wcslen(bat) + wcslen(tail) + 32;
+    if (len > ((size_t)-1 / sizeof(wchar_t))) return 1;  // overflow guard
     wchar_t *cmd = (wchar_t *)malloc(len * sizeof(wchar_t));
     if (!cmd) return 1;
     swprintf_s(cmd, len, L"\"%s\" /S /C \"\"%s\"%s%s\"",
@@ -147,6 +148,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
                         &si, &pi)) {
         DWORD err = GetLastError();
         free(cmd);
+        cmd = NULL;
         if (!ErrorUiSuppressed()) {
             wchar_t msg[1024];
             swprintf_s(msg, 1024,
