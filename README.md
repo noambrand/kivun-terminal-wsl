@@ -65,7 +65,7 @@
 | **Named profiles per project** (folder + model + flags + env vars + startup slash-commands) | ✅ v2.6.0 - chip row at top of picker, click to switch; `ANTHROPIC_API_KEY` etc. masked in preview by default | ✅ **🆕 v1.4.0** - chip row at top of picker; per-profile `ANTHROPIC_API_KEY`/`DEBUG`/`MCP_*` propagated via `WSLENV`; masked in preview by default |
 | **Startup time** | ~2 s | ~6 s |
 | **Install size on Windows** | ~150 MB | ~2 GB (includes Ubuntu + Konsole) |
-| **macOS support** | ✅ | ❌ Deprecated as of v1.2.4 (no Mac terminal handles mixed Hebrew+English - see [`mac/README.md`](mac/README.md)) |
+| **macOS support** | ✅ | ❌ Deprecated as of v1.2.4 (no native Mac terminal handles mixed Hebrew+English - see [`mac/README.md`](mac/README.md)) |
 | **Linux support** | ❌ | ✅ apt / dnf / pacman / zypper |
 
 > Technical details (BiDi wrapper, RLM injection, Konsole 23.x workarounds, etc.) live in the rest of this README and in [`docs/`](docs/) for anyone who wants them.

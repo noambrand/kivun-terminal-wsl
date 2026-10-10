@@ -64,7 +64,7 @@
 <tr><td><strong>برفايلز بأسماء لكل مشروع</strong> (فولدر + موديل + flags + متغيرات بيئة + slash-commands عند الإقلاع)</td><td>✅ v2.6.0 - صف chips فوق الـ picker، اضغط للتبديل؛ <code>ANTHROPIC_API_KEY</code> وغيره مخفي بالمعاينة افتراضياً</td><td>✅ <strong>🆕 v1.4.0</strong> - صف chips فوق الـ picker؛ <code>ANTHROPIC_API_KEY</code>/<code>DEBUG</code>/<code>MCP_*</code> لكل برفايل بتنتقل عبر <code>WSLENV</code>؛ مخفية بالمعاينة افتراضياً</td></tr>
 <tr><td><strong>وقت الإقلاع</strong></td><td>~2 ثانية</td><td>~6 ثوان</td></tr>
 <tr><td><strong>حجم التثبيت على Windows</strong></td><td>~150 MB</td><td>~2 GB (شامل Ubuntu + Konsole)</td></tr>
-<tr><td><strong>دعم macOS</strong></td><td>✅</td><td>❌ انتهى من v1.2.4 (مفيش واجهة طرفية على Mac بتتعامل مع عبري+إنجليزي مخلوطين - شوف <a href="mac/README.md"><code>mac/README.md</code></a>)</td></tr>
+<tr><td><strong>دعم macOS</strong></td><td>✅</td><td>❌ انتهى من v1.2.4 (مفيش واجهة طرفية أصلية على Mac بتتعامل مع عبري+إنجليزي مخلوطين - شوف <a href="mac/README.md"><code>mac/README.md</code></a>)</td></tr>
 <tr><td><strong>دعم Linux</strong></td><td>❌</td><td>✅ apt / dnf / pacman / zypper</td></tr>
 </tbody>
 </table>
